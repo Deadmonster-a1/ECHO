@@ -112,16 +112,26 @@ fun FullscreenLyricsSheet(
         }
     }
 
+    val dominantTopColor = remember(activeTheme.primaryColor) {
+        Color(
+            red = (activeTheme.primaryColor.red * 0.35f + 0.05f).coerceIn(0f, 1f),
+            green = (activeTheme.primaryColor.green * 0.35f + 0.05f).coerceIn(0f, 1f),
+            blue = (activeTheme.primaryColor.blue * 0.35f + 0.05f).coerceIn(0f, 1f),
+            alpha = 1.0f
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Color(0xFF121212))
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        activeTheme.primaryColor.copy(alpha = 0.35f),
-                        MaterialTheme.colorScheme.background,
-                        Color(0xFF0C0C12)
+                        dominantTopColor,
+                        Color(0xFF16151E),
+                        Color(0xFF100F15),
+                        Color(0xFF0C0B10)
                     )
                 )
             )
@@ -142,7 +152,7 @@ fun FullscreenLyricsSheet(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.35f)),
+                            .background(Color(0xFF24222E)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -192,7 +202,7 @@ fun FullscreenLyricsSheet(
                                 modifier = Modifier
                                     .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.35f)),
+                                    .background(Color(0xFF24222E)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -330,7 +340,7 @@ fun FullscreenLyricsSheet(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.55f))
+                    .background(Color(0xFF16151E))
                     .padding(horizontal = 24.dp, vertical = 16.dp)
             ) {
                 // Scrubber

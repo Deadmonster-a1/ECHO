@@ -308,14 +308,20 @@ fun AppNavHost(modifier: Modifier = Modifier) {
             exit = slideOutVertically(animationSpec = androidx.compose.animation.core.tween(220)) { it } +
                     androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
         ) {
-            NowPlayingScreen(
-                musicController = musicController,
-                onCollapse = { isPlayerExpanded = false },
-                onViewArtist = { artistName ->
-                    isPlayerExpanded = false
-                    navController.navigate(Screen.ArtistDetail.createRoute(artistName))
-                }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF121212))
+            ) {
+                NowPlayingScreen(
+                    musicController = musicController,
+                    onCollapse = { isPlayerExpanded = false },
+                    onViewArtist = { artistName ->
+                        isPlayerExpanded = false
+                        navController.navigate(Screen.ArtistDetail.createRoute(artistName))
+                    }
+                )
+            }
         }
 
         // First Run: User Name Setup Prompt Dialog
