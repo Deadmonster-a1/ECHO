@@ -518,16 +518,18 @@ class MusicController private constructor(private val context: Context) {
             .setArtworkUri(artUri)
             .build()
 
-        val safeUri = if (mediaUri.isNotBlank() && !mediaUri.startsWith("saavn_enc:")) {
+        val safeUri = if (mediaUri.isNotBlank() && 
+            !mediaUri.startsWith("saavn_enc:") && 
+            !mediaUri.contains("codeskulptor") && 
+            !mediaUri.contains("googleapis.com")) {
             mediaUri
         } else {
-            SampleCatalog.sampleTracks.firstOrNull()?.mediaUri
-                ?: "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverending_Story.mp3"
+            ""
         }
 
         return MediaItem.Builder()
             .setMediaId(id)
-            .setUri(safeUri)
+            .setUri(if (safeUri.isNotBlank()) safeUri else "about:blank")
             .setMediaMetadata(metadata)
             .build()
     }
