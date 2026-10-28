@@ -17,13 +17,14 @@ object UserProfileManager {
     private const val KEY_USER_BIO = "profile_user_bio"
     private const val KEY_AVATAR_URL = "profile_avatar_url"
     private const val KEY_NAME_IS_SET = "profile_name_is_set"
+    private const val KEY_HAS_SEEN_NAME_PROMPT = "profile_has_seen_name_prompt"
 
     private const val DEFAULT_FALLBACK = "Listener"
     private const val DEFAULT_BIO = "Audiophile • Organic Sound & Studio Fidelity"
 
     private var prefs: SharedPreferences? = null
 
-    private val _userName = MutableStateFlow("")
+    private val _userName = MutableStateFlow(DEFAULT_FALLBACK)
     val userName: StateFlow<String> = _userName.asStateFlow()
 
     private val _userBio = MutableStateFlow(DEFAULT_BIO)
@@ -37,16 +38,18 @@ object UserProfileManager {
 
     fun init(context: Context) {
         if (prefs == null) {
-            prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val isExplicitlySet = prefs?.getBoolean(KEY_NAME_IS_SET, false) ?: false
-            val savedName = prefs?.getString(KEY_USER_NAME, "") ?: ""
-            val savedBio = prefs?.getString(KEY_USER_BIO, DEFAULT_BIO) ?: DEFAULT_BIO
-            val savedAvatar = prefs?.getString(KEY_AVATAR_URL, null)
+            val p = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefs = p
+            val hasSeenPrompt = p.getBoolean(KEY_HAS_SEEN_NAME_PROMPT, false)
+            val isExplicitlySet = p.getBoolean(KEY_NAME_IS_SET, false)
+            val savedName = p.getString(KEY_USER_NAME, "") ?: ""
+            val savedBio = p.getString(KEY_USER_BIO, DEFAULT_BIO) ?: DEFAULT_BIO
+            val savedAvatar = p.getString(KEY_AVATAR_URL, null)
 
-            // If name was legacy "Theja" or blank without being explicitly set, ask for user name
-            val isClean = isExplicitlySet && savedName.isNotBlank() && !savedName.equals("Theja", ignoreCase = true)
-            if (isClean) {
-                _userName.value = savedName
+            // If prompt was already seen, or if user already has a valid name, NEVER prompt again!
+            val hasValidSavedName = savedName.isNotBlank() && !savedName.equals("Theja", ignoreCase = true)
+            if (hasSeenPrompt || isExplicitlySet || hasValidSavedName) {
+                _userName.value = if (hasValidSavedName) savedName else DEFAULT_FALLBACK
                 _isNamePromptNeeded.value = false
             } else {
                 _userName.value = ""
@@ -68,8 +71,9 @@ object UserProfileManager {
         prefs?.edit()?.apply {
             putString(KEY_USER_NAME, finalName)
             putString(KEY_USER_BIO, bio.trim())
+            putBoolean(KEY_HAS_SEEN_NAME_PROMPT, true)
             putBoolean(KEY_NAME_IS_SET, true)
-            apply()
+            commit()
         }
     }
 
@@ -84,11 +88,12 @@ object UserProfileManager {
         }
         val currentSaved = prefs?.getString(KEY_USER_NAME, "") ?: ""
         prefs?.edit()?.apply {
+            putBoolean(KEY_HAS_SEEN_NAME_PROMPT, true)
             putBoolean(KEY_NAME_IS_SET, true)
-            if (currentSaved.isBlank()) {
+            if (currentSaved.isBlank() || currentSaved.equals("Theja", ignoreCase = true)) {
                 putString(KEY_USER_NAME, DEFAULT_FALLBACK)
             }
-            apply()
+            commit()
         }
     }
 
@@ -96,7 +101,7 @@ object UserProfileManager {
         _avatarUrl.value = url
         prefs?.edit()?.apply {
             if (url != null) putString(KEY_AVATAR_URL, url) else remove(KEY_AVATAR_URL)
-            apply()
+            commit()
         }
     }
 

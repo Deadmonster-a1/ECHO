@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -431,16 +432,12 @@ fun AppNavHost(modifier: Modifier = Modifier) {
                                         updateDownloadProgress = progress
                                     }
                                     isDownloadingUpdate = false
-                                    if (apkFile != null && apkFile.exists()) {
+                                    if (apkFile != null && apkFile.exists() && apkFile.length() > 1_000_000L) {
                                         showLiveUpdateDialog = false
-                                        if (!AppUpdateManager.canRequestPackageInstalls(context)) {
-                                            Toast.makeText(context, "Please allow ECHO to install update", Toast.LENGTH_LONG).show()
-                                            AppUpdateManager.openInstallPermissionSettings(context)
-                                        } else {
-                                            AppUpdateManager.installApk(context, apkFile)
-                                        }
+                                        AppUpdateManager.installApk(context, apkFile)
                                     } else {
-                                        Toast.makeText(context, "Download failed. Please try again.", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Direct download failed. Opening browser...", Toast.LENGTH_LONG).show()
+                                        AppUpdateManager.openBrowserDownload(context, update.downloadUrl)
                                     }
                                 }
                             }
@@ -449,16 +446,24 @@ fun AppNavHost(modifier: Modifier = Modifier) {
                         colors = ButtonDefaults.buttonColors(containerColor = activeTheme.primaryColor),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(if (isDownloadingUpdate) "Downloading..." else "Update Now", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(if (isDownloadingUpdate) "Downloading ${(updateDownloadProgress * 100).toInt()}%..." else "Update Now", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 },
-                dismissButton = {
-                    if (!isDownloadingUpdate) {
-                        TextButton(onClick = { showLiveUpdateDialog = false }) {
-                            Text("Later", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                dismissButton = if (!isDownloadingUpdate) {
+                    {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick = {
+                                AppUpdateManager.openBrowserDownload(context, update.downloadUrl)
+                                showLiveUpdateDialog = false
+                            }) {
+                                Text("Browser", color = activeTheme.primaryColor, fontSize = 12.sp)
+                            }
+                            TextButton(onClick = { showLiveUpdateDialog = false }) {
+                                Text("Later", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                            }
                         }
                     }
-                }
+                } else null
             )
         }
     }
