@@ -33,7 +33,25 @@ android {
                 enableV4Signing = true
             } else {
                 val debugConfig = getByName("debug")
-                storeFile = debugConfig.storeFile
+                val debugStore = debugConfig.storeFile
+                if (debugStore != null && !debugStore.exists()) {
+                    debugStore.parentFile?.mkdirs()
+                    try {
+                        val keytool = org.gradle.internal.jvm.Jvm.current().javaHome.resolve("bin/keytool").absolutePath
+                        ProcessBuilder(
+                            keytool, "-genkey", "-v",
+                            "-keystore", debugStore.absolutePath,
+                            "-alias", "androiddebugkey",
+                            "-storepass", "android",
+                            "-keypass", "android",
+                            "-keyalg", "RSA",
+                            "-keysize", "2048",
+                            "-validity", "10000",
+                            "-dname", "CN=Android Debug,O=Android,C=US"
+                        ).inheritIO().start().waitFor()
+                    } catch (_: Exception) {}
+                }
+                storeFile = debugStore
                 storePassword = debugConfig.storePassword
                 keyAlias = debugConfig.keyAlias
                 keyPassword = debugConfig.keyPassword
