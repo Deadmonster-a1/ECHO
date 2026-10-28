@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import com.spotify.clone.core.profile.UserProfileManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
@@ -545,7 +546,7 @@ fun EchoDeviceSyncSheet(
 
                                 ElevatedButton(
                                     onClick = {
-                                        val session = syncManager.startJamSession("Theja")
+                                        val session = syncManager.startJamSession(UserProfileManager.getDisplayName())
                                         Toast.makeText(context, "Group Jam started: ${session.sessionCode}", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier.fillMaxWidth(),
@@ -604,7 +605,7 @@ fun EchoDeviceSyncSheet(
                 ElevatedButton(
                     onClick = {
                         if (joinCodeInput.isNotBlank()) {
-                            syncManager.joinJamSession(joinCodeInput, "Theja")
+                            syncManager.joinJamSession(joinCodeInput, UserProfileManager.getDisplayName())
                             Toast.makeText(context, "Joined session $joinCodeInput successfully!", Toast.LENGTH_SHORT).show()
                             showJoinDialog = false
                             selectedTabIndex = 1

@@ -49,7 +49,7 @@ if ($GradleContent -match 'versionCode\s*=\s*(\d+)') {
 }
 
 # Update versionName
-$GradleContent = $GradleContent -replace 'versionName\s*=\s*"[^"]+"', "versionName = `"$CleanVersion`""
+$GradleContent = $GradleContent -replace 'versionName\s*=\s*"[^"]+"', ('versionName = "{0}"' -f $CleanVersion)
 Set-Content -Path $GradlePath -Value $GradleContent -NoNewline
 Write-Host "  • Set versionName: $CleanVersion" -ForegroundColor Green
 
@@ -62,7 +62,7 @@ $JsonContent = @"
   "versionName": "$CleanVersion",
   "releaseTitle": "ECHO $Tag — Live Update",
   "releaseNotes": "$Notes",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/$Tag/echo-release.apk",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/$Tag/echo.apk",
   "apkSize": 4353992,
   "mandatory": false,
   "publishedAt": "$IsoDate"
@@ -76,7 +76,7 @@ Write-Host "  • Updated version.json manifest" -ForegroundColor Green
 
 # 3. Git Commit
 Write-Host "`n[3/4] Committing changes to Git..." -ForegroundColor Yellow
-git add $GradlePath $VersionJsonPath "own-app\version.json"
+git add -A
 git commit -m "release: $Tag — $Notes"
 git tag -a $Tag -m "Release $Tag: $Notes"
 Write-Host "  • Created Git commit and tag: $Tag" -ForegroundColor Green

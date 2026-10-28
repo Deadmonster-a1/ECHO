@@ -1,6 +1,7 @@
 package com.spotify.clone.core.sync
 
 import android.content.Context
+import com.spotify.clone.core.profile.UserProfileManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -146,7 +147,7 @@ class DeviceSyncManager private constructor(private val context: Context) {
         }
     }
 
-    fun startJamSession(hostName: String = "Theja"): JamSession {
+    fun startJamSession(hostName: String = UserProfileManager.getDisplayName()): JamSession {
         val randomSuffix = (1000..9999).random()
         val code = "ECHO-$randomSuffix"
         val session = JamSession(
@@ -154,7 +155,7 @@ class DeviceSyncManager private constructor(private val context: Context) {
             hostName = hostName,
             isActive = true,
             participants = listOf(
-                JamParticipant("user_theja", hostName, isHost = true, avatarColorHex = 0xFFA79BFF),
+                JamParticipant("user_host", hostName, isHost = true, avatarColorHex = 0xFFA79BFF),
                 JamParticipant("user_guest1", "Kavya S.", isHost = false, avatarColorHex = 0xFFFF9C88),
                 JamParticipant("user_guest2", "Rahul M.", isHost = false, avatarColorHex = 0xFFA8C9FF)
             ),

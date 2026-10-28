@@ -234,6 +234,14 @@ class AudioRepository(
             )
         }
 
+        if (id.startsWith("podcast_")) {
+            val podcast = SampleCatalog.samplePodcasts.find { it.id == id }
+            if (podcast != null) {
+                playlistCache[id] = podcast
+                return@withContext podcast
+            }
+        }
+
         val cached = playlistCache[id]
         if (cached != null && cached.tracks.isNotEmpty()) {
             return@withContext cached
@@ -419,6 +427,14 @@ class AudioRepository(
 
     suspend fun getJioSaavnArtistRadios(): List<Artist> {
         return globalCatalog.getJioSaavnArtistRadios()
+    }
+
+    fun getPodcasts(): List<Playlist> {
+        return SampleCatalog.samplePodcasts
+    }
+
+    fun getPodcastEpisodes(): List<Track> {
+        return SampleCatalog.samplePodcastEpisodes
     }
 
     suspend fun getSongsForLanguage(lang: String): List<Track> {

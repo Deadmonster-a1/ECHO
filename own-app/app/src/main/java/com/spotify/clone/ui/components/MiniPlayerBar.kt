@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -88,20 +89,25 @@ fun MiniPlayerBar(
     val playFabBg = if (isDarkMode) Color(0xFFFFFFFF) else Color(0xFF17171C)
     val playFabIconTint = if (isDarkMode) Color(0xFF101016) else Color(0xFFFFFFFF)
 
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .shadow(
-                elevation = if (isDarkMode) 3.dp else 8.dp,
-                shape = RoundedCornerShape(18.dp),
-                ambientColor = Color.Black.copy(alpha = 0.08f),
-                spotColor = Color.Black.copy(alpha = 0.12f)
-            )
-            .clip(RoundedCornerShape(18.dp))
-            .background(cardBg)
-            .border(1.dp, cardBorder, RoundedCornerShape(18.dp))
-            .pointerInput(Unit) {
+    Box(
+        modifier = modifier.fillMaxWidth(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 600.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .shadow(
+                    elevation = if (isDarkMode) 3.dp else 8.dp,
+                    shape = RoundedCornerShape(18.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.08f),
+                    spotColor = Color.Black.copy(alpha = 0.12f)
+                )
+                .clip(RoundedCornerShape(18.dp))
+                .background(cardBg)
+                .border(1.dp, cardBorder, RoundedCornerShape(18.dp))
+                .pointerInput(Unit) {
                 detectVerticalDragGestures(
                     onDragStart = { verticalDragAccumulator = 0f },
                     onDragEnd = {
@@ -233,4 +239,5 @@ fun MiniPlayerBar(
             trackColor = if (isDarkMode) Color(0xFF222030) else Color(0xFFEDE9E3)
         )
     }
+}
 }

@@ -429,4 +429,118 @@ object SampleCatalog {
             topTracks = listOf(sampleTracks[3])
         )
     )
+
+    val samplePodcastEpisodes = listOf(
+        Track(
+            id = "ep_trs_1",
+            title = "EP 390 - The Future of Indian Cinema, AI & Human Consciousness",
+            artistName = "Ranveer Allahbadia",
+            albumName = "The Ranveer Show",
+            coverArtUrl = "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=500&auto=format&fit=crop&q=80",
+            durationMs = 2840000L,
+            mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverending_Story.mp3"
+        ),
+        Track(
+            id = "ep_huberman_1",
+            title = "Master Your Sleep, Dopamine & Cognitive Energy Protocols",
+            artistName = "Dr. Andrew Huberman",
+            albumName = "Huberman Lab",
+            coverArtUrl = "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=500&auto=format&fit=crop&q=80",
+            durationMs = 4320000L,
+            mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/riceracer_assets/music/win.ogg"
+        ),
+        Track(
+            id = "ep_telugu_stories_1",
+            title = "Episode 45 - The Untold Mythology & Secrets of Kakatiya Dynasty",
+            artistName = "Telugu Stories & History",
+            albumName = "Telugu Katha Lahari",
+            coverArtUrl = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&auto=format&fit=crop&q=80",
+            durationMs = 1950000L,
+            mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Sevish_-__nbsp_.mp3"
+        ),
+        Track(
+            id = "ep_finshots_1",
+            title = "Why Global Tech Giants are Pouring Billions into Indian Infrastructure",
+            artistName = "Finshots Daily",
+            albumName = "Finshots Daily",
+            coverArtUrl = "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=500&auto=format&fit=crop&q=80",
+            durationMs = 640000L,
+            mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-assets/Epoq-Lepidoptera.ogg"
+        ),
+        Track(
+            id = "ep_jay_shetty_1",
+            title = "How to Stop Overthinking & Reset Your Emotional Well-Being",
+            artistName = "Jay Shetty",
+            albumName = "On Purpose with Jay Shetty",
+            coverArtUrl = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500&auto=format&fit=crop&q=80",
+            durationMs = 3120000L,
+            mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/riceracer_assets/music/race.ogg"
+        ),
+        Track(
+            id = "ep_tollywood_insider_1",
+            title = "Devara & Pushpa 2: Behind-The-Scenes Music Scoring Breakdown",
+            artistName = "Tollywood Audio Insider",
+            albumName = "Tollywood Insider Podcast",
+            coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
+            durationMs = 2100000L,
+            mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverending_Story.mp3"
+        )
+    )
+
+    val samplePodcasts = listOf(
+        Playlist(
+            id = "podcast_trs",
+            name = "The Ranveer Show",
+            description = "India's smartest podcast covering cinema, tech, mindset, spirituality and life stories.",
+            coverArtUrl = "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=500&auto=format&fit=crop&q=80",
+            ownerName = "Ranveer Allahbadia",
+            isFollowed = true,
+            tracks = listOf(samplePodcastEpisodes[0])
+        ),
+        Playlist(
+            id = "podcast_huberman",
+            name = "Huberman Lab",
+            description = "Science and science-based tools for everyday health, neurology, and cognitive performance.",
+            coverArtUrl = "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=500&auto=format&fit=crop&q=80",
+            ownerName = "Dr. Andrew Huberman",
+            isFollowed = false,
+            tracks = listOf(samplePodcastEpisodes[1])
+        ),
+        Playlist(
+            id = "podcast_telugu_stories",
+            name = "Telugu Katha Lahari",
+            description = "Enthralling Telugu stories, epic history, mythology, and deep-dive cinema lore.",
+            coverArtUrl = "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=500&auto=format&fit=crop&q=80",
+            ownerName = "Telugu Stories & History",
+            isFollowed = true,
+            tracks = listOf(samplePodcastEpisodes[2])
+        ),
+        Playlist(
+            id = "podcast_finshots",
+            name = "Finshots Daily",
+            description = "5-minute daily breakdown of complex financial and Indian business news in simple words.",
+            coverArtUrl = "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=500&auto=format&fit=crop&q=80",
+            ownerName = "Finshots Daily",
+            isFollowed = false,
+            tracks = listOf(samplePodcastEpisodes[3])
+        ),
+        Playlist(
+            id = "podcast_jay_shetty",
+            name = "On Purpose with Jay Shetty",
+            description = "Conversations with the most insightful minds on mindfulness, habits, and love.",
+            coverArtUrl = "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500&auto=format&fit=crop&q=80",
+            ownerName = "Jay Shetty",
+            isFollowed = false,
+            tracks = listOf(samplePodcastEpisodes[4])
+        ),
+        Playlist(
+            id = "podcast_tollywood_insider",
+            name = "Tollywood Audio Insider",
+            description = "Exclusive audio breakdown of Tollywood cinema music, background scores and sound engineering.",
+            coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
+            ownerName = "Tollywood Audio Insider",
+            isFollowed = true,
+            tracks = listOf(samplePodcastEpisodes[5])
+        )
+    )
 }

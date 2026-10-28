@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -158,7 +159,8 @@ fun NowPlayingScreen(
                         dragDownAccumulator += dragAmount
                     }
                 )
-            }
+            },
+        contentAlignment = Alignment.TopCenter
     ) {
         // Living ECHO Sound Sculpture in background
         EchoSoundSculpture(
@@ -170,6 +172,7 @@ fun NowPlayingScreen(
 
         Column(
             modifier = Modifier
+                .widthIn(max = 580.dp)
                 .fillMaxSize()
                 .padding(horizontal = 24.dp)
                 .verticalScroll(rememberScrollState()),
@@ -232,6 +235,7 @@ fun NowPlayingScreen(
             // 2. Signature Artwork Visual Anchor
             Box(
                 modifier = Modifier
+                    .widthIn(max = 380.dp)
                     .fillMaxWidth(0.92f)
                     .aspectRatio(1f)
                     .shadow(elevation = 20.dp, shape = RoundedCornerShape(20.dp), ambientColor = activeTheme.primaryColor.copy(alpha = 0.3f))
