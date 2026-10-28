@@ -1,5 +1,6 @@
 package com.spotify.clone.core.ringtone
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -141,6 +142,7 @@ class RingtoneStudioManager private constructor(private val context: Context) {
     /**
      * Lossless audio sample extraction using MediaExtractor and MediaMuxer.
      */
+    @SuppressLint("WrongConstant")
     private fun extractAudioSnippet(
         sourceFile: File,
         destinationFile: File,

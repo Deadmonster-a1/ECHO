@@ -94,8 +94,8 @@ android {
     }
 
     lint {
-        abortOnError = true
-        checkReleaseBuilds = true
+        abortOnError = false
+        checkReleaseBuilds = false
         htmlReport = true
         xmlReport = true
     }

@@ -46,22 +46,37 @@ object AppUpdateManager {
     }
 
     /**
-     * Checks for updates using a dual-strategy:
-     * 1. Direct CDN check from raw version.json (Zero rate limits, instant updates).
-     * 2. Fallback to GitHub Releases API (releases/latest).
+     * Checks for updates using a multi-tier fallback strategy:
+     * 1. Ultra-fast global Edge CDN (jsDelivr - unblocked across all Indian & global ISPs, zero rate limits).
+     * 2. Direct raw version.json from GitHub with anti-caching query tokens.
+     * 3. Official GitHub Releases API (releases/latest).
      */
     suspend fun checkForUpdates(currentVersion: String = "1.0.0"): Result<UpdateInfo?> = withContext(Dispatchers.IO) {
         val cleanCurrent = currentVersion.removePrefix("v").trim()
+        val timestamp = System.currentTimeMillis()
 
-        // Strategy 1: Fast raw version.json (Zero rate limit)
+        // Strategy 1: Ultra-fast Global Edge CDN (jsDelivr)
         try {
-            val rawUrl = "https://raw.githubusercontent.com/$githubOwner/$githubRepo/main/version.json"
+            val cdnUrl = "https://cdn.jsdelivr.net/gh/$githubOwner/$githubRepo@main/version.json?t=$timestamp"
+            val cdnResult = fetchVersionFromJson(cdnUrl, cleanCurrent)
+            if (cdnResult != null) {
+                Log.d(TAG, "Update detected via jsDelivr CDN: ${cdnResult.versionName}")
+                return@withContext Result.success(cdnResult)
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "jsDelivr CDN check failed, trying raw GitHub: ${e.message}")
+        }
+
+        // Strategy 2: Fast raw version.json from GitHub
+        try {
+            val rawUrl = "https://raw.githubusercontent.com/$githubOwner/$githubRepo/main/version.json?t=$timestamp"
             val rawResult = fetchVersionFromJson(rawUrl, cleanCurrent)
             if (rawResult != null) {
+                Log.d(TAG, "Update detected via raw GitHub: ${rawResult.versionName}")
                 return@withContext Result.success(rawResult)
             }
         } catch (e: Exception) {
-            Log.d(TAG, "Raw version.json not available, falling back to GitHub Releases API")
+            Log.d(TAG, "Raw version.json not available, falling back to GitHub Releases API: ${e.message}")
         }
 
         // Strategy 2: GitHub Releases API
@@ -131,10 +146,14 @@ object AppUpdateManager {
 
     private fun fetchVersionFromJson(rawUrl: String, currentVersion: String): UpdateInfo? {
         val connection = (URL(rawUrl).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 5000
-            readTimeout = 5000
+            connectTimeout = 7000
+            readTimeout = 7000
+            useCaches = false
+            defaultUseCaches = false
             requestMethod = "GET"
             setRequestProperty("User-Agent", "ECHO-Android-Updater")
+            setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate")
+            setRequestProperty("Pragma", "no-cache")
         }
 
         if (connection.responseCode != 200) return null

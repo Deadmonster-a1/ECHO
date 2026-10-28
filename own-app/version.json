@@ -3,8 +3,8 @@
   "versionName": "1.0.5",
   "releaseTitle": "ECHO v1.0.5 — Full Track Playback & Authentic Soundtrack Artwork Fix",
   "releaseNotes": "• Fixed player album artwork and song mismatch: official film posters now display accurately\n• High-fidelity 320kbps full un-truncated playback across entire catalog (eliminated 30s cutoffs)\n• Added Ringtone Studio & JioTune with customizable 15s/30s/45s waveform trimmer\n• Added Echo Device Sync, Song Radio, Equalizer & Download manager\n• Streamlined Now Playing solid design and instant skeleton home loading",
-  "downloadUrl": "https://raw.githubusercontent.com/Deadmonster-a1/ECHO/main/echo.apk",
-  "apkSize": 4403866,
+  "downloadUrl": "https://cdn.jsdelivr.net/gh/Deadmonster-a1/ECHO@main/echo.apk",
+  "apkSize": 4420241,
   "mandatory": false,
-  "publishedAt": "2026-10-28T17:35:00Z"
+  "publishedAt": "2026-10-28T17:50:00Z"
 }
