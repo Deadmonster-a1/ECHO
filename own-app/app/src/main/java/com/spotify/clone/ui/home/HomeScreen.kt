@@ -115,6 +115,7 @@ fun HomeScreen(
     onProfileClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
+    onCheckUpdateClick: () -> Unit = {},
     scrollToTopTrigger: Long = 0L,
     modifier: Modifier = Modifier
 ) {
@@ -175,7 +176,7 @@ fun HomeScreen(
             item(key = "top_brand_bar") {
                 EchoTopAppBar(
                     onProfileClick = onProfileClick,
-                    onSpeedClick = { showEqualizerSheet = true },
+                    onNotificationClick = onCheckUpdateClick,
                     onToggleTheme = { ThemeManager.toggleDarkMode() },
                     isDarkMode = isDarkMode
                 )
@@ -390,7 +391,7 @@ fun HomeScreen(
 @Composable
 private fun EchoTopAppBar(
     onProfileClick: () -> Unit,
-    onSpeedClick: () -> Unit,
+    onNotificationClick: () -> Unit,
     onToggleTheme: () -> Unit,
     isDarkMode: Boolean
 ) {
@@ -437,14 +438,14 @@ private fun EchoTopAppBar(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Notification Bell ("What's New")
+        // Notification Bell ("What's New" / Live Update)
         Box(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
                 .background(circleBtnBg)
                 .border(1.dp, circleBorder, CircleShape)
-                .echoPressable(scaleOnPress = 0.90f, onClick = onSpeedClick),
+                .echoPressable(scaleOnPress = 0.90f, onClick = onNotificationClick),
             contentAlignment = Alignment.Center
         ) {
             Icon(

@@ -213,6 +213,23 @@ fun AppNavHost(modifier: Modifier = Modifier) {
                         onProfileClick = { navController.navigate(Screen.Profile.route) },
                         onSettingsClick = { navController.navigate(Screen.Settings.route) },
                         onSearchClick = { navController.navigate(Screen.Search.route) },
+                        onCheckUpdateClick = {
+                            coroutineScope.launch {
+                                val installedVer = AppUpdateManager.getInstalledVersionName(context)
+                                Toast.makeText(context, "Checking for ECHO updates...", Toast.LENGTH_SHORT).show()
+                                val result = AppUpdateManager.checkForUpdates(installedVer)
+                                result.onSuccess { update ->
+                                    if (update != null) {
+                                        availableLiveUpdate = update
+                                        showLiveUpdateDialog = true
+                                    } else {
+                                        Toast.makeText(context, "You are using the latest version (v$installedVer)", Toast.LENGTH_SHORT).show()
+                                    }
+                                }.onFailure {
+                                    Toast.makeText(context, "Update check: ${it.message ?: "Failed"}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
                         scrollToTopTrigger = homeScrollTrigger
                     )
                 }
