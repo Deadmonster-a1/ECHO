@@ -543,7 +543,7 @@ fun NowPlayingScreen(
                     Text(
                         text = if (syncState.activeSession != null) "Jam Active" 
                                else if (syncState.isMultiRoomAudioEnabled) "${syncState.activeDeviceCount} Devices"
-                               else "This Phone",
+                               else (syncState.currentDevice?.name ?: "This Phone"),
                         color = if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null)
                             activeTheme.primaryColor
                         else Color.White.copy(alpha = 0.85f),

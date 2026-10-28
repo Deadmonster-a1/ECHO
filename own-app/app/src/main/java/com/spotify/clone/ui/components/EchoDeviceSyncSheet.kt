@@ -297,6 +297,60 @@ fun EchoDeviceSyncSheet(
                         }
                     }
 
+                    // Master Volume Sync Bar (Active across all endpoints)
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(cardBg)
+                                .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
+                                .padding(14.dp)
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Filled.VolumeUp,
+                                            contentDescription = "Master Volume",
+                                            tint = activeTheme.primaryColor,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Master Volume Sync",
+                                            color = textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp
+                                        )
+                                    }
+                                    Text(
+                                        text = "${(syncState.masterVolume * 100).toInt()}%",
+                                        color = activeTheme.primaryColor,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Slider(
+                                    value = syncState.masterVolume,
+                                    onValueChange = { syncManager.setMasterVolume(it) },
+                                    valueRange = 0f..1f,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = activeTheme.primaryColor,
+                                        activeTrackColor = activeTheme.primaryColor,
+                                        inactiveTrackColor = cardBorder
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+
                     // Devices Header
                     item {
                         Text(
