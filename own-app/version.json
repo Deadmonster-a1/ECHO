@@ -1,10 +1,10 @@
 {
-  "versionCode": 5,
-  "versionName": "1.0.4",
-  "releaseTitle": "ECHO v1.0.4 — Direct Update Fix & Persistent User Profile",
-  "releaseNotes": "• Fixed in-app update installer with automated direct CDN delivery\n• Fixed user name prompt persistence so it never asks again once saved\n• Added direct 1-tap Browser Download fallback in update dialog\n• Clean Home header with official ECHO branding\n• Removed filter pills and album 320kbps badge",
+  "versionCode": 6,
+  "versionName": "1.0.5",
+  "releaseTitle": "ECHO v1.0.5 — Full Track Playback & Authentic Soundtrack Artwork Fix",
+  "releaseNotes": "• Fixed player album artwork and song mismatch: official film posters now display accurately\n• High-fidelity 320kbps full un-truncated playback across entire catalog (eliminated 30s cutoffs)\n• Added Ringtone Studio & JioTune with customizable 15s/30s/45s waveform trimmer\n• Added Echo Device Sync, Song Radio, Equalizer & Download manager\n• Streamlined Now Playing solid design and instant skeleton home loading",
   "downloadUrl": "https://raw.githubusercontent.com/Deadmonster-a1/ECHO/main/echo.apk",
-  "apkSize": 4387429,
+  "apkSize": 4403866,
   "mandatory": false,
-  "publishedAt": "2026-10-28T12:40:00Z"
+  "publishedAt": "2026-10-28T17:35:00Z"
 }

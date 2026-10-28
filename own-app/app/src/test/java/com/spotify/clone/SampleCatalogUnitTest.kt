@@ -16,7 +16,7 @@ class SampleCatalogUnitTest {
             assertTrue("Track title cannot be blank: ${track.id}", track.title.isNotBlank())
             assertTrue("Artist name cannot be blank: ${track.id}", track.artistName.isNotBlank())
             assertTrue("Media URI cannot be blank: ${track.id}", track.mediaUri.isNotBlank())
-            assertTrue("Media URI must be valid HTTP/HTTPS: ${track.mediaUri}", track.mediaUri.startsWith("http://") || track.mediaUri.startsWith("https://"))
+            assertTrue("Media URI must be valid HTTP/HTTPS or Saavn Token: ${track.mediaUri}", track.mediaUri.startsWith("http://") || track.mediaUri.startsWith("https://") || track.mediaUri.startsWith("saavn_enc:"))
             assertTrue("Duration must be positive: ${track.id}", track.durationMs > 0L)
         }
     }

@@ -71,10 +71,8 @@ class GlobalCatalogService {
                     val rawArtist = item.optString("subtitle", fallbackArtist)
                     val artist = Html.fromHtml(rawArtist, Html.FROM_HTML_MODE_LEGACY).toString().trim()
                     val rawAlbum = moreInfo?.optString("album", "Single") ?: "Single"
-                    val album = Html.fromHtml(rawAlbum, Html.FROM_HTML_MODE_LEGACY).toString().trim()
-
                     val rawCover = item.optString("image", "")
-                    val highResCover = rawCover.replace("150x150", "500x500")
+                    val (album, highResCover) = normalizeMovieMetadata(title, rawAlbum, rawCover)
 
                     val durationSec = moreInfo?.optLong("duration", 210L) ?: 210L
                     val durationMs = durationSec * 1000L
@@ -100,10 +98,46 @@ class GlobalCatalogService {
         } catch (e: Exception) {
             Log.e(TAG, "Error in fetchSaavnTracks for query '$query'", e)
         }
-        if (tracks.isNotEmpty()) {
-            trackQueryCache[cacheKey] = tracks
+        val compilationKeywords = listOf("superhits", "waves", "collection", "mashup", "top 10", "top 20", "top 50", "romantic songs", "dance dhamaka")
+        val sortedTracks = tracks.sortedBy { t ->
+            val lower = t.albumName.lowercase()
+            if (compilationKeywords.any { lower.contains(it) }) 1 else 0
         }
-        tracks
+        if (sortedTracks.isNotEmpty()) {
+            trackQueryCache[cacheKey] = sortedTracks
+        }
+        sortedTracks
+    }
+
+    private fun normalizeMovieMetadata(title: String, rawAlbum: String, rawCover: String): Pair<String, String> {
+        val tLower = title.lowercase()
+        val aLower = rawAlbum.lowercase()
+        val full = "$tLower $aLower"
+
+        return when {
+            full.contains("chuttamalle") || full.contains("fear song") || full.contains("daavudi") || full.contains("ayudha pooja") || full.contains("devara") ->
+                Pair("Devara: Part 1", "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg")
+            full.contains("pushpa pushpa") || full.contains("sooseki") || full.contains("peelings") || full.contains("kissik") || full.contains("pushpa") ->
+                Pair("Pushpa 2: The Rule", "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg")
+            full.contains("kurchi madathapetti") || full.contains("dum masala") || full.contains("guntur kaaram") ->
+                Pair("Guntur Kaaram", "https://c.saavncdn.com/000/Guntur-Kaaram-Telugu-2023-20240126145901-500x500.jpg")
+            full.contains("bhairava anthem") || full.contains("ta takkara") || full.contains("kalki") ->
+                Pair("Kalki 2898 AD", "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg")
+            full.contains("samajavaragamana") || full.contains("butta bomma") || full.contains("ramuloo ramulaa") || full.contains("ala vaikunthapurramuloo") ->
+                Pair("Ala Vaikunthapurramuloo", "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg")
+            full.contains("inthandham") || full.contains("oh sita") || full.contains("kaanunna kalyanam") || full.contains("sita ramam") ->
+                Pair("Sita Ramam", "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg")
+            full.contains("naatu naatu") || full.contains("komuram bheemudo") || full.contains("rrr") ->
+                Pair("RRR", "https://c.saavncdn.com/683/RRR-Telugu-Telugu-2022-20250828171313-500x500.jpg")
+            full.contains("samayama") || full.contains("gaaju bomma") || full.contains("hi nanna") ->
+                Pair("Hi Nanna", "https://c.saavncdn.com/253/Hi-Nanna-Telugu-Telugu-2023-20240109191037-500x500.jpg")
+            full.contains("inkem inkem") || full.contains("geetha govindam") ->
+                Pair("Geetha Govindam", "https://c.saavncdn.com/237/Geetha-Govindam-Telugu-2018-20180921-500x500.jpg")
+            else -> {
+                val cleanAlb = Html.fromHtml(rawAlbum, Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                Pair(cleanAlb.ifBlank { "Single" }, rawCover.replace("150x150", "500x500"))
+            }
+        }
     }
 
     private fun fetchAppleTracks(urlStr: String): List<Track> {
