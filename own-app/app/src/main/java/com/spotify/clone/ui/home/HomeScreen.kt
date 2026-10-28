@@ -140,14 +140,10 @@ fun HomeScreen(
 
 
     if (state.isLoading) {
-        Box(
+        HomeScreenSkeleton(
+            isDarkMode = isDarkMode,
             modifier = modifier
-                .fillMaxSize()
-                .background(if (isDarkMode) Color(0xFF121212) else Color(0xFFF5F2EE)),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(color = activeTheme.primaryColor)
-        }
+        )
         return
     }
 

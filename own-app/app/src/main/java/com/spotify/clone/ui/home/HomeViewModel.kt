@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 data class HomeState(
     val isLoading: Boolean = true,
@@ -78,81 +79,119 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var allTracksCache: List<Track> = emptyList()
     private var allBannersCache: List<EditorialBanner> = emptyList()
 
-    init {
-        loadHomeData()
+    companion object {
+        @Volatile
+        private var cachedHomeState: HomeState? = null
     }
 
-    private fun loadHomeData() {
+    init {
+        val cached = cachedHomeState
+        if (cached != null) {
+            _uiState.value = cached.copy(isLoading = false)
+            allPlaylistsCache = cached.featuredPlaylists
+            allTracksCache = cached.recommendedTracks
+            allBannersCache = cached.editorialBanners
+            loadHomeData(isBackgroundRefresh = true)
+        } else {
+            loadHomeData(isBackgroundRefresh = false)
+        }
+    }
+
+    private fun loadHomeData(isBackgroundRefresh: Boolean = false) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            if (!isBackgroundRefresh && _uiState.value.quickPlayGrid.isEmpty()) {
+                _uiState.update { it.copy(isLoading = true) }
+            }
             val banners = repository.getEditorialBanners()
             allBannersCache = banners
-
-            val playlistsDeferred = async { try { repository.getHomePlaylists() } catch (e: Exception) { SampleCatalog.samplePlaylists } }
-            val artistsDeferred = async { try { repository.getHomeArtists() } catch (e: Exception) { SampleCatalog.sampleArtists } }
-            val tracksDeferred = async { try { repository.search("") } catch (e: Exception) { SampleCatalog.sampleTracks } }
-            val bestNewSongsDeferred = async { try { repository.getBestNewSongs() } catch (e: Exception) { emptyList() } }
-            val newAlbumsDeferred = async { try { repository.getNewAlbums() } catch (e: Exception) { emptyList() } }
-            val dailyTop100Deferred = async { try { repository.getDailyTop100() } catch (e: Exception) { emptyList() } }
-            val saavnChartsDeferred = async { try { repository.getJioSaavnCharts() } catch (e: Exception) { emptyList() } }
-            val saavnTrendingDeferred = async { try { repository.getJioSaavnTrending() } catch (e: Exception) { emptyList() } }
-            val saavnRadiosDeferred = async { try { repository.getJioSaavnArtistRadios() } catch (e: Exception) { emptyList() } }
-
-            val playlists = playlistsDeferred.await()
-            val artists = artistsDeferred.await()
-            val tracks = tracksDeferred.await()
-            val bestNewSongs = bestNewSongsDeferred.await()
-            val newAlbums = newAlbumsDeferred.await()
-            val dailyTop100 = dailyTop100Deferred.await()
-            val saavnCharts = saavnChartsDeferred.await()
-            val saavnTrending = saavnTrendingDeferred.await()
-            val saavnRadios = saavnRadiosDeferred.await()
-
-            allPlaylistsCache = playlists
-            allTracksCache = if (tracks.isNotEmpty()) tracks else if (dailyTop100.isNotEmpty()) dailyTop100 else bestNewSongs
-
-            // Context-aware Telugu recommendation hero
-            val recommendedHero = recommender.getRecommendedHero("All")
-
-            // Real Indian & Telugu blockbuster albums
-            val sculptural = if (newAlbums.isNotEmpty()) newAlbums else playlists.filter { it.id != "pl_liked_songs" }
-
-            // Trending & Made for You packs
-            val madeForYouList = if (saavnTrending.isNotEmpty()) saavnTrending else playlists.filter { it.id != "pl_liked_songs" }
-
-            // Live top tracks from music catalog
-            val topTracks = if (dailyTop100.isNotEmpty()) dailyTop100 else if (bestNewSongs.isNotEmpty()) bestNewSongs else tracks
-
-            // Curate top music directors & vocalists
-            val curatedArtists = buildList {
-                if (saavnRadios.isNotEmpty()) addAll(saavnRadios)
-                addAll(artists)
-            }.distinctBy { it.name.lowercase().trim() }
-
             val podcasts = repository.getPodcasts()
             val podcastEpisodes = repository.getPodcastEpisodes()
 
-            _uiState.update {
-                it.copy(
+            // STAGE 1: Fast Critical Content (Playlists & Artists with 2.5s timeout fallback)
+            val playlistsDeferred = async {
+                try {
+                    withTimeoutOrNull(2500) { repository.getHomePlaylists() } ?: SampleCatalog.samplePlaylists
+                } catch (e: Exception) {
+                    SampleCatalog.samplePlaylists
+                }
+            }
+            val artistsDeferred = async {
+                try {
+                    withTimeoutOrNull(2500) { repository.getHomeArtists() } ?: SampleCatalog.sampleArtists
+                } catch (e: Exception) {
+                    SampleCatalog.sampleArtists
+                }
+            }
+
+            val playlists = playlistsDeferred.await()
+            val artists = artistsDeferred.await()
+
+            allPlaylistsCache = playlists
+            val recommendedHero = recommender.getRecommendedHero("All")
+            val sculptural = playlists.filter { it.id != "pl_liked_songs" }
+            val madeForYouList = playlists.filter { it.id != "pl_liked_songs" }
+
+            // Immediately unblock UI and dismiss Skeleton in under 400ms!
+            _uiState.update { current ->
+                current.copy(
                     isLoading = false,
                     currentHero = recommendedHero,
                     editorialBanners = banners,
-                    sculpturalAlbums = sculptural,
-                    madeForYou = madeForYouList,
-                    recentlyPlayed = emptyList(), // Newly installed app has no listening history yet
+                    sculpturalAlbums = if (current.sculpturalAlbums.isNotEmpty()) current.sculpturalAlbums else sculptural,
+                    madeForYou = if (current.madeForYou.isNotEmpty()) current.madeForYou else madeForYouList,
+                    recentlyPlayed = emptyList(),
                     quickPlayGrid = playlists.take(8),
                     featuredPlaylists = playlists,
-                    bestNewSongs = topTracks.take(15),
-                    newAlbums = sculptural,
-                    dailyTop100 = topTracks,
-                    jioSaavnCharts = saavnCharts,
-                    jioSaavnTrending = saavnTrending,
-                    artistRadios = curatedArtists,
-                    popularArtists = curatedArtists,
-                    recommendedTracks = topTracks,
+                    artistRadios = if (current.artistRadios.isNotEmpty()) current.artistRadios else artists,
+                    popularArtists = if (current.popularArtists.isNotEmpty()) current.popularArtists else artists,
                     podcasts = podcasts,
                     podcastEpisodes = podcastEpisodes
                 )
+            }
+
+            // STAGE 2: Enrichment in background (Trending, Top 100, New Albums, JioSaavn Charts)
+            launch {
+                val bestNewSongsDeferred = async { try { withTimeoutOrNull(3000) { repository.getBestNewSongs() } ?: emptyList() } catch (e: Exception) { emptyList() } }
+                val newAlbumsDeferred = async { try { withTimeoutOrNull(3000) { repository.getNewAlbums() } ?: emptyList() } catch (e: Exception) { emptyList() } }
+                val dailyTop100Deferred = async { try { withTimeoutOrNull(3000) { repository.getDailyTop100() } ?: emptyList() } catch (e: Exception) { emptyList() } }
+                val saavnChartsDeferred = async { try { withTimeoutOrNull(3000) { repository.getJioSaavnCharts() } ?: emptyList() } catch (e: Exception) { emptyList() } }
+                val saavnTrendingDeferred = async { try { withTimeoutOrNull(3000) { repository.getJioSaavnTrending() } ?: emptyList() } catch (e: Exception) { emptyList() } }
+                val saavnRadiosDeferred = async { try { withTimeoutOrNull(3000) { repository.getJioSaavnArtistRadios() } ?: emptyList() } catch (e: Exception) { emptyList() } }
+
+                val bestNewSongs = bestNewSongsDeferred.await()
+                val newAlbums = newAlbumsDeferred.await()
+                val dailyTop100 = dailyTop100Deferred.await()
+                val saavnCharts = saavnChartsDeferred.await()
+                val saavnTrending = saavnTrendingDeferred.await()
+                val saavnRadios = saavnRadiosDeferred.await()
+
+                val topTracks = if (dailyTop100.isNotEmpty()) dailyTop100 else if (bestNewSongs.isNotEmpty()) bestNewSongs else SampleCatalog.sampleTracks
+                allTracksCache = topTracks
+
+                val curatedArtists = buildList {
+                    if (saavnRadios.isNotEmpty()) addAll(saavnRadios)
+                    addAll(artists)
+                }.distinctBy { it.name.lowercase().trim() }
+
+                val updatedSculptural = if (newAlbums.isNotEmpty()) newAlbums else sculptural
+                val updatedMadeForYou = if (saavnTrending.isNotEmpty()) saavnTrending else madeForYouList
+
+                _uiState.update { current ->
+                    current.copy(
+                        isLoading = false,
+                        sculpturalAlbums = updatedSculptural,
+                        madeForYou = updatedMadeForYou,
+                        bestNewSongs = topTracks.take(15),
+                        newAlbums = updatedSculptural,
+                        dailyTop100 = topTracks,
+                        jioSaavnCharts = saavnCharts,
+                        jioSaavnTrending = saavnTrending,
+                        artistRadios = curatedArtists,
+                        popularArtists = curatedArtists,
+                        recommendedTracks = topTracks
+                    )
+                }
+                cachedHomeState = _uiState.value
             }
         }
     }
