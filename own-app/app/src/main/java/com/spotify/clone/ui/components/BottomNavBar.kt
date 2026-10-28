@@ -1,14 +1,9 @@
 package com.spotify.clone.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -20,6 +15,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Explore
@@ -31,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,9 +34,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.spotify.clone.core.designsystem.EchoMotion
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoPressable
@@ -58,10 +53,11 @@ enum class NavigationTab(
 
 /**
  * Signature ECHO Floating Bottom Navigation Bar
- * Matching reference visual design:
+ * Fully responsive across compact mobile phones, foldables, and tablets:
  * - Fluid rounded pill container floating over linen canvas
- * - Lavender active indicator pill with icon + label
- * - Minimal, quiet inactive tabs
+ * - Width-constrained on tablets & desktop (max 520dp) for clean ergonomic reach
+ * - Stable, fixed-height active indicator pill that prevents vertical reforming or layout shifts
+ * - Icon and label with single-line guarantee so "Library" never wraps down on Y-axis
  * - Organic press feedback and edge-to-edge system insets
  */
 @Composable
@@ -81,11 +77,12 @@ fun EchoBottomNavBar(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(horizontal = 20.dp, vertical = 8.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
+                .widthIn(max = 500.dp)
                 .fillMaxWidth()
                 .height(60.dp)
                 .shadow(
@@ -97,7 +94,7 @@ fun EchoBottomNavBar(
                 .clip(RoundedCornerShape(30.dp))
                 .background(containerBg)
                 .border(1.dp, containerBorder, RoundedCornerShape(30.dp))
-                .padding(horizontal = 8.dp),
+                .padding(horizontal = 6.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -106,7 +103,7 @@ fun EchoBottomNavBar(
 
                 val animatedTextColor by animateColorAsState(
                     targetValue = if (isSelected) activeTheme.primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                    animationSpec = tween(200),
+                    animationSpec = tween(180),
                     label = "tab_text_color"
                 )
 
@@ -114,16 +111,17 @@ fun EchoBottomNavBar(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .echoPressable(scaleOnPress = 0.94f) {
+                        .echoPressable(scaleOnPress = 0.98f) {
                             onTabSelected(tab)
                         },
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(22.dp))
+                            .height(38.dp)
+                            .clip(RoundedCornerShape(20.dp))
                             .background(if (isSelected) activePillBg else Color.Transparent)
-                            .padding(horizontal = if (isSelected) 16.dp else 10.dp, vertical = 8.dp),
+                            .padding(horizontal = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(
@@ -134,16 +132,19 @@ fun EchoBottomNavBar(
                                 imageVector = tab.icon,
                                 contentDescription = tab.title,
                                 tint = animatedTextColor,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(19.dp)
                             )
 
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
 
                             Text(
                                 text = tab.title,
                                 color = animatedTextColor,
-                                fontSize = 13.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                fontSize = 12.5.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }

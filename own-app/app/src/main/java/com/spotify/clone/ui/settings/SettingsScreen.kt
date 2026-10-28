@@ -473,21 +473,23 @@ fun SettingsScreen(
                 subtitle = "Organic Sound Architecture • Jetpack Compose Native"
             )
 
+            val installedVersion = remember { AppUpdateManager.getInstalledVersionName(context) }
+
             SettingsRowItem(
                 title = "Check for Updates",
-                subtitle = if (isCheckingUpdate) "Checking GitHub releases..." else "Version 1.0.0 • Tap to check for live updates",
+                subtitle = if (isCheckingUpdate) "Checking GitHub releases..." else "Version $installedVersion • Tap to check for live updates",
                 onClick = {
                     if (!isCheckingUpdate) {
                         coroutineScope.launch {
                             isCheckingUpdate = true
-                            val result = AppUpdateManager.checkForUpdates("1.0.0")
+                            val result = AppUpdateManager.checkForUpdates(installedVersion)
                             isCheckingUpdate = false
                             result.onSuccess { update ->
                                 if (update != null) {
                                     availableUpdate = update
                                     showUpdateDialog = true
                                 } else {
-                                    Toast.makeText(context, "ECHO is up to date (v1.0.0)", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "ECHO is up to date (v$installedVersion)", Toast.LENGTH_SHORT).show()
                                 }
                             }.onFailure {
                                 Toast.makeText(context, "Update check: ${it.message ?: "No new release"}", Toast.LENGTH_SHORT).show()

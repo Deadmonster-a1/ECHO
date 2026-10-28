@@ -52,8 +52,8 @@ jobs:
             keytool -genkey -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Build Release APK & App Bundle
-        run: ./gradlew assembleRelease bundleRelease
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
         env:
           KEYSTORE_PATH: ${{ secrets.KEYSTORE_PATH }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -64,13 +64,9 @@ jobs:
         run: |
           mkdir -p artifacts
           cp app/build/outputs/apk/release/app-release.apk artifacts/echo.apk
-          cp app/build/outputs/apk/release/app-release.apk artifacts/echo-release.apk
-          cp app/build/outputs/bundle/release/app-release.aab artifacts/echo-release.aab
           cp app/build/outputs/mapping/release/mapping.txt artifacts/mapping.txt || true
           cd artifacts
           sha256sum echo.apk > checksums.txt
-          sha256sum echo-release.apk >> checksums.txt
-          sha256sum echo-release.aab >> checksums.txt
           cat checksums.txt
 
       - name: Create GitHub Release & Upload Assets
@@ -83,8 +79,6 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/echo.apk
-            artifacts/echo-release.apk
-            artifacts/echo-release.aab
             artifacts/checksums.txt
             artifacts/mapping.txt
         env:

@@ -338,6 +338,63 @@ fun HomeScreen(
                 }
             }
 
+            // H2. Popular Podcasts and Shows (Always visible on Home and Podcasts filter)
+            if (state.podcasts.isNotEmpty()) {
+                item(key = "podcasts_shelf_section") {
+                    SectionHeaderWithAction(
+                        title = "Popular Podcasts & Shows",
+                        subtitle = "Conversations, culture, health, technology and self-growth",
+                        onActionClick = { viewModel.dispatch(HomeEvent.SelectFilter("Podcasts")) }
+                    )
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(top = 12.dp, bottom = 28.dp)
+                    ) {
+                        items(
+                            items = state.podcasts,
+                            key = { "podcast_${it.id}" }
+                        ) { podcast ->
+                            EchoPodcastCard(
+                                podcast = podcast,
+                                onClick = { onPlaylistClick(podcast.id) },
+                                onPlay = { viewModel.dispatch(HomeEvent.PlayPlaylist(podcast)) },
+                                isDarkMode = isDarkMode
+                            )
+                        }
+                    }
+                }
+            }
+
+            // H3. Featured Podcast Episodes (Featured when Podcasts filter is active)
+            if (state.selectedFilter == "Podcasts" && state.podcastEpisodes.isNotEmpty()) {
+                item(key = "podcast_episodes_section") {
+                    SectionHeaderWithAction(
+                        title = "Featured Podcast Episodes",
+                        subtitle = "Trending episodes with 320kbps crystal clear voice audio"
+                    )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        state.podcastEpisodes.forEach { episode ->
+                            val isPlayingThis = playbackState.currentTrack?.id == episode.id && playbackState.isPlaying
+                            PodcastEpisodeRow(
+                                episode = episode,
+                                isPlaying = isPlayingThis,
+                                onClick = {
+                                    viewModel.dispatch(HomeEvent.PlayTrack(episode, state.podcastEpisodes))
+                                },
+                                isDarkMode = isDarkMode
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+            }
+
             // I. Trending Singles (Studio Master 320kbps)
             if (state.bestNewSongs.isNotEmpty()) {
                 item(key = "best_new_songs_section") {
@@ -572,7 +629,7 @@ private fun PersonalizedGreetingHeader(
             }
     ) {
         Text(
-            text = "$timeGreeting, $userName",
+            text = if (userName.isNotBlank()) "$timeGreeting, $userName" else timeGreeting,
             fontWeight = FontWeight.Bold,
             fontSize = 25.sp,
             color = if (isDarkMode) Color(0xFFF6F3FA) else Color(0xFF17171C),
@@ -604,7 +661,10 @@ private fun QuickAccessSection(
     onPlayClick: (Playlist) -> Unit,
     isDarkMode: Boolean
 ) {
-    val chunked = items.take(8).chunked(2)
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val columns = if (screenWidth >= 840) 4 else if (screenWidth >= 600) 3 else 2
+    val chunked = items.take(columns * 2).chunked(columns)
 
     Column(
         modifier = Modifier
@@ -629,8 +689,8 @@ private fun QuickAccessSection(
                         )
                     }
                 }
-                // If odd number in row, fill spacer
-                if (rowItems.size == 1) {
+                // If fewer items than columns, fill empty weights
+                for (i in 0 until (columns - rowItems.size)) {
                     Spacer(modifier = Modifier.weight(1f))
                 }
             }
@@ -1548,6 +1608,186 @@ private fun SectionHeaderWithAction(
                     modifier = Modifier.size(18.dp)
                 )
             }
+        }
+    }
+}
+
+
+/**
+ * Curated Podcast Show Card for Home Screen
+ */
+@Composable
+private fun EchoPodcastCard(
+    podcast: Playlist,
+    onClick: () -> Unit,
+    onPlay: () -> Unit,
+    isDarkMode: Boolean
+) {
+    val activeTheme = LocalAppTheme.current
+
+    Column(
+        modifier = Modifier
+            .width(154.dp)
+            .echoPressable(scaleOnPress = 0.96f, onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(154.dp)
+                .shadow(
+                    elevation = if (isDarkMode) 4.dp else 8.dp,
+                    shape = RoundedCornerShape(18.dp),
+                    ambientColor = Color.Black.copy(alpha = 0.15f)
+                )
+                .clip(RoundedCornerShape(18.dp))
+                .background(if (isDarkMode) Color(0xFF1E1D2A) else Color(0xFFEBE7E1))
+        ) {
+            AsyncImage(
+                model = podcast.coverArtUrl,
+                contentDescription = podcast.name,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Category/Podcast badge
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.GraphicEq,
+                        contentDescription = null,
+                        tint = activeTheme.primaryColor,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(
+                        text = "SHOW",
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // Quick Play Floating Circle Button
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(10.dp)
+                    .size(38.dp)
+                    .shadow(6.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(activeTheme.primaryColor)
+                    .clickable { onPlay() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.PlayArrow,
+                    contentDescription = "Play Show",
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = podcast.name,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            color = if (isDarkMode) Color(0xFFF5F2F9) else Color(0xFF15141D),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Text(
+            text = podcast.ownerName,
+            fontSize = 12.sp,
+            color = if (isDarkMode) Color(0xFFA5A1B2) else Color(0xFF6F6D79),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * Podcast Episode Row for Home Screen
+ */
+@Composable
+private fun PodcastEpisodeRow(
+    episode: Track,
+    isPlaying: Boolean,
+    onClick: () -> Unit,
+    isDarkMode: Boolean
+) {
+    val activeTheme = LocalAppTheme.current
+    val rowBg = if (isDarkMode) Color(0xFF1C1B26) else Color(0xFFFFFFFF)
+    val rowBorder = if (isDarkMode) Color(0xFF2C2B3A) else Color(0xFFE5E0E8)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(rowBg)
+            .border(1.dp, rowBorder, RoundedCornerShape(14.dp))
+            .echoPressable(scaleOnPress = 0.98f, onClick = onClick)
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = episode.coverArtUrl,
+            contentDescription = episode.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(54.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = episode.title,
+                color = if (isPlaying) activeTheme.primaryColor else MaterialTheme.colorScheme.onBackground,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.5.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(
+                text = "${episode.artistName} • ${(episode.durationMs / 60000)} min",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(if (isPlaying) activeTheme.primaryColor else activeTheme.primaryColor.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = "Play Episode",
+                tint = if (isPlaying) Color.White else activeTheme.primaryColor,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

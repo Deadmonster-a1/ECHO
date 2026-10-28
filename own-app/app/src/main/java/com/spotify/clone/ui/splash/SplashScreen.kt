@@ -178,7 +178,7 @@ fun SplashScreen(
         // ==========================================
         // Stage 4 — Settle (1800–2500 ms)
         // ==========================================
-        statusText = "Welcome, $userName."
+        statusText = if (userName.isNotBlank()) "Welcome, $userName." else "Welcome to ECHO."
         launch {
             progressBarWidth.animateTo(1f, tween(600, easing = FastOutSlowInEasing))
         }

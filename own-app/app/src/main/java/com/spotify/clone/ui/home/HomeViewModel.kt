@@ -43,7 +43,9 @@ data class HomeState(
     val jioSaavnTrending: List<Playlist> = emptyList(),
     val artistRadios: List<Artist> = emptyList(),
     val popularArtists: List<Artist> = emptyList(),
-    val recommendedTracks: List<Track> = emptyList()
+    val recommendedTracks: List<Track> = emptyList(),
+    val podcasts: List<Playlist> = emptyList(),
+    val podcastEpisodes: List<Track> = emptyList()
 ) : UiState
 
 sealed interface HomeEvent : UiEvent {
@@ -127,6 +129,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 addAll(artists)
             }.distinctBy { it.name.lowercase().trim() }
 
+            val podcasts = repository.getPodcasts()
+            val podcastEpisodes = repository.getPodcastEpisodes()
+
             _uiState.update {
                 it.copy(
                     isLoading = false,
@@ -144,7 +149,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     jioSaavnTrending = saavnTrending,
                     artistRadios = curatedArtists,
                     popularArtists = curatedArtists,
-                    recommendedTracks = topTracks
+                    recommendedTracks = topTracks,
+                    podcasts = podcasts,
+                    podcastEpisodes = podcastEpisodes
                 )
             }
         }

@@ -36,6 +36,15 @@ object AppUpdateManager {
     var githubOwner: String = "Deadmonster-a1"
     var githubRepo: String = "ECHO"
 
+    fun getInstalledVersionName(context: Context): String {
+        return try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            pInfo.versionName ?: "1.0.1"
+        } catch (e: Exception) {
+            "1.0.1"
+        }
+    }
+
     /**
      * Checks for updates using a dual-strategy:
      * 1. Direct CDN check from raw version.json (Zero rate limits, instant updates).

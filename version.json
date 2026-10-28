@@ -1,10 +1,10 @@
 {
-  "versionCode": 2,
-  "versionName": "1.0.1",
-  "releaseTitle": "ECHO v1.0.1 — Performance, Audio Cache & Lock-Screen Polish",
-  "releaseNotes": "• Upgraded Media3 audio cache pipeline with 250MB local LRU buffering\n• Fluid soundwave progress bar on mini-player and expanded now-playing screen\n• Added native 3x1 and 4x2 interactive launcher widgets\n• Fixed background playback battery drain on Android 14/15\n• Direct in-app update installer via FileProvider",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v1.0.1/echo.apk",
-  "apkSize": 4371037,
+  "versionCode": 3,
+  "versionName": "1.0.2",
+  "releaseTitle": "ECHO v1.0.2 — Responsive Design, Curated Podcasts & Profile Refresh",
+  "releaseNotes": "• Responsive UI optimized for phones, foldables, and tablets\n• Fixed Library button hover/touch reforming and vertical shift on mobile\n• Added curated Podcasts & Audio Shows directly to Home screen\n• First-launch name onboarding with zero mock data in profile\n• Direct in-app live update installer\n• Official standalone APK naming (echo.apk)",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v1.0.2/echo.apk",
+  "apkSize": 4387432,
   "mandatory": false,
-  "publishedAt": "2026-10-28T14:00:00Z"
+  "publishedAt": "2026-10-28T11:35:00Z"
 }
