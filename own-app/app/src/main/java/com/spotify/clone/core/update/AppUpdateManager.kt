@@ -164,28 +164,63 @@ object AppUpdateManager {
 
     /**
      * Downloads the APK file to the application's external cache directory.
+     * Robust implementation that explicitly handles HTTP 301/302/303/307/308 redirects
+     * (required for GitHub release assets hosted on AWS S3 / Azure CDN).
      */
     suspend fun downloadApk(
         context: Context,
         downloadUrl: String,
         onProgress: (Float) -> Unit
     ): File? = withContext(Dispatchers.IO) {
+        var finalConnection: HttpURLConnection? = null
         try {
-            val url = URL(downloadUrl)
-            val connection = (url.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 15000
-                readTimeout = 30000
-                instanceFollowRedirects = true
+            var currentUrl = downloadUrl
+            var redirectCount = 0
+            val maxRedirects = 6
+
+            while (redirectCount < maxRedirects) {
+                val url = URL(currentUrl)
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 20000
+                    readTimeout = 60000
+                    instanceFollowRedirects = false // Handle explicitly for cross-domain redirects
+                    setRequestProperty("User-Agent", "ECHO-Android-Updater")
+                    setRequestProperty("Accept", "*/*")
+                }
+
+                val status = conn.responseCode
+                if (status == HttpURLConnection.HTTP_MOVED_TEMP ||
+                    status == HttpURLConnection.HTTP_MOVED_PERM ||
+                    status == HttpURLConnection.HTTP_SEE_OTHER ||
+                    status == 307 || status == 308
+                ) {
+                    val location = conn.getHeaderField("Location")
+                    conn.disconnect()
+                    if (!location.isNullOrBlank()) {
+                        currentUrl = if (location.startsWith("http")) location else URL(url, location).toString()
+                        redirectCount++
+                        continue
+                    }
+                }
+
+                if (status == HttpURLConnection.HTTP_OK) {
+                    finalConnection = conn
+                    break
+                } else {
+                    conn.disconnect()
+                    throw Exception("HTTP Error: $status from $currentUrl")
+                }
             }
 
-            val totalSize = connection.contentLength
+            val conn = finalConnection ?: throw Exception("Failed to follow download redirects")
+            val totalSize = conn.contentLength.toLong()
             val cacheDir = context.externalCacheDir ?: context.cacheDir
-            val destinationFile = File(cacheDir, "echo_update.apk")
+            val destinationFile = File(cacheDir, "echo.apk")
             if (destinationFile.exists()) destinationFile.delete()
 
-            connection.inputStream.use { input ->
+            conn.inputStream.use { input ->
                 FileOutputStream(destinationFile).use { output ->
-                    val buffer = ByteArray(8192)
+                    val buffer = ByteArray(32768)
                     var bytesRead: Int
                     var totalRead = 0L
 
@@ -197,13 +232,22 @@ object AppUpdateManager {
                             onProgress(progress)
                         }
                     }
+                    output.flush()
                 }
             }
 
-            destinationFile
+            if (destinationFile.exists() && destinationFile.length() > 1_000_000L) {
+                destinationFile.setReadable(true, false)
+                destinationFile
+            } else {
+                Log.e(TAG, "Downloaded file too small: ${destinationFile.length()} bytes")
+                null
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Download failed: ${e.message}", e)
             null
+        } finally {
+            finalConnection?.disconnect()
         }
     }
 
@@ -242,6 +286,7 @@ object AppUpdateManager {
      */
     fun installApk(context: Context, apkFile: File) {
         try {
+            apkFile.setReadable(true, false)
             val uri: Uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -250,17 +295,25 @@ object AppUpdateManager {
 
             val installIntent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
             }
             context.startActivity(installIntent)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to launch package installer: ${e.message}", e)
-            try {
-                val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/$githubOwner/$githubRepo/releases/latest")).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(browserIntent)
-            } catch (ignored: Exception) {}
+            openBrowserDownload(context, "https://github.com/$githubOwner/$githubRepo/releases/latest")
+        }
+    }
+
+    fun openBrowserDownload(context: Context, url: String) {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to open browser download: ${e.message}")
         }
     }
 
