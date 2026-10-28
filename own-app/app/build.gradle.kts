@@ -21,8 +21,10 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystorePath = System.getenv("KEYSTORE_PATH") ?: (project.findProperty("KEYSTORE_PATH") as? String)
-            if (keystorePath != null && file(keystorePath).exists()) {
+            val envPath = System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
+            val propPath = (project.findProperty("KEYSTORE_PATH") as? String)?.takeIf { it.isNotBlank() }
+            val keystorePath = envPath ?: propPath
+            if (keystorePath != null && file(keystorePath).isFile) {
                 storeFile = file(keystorePath)
                 storePassword = System.getenv("KEYSTORE_PASSWORD") ?: (project.findProperty("KEYSTORE_PASSWORD") as? String) ?: ""
                 keyAlias = System.getenv("KEY_ALIAS") ?: (project.findProperty("KEY_ALIAS") as? String) ?: ""
@@ -33,28 +35,32 @@ android {
                 enableV4Signing = true
             } else {
                 val debugConfig = getByName("debug")
-                val debugStore = debugConfig.storeFile
-                if (debugStore != null && !debugStore.exists()) {
-                    debugStore.parentFile?.mkdirs()
-                    try {
-                        val keytool = org.gradle.internal.jvm.Jvm.current().javaHome.resolve("bin/keytool").absolutePath
-                        ProcessBuilder(
-                            keytool, "-genkey", "-v",
-                            "-keystore", debugStore.absolutePath,
-                            "-alias", "androiddebugkey",
-                            "-storepass", "android",
-                            "-keypass", "android",
-                            "-keyalg", "RSA",
-                            "-keysize", "2048",
-                            "-validity", "10000",
-                            "-dname", "CN=Android Debug,O=Android,C=US"
-                        ).inheritIO().start().waitFor()
-                    } catch (_: Exception) {}
+                var debugStore = debugConfig.storeFile
+                if (debugStore == null || !debugStore.isFile) {
+                    val fallbackKeystore = file("${System.getProperty("user.home")}/.android/debug.keystore")
+                    if (!fallbackKeystore.isFile) {
+                        fallbackKeystore.parentFile?.mkdirs()
+                        try {
+                            val keytool = org.gradle.internal.jvm.Jvm.current().javaHome.resolve("bin/keytool").absolutePath
+                            ProcessBuilder(
+                                keytool, "-genkey", "-v",
+                                "-keystore", fallbackKeystore.absolutePath,
+                                "-alias", "androiddebugkey",
+                                "-storepass", "android",
+                                "-keypass", "android",
+                                "-keyalg", "RSA",
+                                "-keysize", "2048",
+                                "-validity", "10000",
+                                "-dname", "CN=Android Debug,O=Android,C=US"
+                            ).inheritIO().start().waitFor()
+                        } catch (_: Exception) {}
+                    }
+                    debugStore = fallbackKeystore
                 }
                 storeFile = debugStore
-                storePassword = debugConfig.storePassword
-                keyAlias = debugConfig.keyAlias
-                keyPassword = debugConfig.keyPassword
+                storePassword = debugConfig.storePassword ?: "android"
+                keyAlias = debugConfig.keyAlias ?: "androiddebugkey"
+                keyPassword = debugConfig.keyPassword ?: "android"
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true
