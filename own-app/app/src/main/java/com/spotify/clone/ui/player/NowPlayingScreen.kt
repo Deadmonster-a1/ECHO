@@ -132,16 +132,26 @@ fun NowPlayingScreen(
 
     var dragDownAccumulator by remember { mutableFloatStateOf(0f) }
 
+    val dominantTopColor = remember(activeTheme.primaryColor) {
+        Color(
+            red = (activeTheme.primaryColor.red * 0.35f + 0.05f).coerceIn(0f, 1f),
+            green = (activeTheme.primaryColor.green * 0.35f + 0.05f).coerceIn(0f, 1f),
+            blue = (activeTheme.primaryColor.blue * 0.35f + 0.05f).coerceIn(0f, 1f),
+            alpha = 1.0f
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
+            .background(Color(0xFF121212))
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        activeTheme.primaryColor.copy(alpha = 0.38f),
-                        activeTheme.darkBackgroundColor.copy(alpha = 0.88f),
-                        Color(0xFF0F0E17),
-                        Color(0xFF08070D)
+                        dominantTopColor,
+                        Color(0xFF16151E),
+                        Color(0xFF100F15),
+                        Color(0xFF0C0B10)
                     )
                 )
             )
@@ -224,7 +234,7 @@ fun NowPlayingScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // 2. High-Aesthetic Album Artwork with Ambient Depth Glow
+            // 2. Album Artwork Anchor (Solid crisp shadow, no transparent radial haze)
             Box(
                 modifier = Modifier
                     .widthIn(max = 380.dp)
@@ -232,32 +242,16 @@ fun NowPlayingScreen(
                     .aspectRatio(1f),
                 contentAlignment = Alignment.Center
             ) {
-                // Ambient color glow behind artwork
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize(0.96f)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(
-                                    activeTheme.primaryColor.copy(alpha = 0.30f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-
-                // High-resolution Artwork Anchor
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .shadow(
-                            elevation = 24.dp,
-                            shape = RoundedCornerShape(20.dp),
-                            ambientColor = activeTheme.primaryColor.copy(alpha = 0.45f),
-                            spotColor = Color.Black.copy(alpha = 0.70f)
+                            elevation = 20.dp,
+                            shape = RoundedCornerShape(18.dp),
+                            spotColor = Color.Black
                         )
-                        .clip(RoundedCornerShape(20.dp))
-                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(18.dp))
+                        .border(1.dp, Color(0xFF2C2A38), RoundedCornerShape(18.dp))
                         .background(Color(0xFF1B1A25)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -303,7 +297,7 @@ fun NowPlayingScreen(
                                 modifier = Modifier
                                     .padding(end = 6.dp)
                                     .clip(RoundedCornerShape(3.dp))
-                                    .background(Color.White.copy(alpha = 0.45f))
+                                    .background(Color(0xFF8E8E93))
                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                             ) {
                                 Text(
@@ -353,7 +347,7 @@ fun NowPlayingScreen(
                 colors = SliderDefaults.colors(
                     thumbColor = Color.White,
                     activeTrackColor = Color.White,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.18f)
+                    inactiveTrackColor = Color(0xFF383644)
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -440,88 +434,94 @@ fun NowPlayingScreen(
 
             Spacer(modifier = Modifier.height(26.dp))
 
-            // 6. Bottom Utility Controls: Devices, Speed Pill & Queue
+            // 6. Bottom Utility Controls: Devices, Speed Pill & Queue (Solid, Opaque Surfaces)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Device sync button with multi-room status badge
+                val deviceBgColor = if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null)
+                    Color(0xFF1E382B)
+                else Color(0xFF22212B)
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(14.dp))
-                        .background(
-                            if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null)
-                                activeTheme.primaryColor.copy(alpha = 0.22f)
-                            else Color.White.copy(alpha = 0.08f)
-                        )
+                        .background(deviceBgColor)
                         .clickable { showDevicesSheet = true }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .padding(horizontal = 12.dp, vertical = 7.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Devices,
                         contentDescription = "Devices",
                         tint = if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null)
                             activeTheme.primaryColor
-                        else Color.White.copy(alpha = 0.75f),
+                        else Color(0xFFE0E0E0),
                         modifier = Modifier.size(18.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(7.dp))
                     Text(
                         text = if (syncState.activeSession != null) "Jam Active" 
                                else if (syncState.isMultiRoomAudioEnabled) "${syncState.activeDeviceCount} Devices"
                                else (syncState.currentDevice?.name ?: "This Phone"),
                         color = if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null)
                             activeTheme.primaryColor
-                        else Color.White.copy(alpha = 0.85f),
+                        else Color(0xFFE0E0E0),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                // Speed Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            if (playbackSpeed != 1.0f) activeTheme.primaryColor.copy(alpha = 0.25f)
-                            else Color.White.copy(alpha = 0.10f)
-                        )
-                        .clickable { showSpeedSheet = true }
-                        .padding(horizontal = 14.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    // Speed Pill
+                    val speedBgColor = if (playbackSpeed != 1.0f)
+                        Color(0xFF1E382B)
+                    else Color(0xFF22212B)
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(speedBgColor)
+                            .clickable { showSpeedSheet = true }
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Speed,
+                                contentDescription = "Playback Speed",
+                                tint = if (playbackSpeed != 1.0f) activeTheme.primaryColor else Color(0xFFD0D0D0),
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = if (playbackSpeed == 1.0f) "1x" else "${playbackSpeed}x",
+                                color = if (playbackSpeed != 1.0f) activeTheme.primaryColor else Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    // Queue button
+                    IconButton(
+                        onClick = { showQueueSheet = true },
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.Speed,
-                            contentDescription = "Playback Speed",
-                            tint = if (playbackSpeed != 1.0f) activeTheme.primaryColor else Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Text(
-                            text = if (playbackSpeed == 1.0f) "1x" else "${playbackSpeed}x",
-                            color = if (playbackSpeed != 1.0f) activeTheme.primaryColor else Color.White,
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold
+                            imageVector = Icons.Filled.QueueMusic,
+                            contentDescription = "Queue",
+                            tint = Color(0xFFE0E0E0),
+                            modifier = Modifier.size(22.dp)
                         )
                     }
-                }
-
-                // Queue button
-                IconButton(
-                    onClick = { showQueueSheet = true },
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.QueueMusic,
-                        contentDescription = "Queue",
-                        tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.size(22.dp)
-                    )
                 }
             }
 
@@ -639,8 +639,8 @@ private fun LyricsPreviewCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Color.White.copy(alpha = 0.08f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(20.dp))
+            .background(Color(0xFF22202C))
+            .border(1.dp, Color(0xFF333040), RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
@@ -667,12 +667,12 @@ private fun LyricsPreviewCard(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.12f))
+                    .background(Color(0xFF322F40))
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(
                     text = "EXPAND",
-                    color = Color.White.copy(alpha = 0.90f),
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 10.sp,
                     letterSpacing = 1.sp
@@ -683,7 +683,7 @@ private fun LyricsPreviewCard(
         previewLines.forEach { line ->
             Text(
                 text = line,
-                color = if (hasLyrics) Color.White.copy(alpha = 0.92f) else Color.White.copy(alpha = 0.55f),
+                color = if (hasLyrics) Color.White else Color(0xFF9E9AA8),
                 fontWeight = FontWeight.Bold,
                 fontSize = 17.sp,
                 lineHeight = 25.sp,
