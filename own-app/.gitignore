@@ -1,0 +1,32 @@
+# Android & Gradle
+.gradle/
+**/build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Root dumps in own-app if any
+/*_dump.xml
+/view*.xml
+/live_test.xml
+/home_telugu.xml
+/now_dump.xml
+/pl_dump*.xml
+/pushpa_dump.xml
+/scrolled_dump.xml
+/search_dump.xml
+/search_results_dump.xml
+/taylor_dump.xml
+/tollywood_dump.xml
+/tophits_dump.xml
+/window_dump.xml
+/*.png
+
+# OS / Editor artifacts
+.DS_Store
+Thumbs.db
+*.log

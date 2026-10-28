@@ -1,0 +1,44 @@
+# Android & Gradle
+.gradle/
+**/build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Reverse engineering and research artifacts
+Spotify.apk
+analysis/
+builds/
+echo-app/
+original/
+REA_Analysis_Report/
+reports/
+Spotify_Architecture_Reconstruction/
+saavn_covers.json
+fetched_covers.json
+test_catalog_search.py
+
+# Root UI dumps and testing screenshots
+/home_*.xml
+/*_dump.xml
+/view*.xml
+/artists*.xml
+/baahubali*.xml
+/coldplay*.xml
+/collapsed*.xml
+/nowplaying*.xml
+/sleep_timer*.xml
+/speed*.xml
+/track_options*.xml
+/window_dump.xml
+/test_dump.xml
+/*.png
+
+# OS / Editor artifacts
+.DS_Store
+Thumbs.db
+*.log

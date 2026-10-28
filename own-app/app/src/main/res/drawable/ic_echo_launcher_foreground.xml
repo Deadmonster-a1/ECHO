@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:translateX="23"
+        android:translateY="23"
+        android:scaleX="0.121"
+        android:scaleY="0.121">
+        
+        <!-- Ambient Shadow/Glow -->
+        <path
+            android:fillColor="#30A79BFF"
+            android:pathData="M256,256m-130,0a130,130 0,1 1,260 0a130,130 0,1 1,-260 0"/>
+
+        <!-- Main Fluid 'e' Ribbon -->
+        <path
+            android:pathData="M 170,330 C 130,330 95,295 95,255 C 95,235 110,220 130,220 C 150,220 160,235 175,255 C 190,275 220,295 260,295 C 315,295 360,255 360,200 C 360,145 315,105 255,105 C 175,105 120,165 120,255 C 120,345 185,410 280,410 C 340,410 395,380 435,340 C 445,330 440,315 425,315 C 410,315 395,325 380,335 C 350,355 315,365 275,365 C 205,365 165,315 165,255 C 165,240 170,225 180,215 C 200,195 235,185 270,185 C 325,185 365,215 365,255 C 365,305 315,330 255,330 C 220,330 195,320 170,330 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="100"
+                    android:startY="100"
+                    android:endX="420"
+                    android:endY="420">
+                    <item android:offset="0.0" android:color="#FFA8C9FF"/>
+                    <item android:offset="0.38" android:color="#FFA79BFF"/>
+                    <item android:offset="0.75" android:color="#FFFF9C88"/>
+                    <item android:offset="1.0" android:color="#FFFFB3A3"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Inner Glass Ribbon Loop -->
+        <path
+            android:pathData="M 255,105 C 315,105 360,145 360,200 C 360,240 335,270 290,280 C 250,290 205,280 175,255 C 200,210 245,185 290,185 C 325,185 350,200 350,220 C 350,240 320,255 280,255 C 240,255 210,240 205,220 C 215,160 260,115 320,110 C 300,106 275,105 255,105 Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="360"
+                    android:startY="105"
+                    android:endX="175"
+                    android:endY="280">
+                    <item android:offset="0.0" android:color="#E6FF9C88"/>
+                    <item android:offset="0.5" android:color="#E0A79BFF"/>
+                    <item android:offset="1.0" android:color="#F2A8C9FF"/>
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Specular Highlight Curve -->
+        <path
+            android:pathData="M 140,185 C 170,130 215,110 265,110 C 320,110 355,140 355,185"
+            android:strokeWidth="10"
+            android:strokeColor="#B3FFFFFF"
+            android:strokeLineCap="round"/>
+
+        <!-- Micro-Orb Bubbles -->
+        <path
+            android:fillColor="#E6A8C9FF"
+            android:pathData="M115,240m-16,0a16,16 0,1 1,32 0a16,16 0,1 1,-32 0"/>
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M112,237m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0"/>
+
+        <path
+            android:fillColor="#E6FF9C88"
+            android:pathData="M430,305m-14,0a14,14 0,1 1,28 0a14,14 0,1 1,-28 0"/>
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M427,302m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0"/>
+    </group>
+</vector>
