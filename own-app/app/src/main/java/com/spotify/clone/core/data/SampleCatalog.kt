@@ -1,5 +1,6 @@
 package com.spotify.clone.core.data
 
+import com.spotify.clone.core.lyrics.LyricsCatalog
 import com.spotify.clone.core.model.Album
 import com.spotify.clone.core.model.Artist
 import com.spotify.clone.core.model.LyricLine
@@ -23,13 +24,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
         durationMs = 222000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyMaCcla+iAEnWKGhjucPDOQMuVXLGmbqF4ufcJUQKLmvyzYWZhzpVWBw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Chuttamalle chuttesaave thuntari chupultho"),
-            LyricLine(14000L, "Chuttukora maatalatho allari reppalatho"),
-            LyricLine(28000L, "Gundelona rangula raagam mogisthunnavule"),
-            LyricLine(42000L, "Kallathoti kaatesthune oorantha thelisevela"),
-            LyricLine(56000L, "Chuttamalle chuttesaave thuntari chupultho")
-        )
+        lyrics = LyricsCatalog.lyricsChuttamalle
     )
 
     val trackFearSong = Track(
@@ -40,12 +35,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
         durationMs = 195000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyBBiimzn9tc9nco0itIplb91h8qnOCWfSJeSWUrTfVnObIMg+VE4Rfxw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "All hail the tiger! Fear song"),
-            LyricLine(14000L, "Chora chora chora samudraanne daate veera"),
-            LyricLine(28000L, "Rakthame aahuti chese shouryam"),
-            LyricLine(42000L, "Devara vachadu bhayame parigette vela")
-        )
+        lyrics = LyricsCatalog.lyricsFearSong
     )
 
     val trackDaavudi = Track(
@@ -56,12 +46,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
         durationMs = 229000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyyLC1Sr5tlHNnAl68sYNquxL1indmYJDU/5nwdJWTO3wdiD6/VI7vghw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Daavudi Daavudi mass step eyyi"),
-            LyricLine(12000L, "Oorantha thirigi dhoom dhaam cheyyi"),
-            LyricLine(24000L, "Devara beat ki kaalaina nilavade"),
-            LyricLine(36000L, "Daavudi Daavudi dancelu veyyi")
-        )
+        lyrics = LyricsCatalog.lyricsDaavudi
     )
 
     val trackAyudhaPooja = Track(
@@ -72,12 +57,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
         durationMs = 174000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyoXmZjMjtCbg4/oPpySiQPbdXC3jQdOSVIMJs1pxvHLZg4u/AZSX3Lxw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Ayudha Pooja cheyyara samudraputhaada"),
-            LyricLine(15000L, "Kathi pattina cheyyi dharmani nilabettu"),
-            LyricLine(30000L, "Shouryam thoti kummudu kottu"),
-            LyricLine(45000L, "Devara devudu vachina vela")
-        )
+        lyrics = LyricsCatalog.lyricsAyudhaPooja
     )
 
     // --- Pushpa 2: The Rule ---
@@ -89,13 +69,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
         durationMs = 256000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDymza0K1NmnzXPT5c4khZBeZ7WgcFEV/SR6IIp6YDLVyE8Fpck9hNy4hw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Pushpa Pushpa Pushpa Pushpa Raj"),
-            LyricLine(14000L, "Taggede le antu vachade"),
-            LyricLine(28000L, "Asalu taggede le eppudu chusina"),
-            LyricLine(42000L, "Rajula rajura mana Pushpa Raj"),
-            LyricLine(56000L, "Thokkukuntu poye veta kathi Pushpa")
-        )
+        lyrics = LyricsCatalog.lyricsPushpaPushpa
     )
 
     val trackSooseki = Track(
@@ -106,12 +80,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
         durationMs = 260000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyVs4cGWximUIfqMBYOjdt4dpOg/Y+Qy5M5u1LEbTalrw6cjVlmGT4Lhw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Sooseki aggiravva laaga chuseki"),
-            LyricLine(14000L, "Muddula gumpula naduma kaliseki"),
-            LyricLine(28000L, "Pushpa Raj meeda asale kante kuriseki"),
-            LyricLine(42000L, "Sooseki Sooseki prema tho")
-        )
+        lyrics = LyricsCatalog.lyricsSooseki
     )
 
     val trackPeelings = Track(
@@ -122,12 +91,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
         durationMs = 247000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyDaLFFpsCrkc/223u+UAfUUmJbRidTvaicMteyJm8zhJxYSn2hPR1Nhw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Peelings peelings mass peelings"),
-            LyricLine(14000L, "Dance floor adhiripoyina feelings"),
-            LyricLine(28000L, "Pushpa 2 The Rule lo wild beat"),
-            LyricLine(42000L, "Pilla chusi aageley beat")
-        )
+        lyrics = LyricsCatalog.lyricsPeelings
     )
 
     val trackKissik = Track(
@@ -138,12 +102,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
         durationMs = 248000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDymqqxav/w4B2dJtzHv5NHAIZksK1vNN8lSJ6czI01rtmDdeRLZU7LFhw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Kissik kissik ani kotteti chupulu"),
-            LyricLine(12000L, "Dhoom dhaam step latho allari uupulu"),
-            LyricLine(24000L, "Wild fire vachindi Pushpa Rule"),
-            LyricLine(36000L, "Kissik song tho mass full cool")
-        )
+        lyrics = LyricsCatalog.lyricsKissik
     )
 
     // --- Guntur Kaaram ---
@@ -155,12 +114,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/000/Guntur-Kaaram-Telugu-2023-20240126145901-500x500.jpg",
         durationMs = 216000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyAYSpkEihdkG4+AFn1gYNkJM9bhyDhDoC00is5zg9wSEUPgFYtzlXCxw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Kurchi madathapetti kottinatte untadi"),
-            LyricLine(12000L, "Masala daawat ki vachinattu untadi"),
-            LyricLine(24000L, "Steppu stepu vesthe ground adhirinatte untadi"),
-            LyricLine(36000L, "Babu mass dhoom dhaam kurchi madathapetti")
-        )
+        lyrics = LyricsCatalog.lyricsKurchi
     )
 
     val trackDumMasala = Track(
@@ -171,12 +125,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/000/Guntur-Kaaram-Telugu-2023-20240126145901-500x500.jpg",
         durationMs = 206000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyUTCwI9AItR66rnc9xx0Tv2osLVlQ/Cixs800jzw5IP7pVlRPOuoXgxw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Dum masala dum masala guntur spicy"),
-            LyricLine(14000L, "Babu swag chusi fans antha crazy"),
-            LyricLine(28000L, "Mirchi lanti massu songu"),
-            LyricLine(42000L, "Dum Masala Dum Masala")
-        )
+        lyrics = LyricsCatalog.lyricsDumMasala
     )
 
     val trackAmmaSong = Track(
@@ -187,12 +136,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/000/Guntur-Kaaram-Telugu-2023-20240126145901-500x500.jpg",
         durationMs = 242000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDymZ4tQpuKyr91NUzJIstrtsZPzZMuLyy+Fi4WEMqUQYSi3pZDHbI6/Bw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Amma ane maata lo preme unnadamma"),
-            LyricLine(15000L, "Gunde lothula nunchi vacche paata ide gamma"),
-            LyricLine(30000L, "Nee chethi sparsha thoti bathuku veligenu"),
-            LyricLine(45000L, "Amma prema veru lokaana")
-        )
+        lyrics = LyricsCatalog.lyricsAmmaSong
     )
 
     // --- Kalki 2898 AD ---
@@ -204,12 +148,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg",
         durationMs = 163000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDynszYR1k/ojCtZwDkcJXW+nWktSBSdDYVSeGbzIIyelaOUnKyWJfsLBw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Bhairava vachaduraa kaalaniki adhipathi"),
-            LyricLine(14000L, "Kalki jagathiki nayakudu mana sathi"),
-            LyricLine(28000L, "Adharaledu bedharaledu dhoosukelthadu"),
-            LyricLine(42000L, "Bhairava Bhairava Anthem")
-        )
+        lyrics = LyricsCatalog.lyricsBhairavaAnthem
     )
 
     val trackTaTakkara = Track(
@@ -220,12 +159,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg",
         durationMs = 207000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyiY+mB17omEQEp5JgVa2nqna1v2myXZ/6llALll5mW9S4k4zrRajvexw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Ta takkara complex loki dhoosukochi"),
-            LyricLine(14000L, "Kalalanni nijamaina vela chusi"),
-            LyricLine(28000L, "Future sound futuristic beat"),
-            LyricLine(42000L, "Ta Takkara Ta Takkara")
-        )
+        lyrics = LyricsCatalog.lyricsTaTakkara
     )
 
     val trackThemeOfKalki = Track(
@@ -236,12 +170,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg",
         durationMs = 189000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDykajXvJEDz3mrAAGV+xeh7a/vBHOTDVTsanq23EWQ0tUl3uHmuT6BJhw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Kalki roopam avatharinche vela"),
-            LyricLine(15000L, "Dharma sansthapanarthaya sambhavami yuge yuge"),
-            LyricLine(30000L, "Shankha naadam mogenu lokaana"),
-            LyricLine(45000L, "Kalki 2898 AD theme")
-        )
+        lyrics = LyricsCatalog.lyricsThemeOfKalki
     )
 
     // --- Ala Vaikunthapurramuloo ---
@@ -253,12 +182,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg",
         durationMs = 219000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyBTJ4G3/I1AorZTT0gsv5kZrBofZqrazGks5ucgS6HLBm12GRaz2PMBw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Samajavaragamana ninu choosi aaga galana"),
-            LyricLine(16000L, "Manasu meeda vayasuki unna aasa aapanaina"),
-            LyricLine(32000L, "Nee kaallani pattuku vadalanannavi chude naa kallu"),
-            LyricLine(48000L, "A choopulatho champaku nanne ammayo challa gaallo")
-        )
+        lyrics = LyricsCatalog.lyricsSamajavaragamana
     )
 
     val trackButtaBomma = Track(
@@ -269,12 +193,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg",
         durationMs = 198000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDy6cNRQV5rpqCV4BYCV1yJyIhUmSDmawrl4K+qb2UgyflhwcuQJos6BBw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Butta bomma butta bomma nannu suttu kollavura"),
-            LyricLine(14000L, "Kalla ninda aasa nimpina muddu gummavu nuvvura"),
-            LyricLine(28000L, "Gaallo thele haayilo manasu munigina vela"),
-            LyricLine(42000L, "Butta Bomma Butta Bomma")
-        )
+        lyrics = LyricsCatalog.lyricsButtaBomma
     )
 
     val trackRamulooRamulaa = Track(
@@ -285,12 +204,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg",
         durationMs = 245000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyBeH1z8NaJLegYmdptoH6W34g9WIY9W6OaZ96FcYP/jfUPa9/otj+kRw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Ramuloo Ramulaa nannakada sitti pettavura"),
-            LyricLine(14000L, "Gunde lothula nunchi vacche paata paadara"),
-            LyricLine(28000L, "Dhammunte kummudu kottu dancelu veyyi"),
-            LyricLine(42000L, "Ramuloo Ramulaa")
-        )
+        lyrics = LyricsCatalog.lyricsRamulooRamulaa
     )
 
     // --- Sita Ramam ---
@@ -302,12 +216,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg",
         durationMs = 218000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyYzLitKzQefYsZ0b37qj3k5mZQELrI4mYHy6fp6cdcnvjqGVpx8QTQRw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Inthandham daari mabbula naduma"),
-            LyricLine(14000L, "Inthandham vennela kurise kshanamo"),
-            LyricLine(28000L, "Nee chelimi kore gundeku thelise"),
-            LyricLine(42000L, "Sita Ramula prema geetham")
-        )
+        lyrics = LyricsCatalog.lyricsInthandham
     )
 
     val trackOhSita = Track(
@@ -318,12 +227,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg",
         durationMs = 246000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyOpwiDEJmhiWfwS0i/nc/TYHPTM7xwUqtzlI06nVIzICvf5OZt0ldcBw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Oh Sita Hey Rama mana prema chiranjeevi"),
-            LyricLine(15000L, "Lekhala thoti allina prema kavithavam ide"),
-            LyricLine(30000L, "Gunde lothula daachina madhura bhaavam"),
-            LyricLine(45000L, "Oh Sita Hey Rama")
-        )
+        lyrics = LyricsCatalog.lyricsOhSita
     )
 
     val trackKaanunnaKalyanam = Track(
@@ -334,12 +238,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg",
         durationMs = 232000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyo3FJ30+AC3zGHSzJZdIYJ4PhXVnce/yW9mZI01YzVYntgAC+hGkInBw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Kaanunna kalyanam kallaara chudali"),
-            LyricLine(15000L, "Prema pelli bandham loki adugu pettali"),
-            LyricLine(30000L, "Ramudu Sita thoti jathaga niliche"),
-            LyricLine(45000L, "Kalyana vaibhavam")
-        )
+        lyrics = LyricsCatalog.lyricsKaanunnaKalyanam
     )
 
     // --- RRR ---
@@ -351,12 +250,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/683/RRR-Telugu-Telugu-2022-20250828171313-500x500.jpg",
         durationMs = 214000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyK1tSoSB+oPrTJYqQ1jcTCNgc6b6boKXKeppOEkUoiK5Fp6jyXWA3QBw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Naatu Naatu Naatu Naatu Veera Naatu"),
-            LyricLine(14000L, "Pola gattu dummulona potlaram katti"),
-            LyricLine(28000L, "Ghallu ghalluna kaalu kadipi kummudu kottu"),
-            LyricLine(42000L, "Naatu Naatu Naatu Naatu Veera Naatu")
-        )
+        lyrics = LyricsCatalog.lyricsNaatuNaatu
     )
 
     val trackDosti = Track(
@@ -367,12 +261,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/683/RRR-Telugu-Telugu-2022-20250828171313-500x500.jpg",
         durationMs = 340000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyCWNfpkQqJNYVawpRJ3uktWhrWcckjdcBi4qytVQodFgj46tVl5XDnhw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Nippu thoti neellu kalise dosti geetham"),
-            LyricLine(16000L, "Praanamaina iche sneham idi chirakaalam"),
-            LyricLine(32000L, "Bheem Ramula dosti charithra lo niliche"),
-            LyricLine(48000L, "Dosti Dosti Dosti")
-        )
+        lyrics = LyricsCatalog.lyricsDosti
     )
 
     val trackKomuramBheemudo = Track(
@@ -383,12 +272,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/683/RRR-Telugu-Telugu-2022-20250828171313-500x500.jpg",
         durationMs = 254000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyYRJed3UIdRwBHU2mQ14OgEAnBnBJuYrttXfZeGnk19WoEvYcYesRrBw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Komuram Bheemudo Komuram Bheemudo"),
-            LyricLine(15000L, "Korra korra goddallona ninnu chusiri"),
-            LyricLine(30000L, "Jal jungle zameen kosam poradina veera"),
-            LyricLine(45000L, "Komuram Bheemudo")
-        )
+        lyrics = LyricsCatalog.lyricsKomuramBheemudo
     )
 
     // --- Hi Nanna ---
@@ -400,12 +284,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/253/Hi-Nanna-Telugu-Telugu-2023-20240109191037-500x500.jpg",
         durationMs = 204000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyprimJkoXJVCdMtzDMUkTu7HaAD7oAImZx8IUcWuLgylZ0CdhfyjM5hw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Samayama aagi poraa konchem sepu"),
-            LyricLine(15000L, "E kshanam cheripovaddu manasula chupu"),
-            LyricLine(30000L, "Nuvvante pranam ani thelisindi nedu"),
-            LyricLine(45000L, "Samayama samayama aagumaa")
-        )
+        lyrics = LyricsCatalog.lyricsSamayama
     )
 
     val trackInkemInkem = Track(
@@ -416,12 +295,7 @@ object SampleCatalog {
         coverArtUrl = "https://c.saavncdn.com/237/Geetha-Govindam-Telugu-2018-20180921-500x500.jpg",
         durationMs = 266000L,
         mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyTwMMUO2ElmZ5QH82uuJIjRieZfpyM0PoDXkn76/rAa2csrtu8BIoSRw7tS9a8Gtq",
-        lyrics = listOf(
-            LyricLine(0L, "Inkem inkem inkem kaavaale chaale idhi chaale"),
-            LyricLine(15000L, "Neeve unte naatho paate jeevithame panduge"),
-            LyricLine(30000L, "Kannula munde nuvvu kanipisthe chaalu"),
-            LyricLine(45000L, "Kallaloki vachi nanne allukundhi nee jolu")
-        )
+        lyrics = LyricsCatalog.lyricsInkemInkem
     )
 
     val sampleTracks = listOf(

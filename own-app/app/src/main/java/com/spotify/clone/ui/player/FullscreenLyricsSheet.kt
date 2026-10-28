@@ -93,10 +93,21 @@ fun FullscreenLyricsSheet(
     val currentPos = playbackState.currentPositionMs
 
 
-    val sampleLyrics = com.spotify.clone.core.data.SampleCatalog.sampleTracks.find {
-        it.title.contains(track.title, ignoreCase = true) || track.title.contains(it.title, ignoreCase = true)
-    }?.lyrics ?: emptyList()
-    val lines: List<LyricLine> = if (track.lyrics.isNotEmpty()) track.lyrics else sampleLyrics
+    var lines by remember(track.id) {
+        mutableStateOf(com.spotify.clone.core.lyrics.LyricsRepository.getCachedLyrics(track))
+    }
+    var isLoadingLyrics by remember(track.id) { mutableStateOf(lines.isEmpty()) }
+
+    LaunchedEffect(track.id) {
+        if (lines.isEmpty() || lines.size < 8) {
+            isLoadingLyrics = lines.isEmpty()
+            val resolved = com.spotify.clone.core.lyrics.LyricsRepository.getOrFetchLyrics(track)
+            if (resolved.isNotEmpty()) {
+                lines = resolved
+            }
+            isLoadingLyrics = false
+        }
+    }
     val hasLyrics = lines.isNotEmpty()
 
     val activeIndex = if (hasLyrics) {
@@ -194,7 +205,7 @@ fun FullscreenLyricsSheet(
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(Intent.EXTRA_SUBJECT, "ECHO Lyrics - ${track.title}")
-                                putExtra(Intent.EXTRA_TEXT, "\"$activeLine\"\n\n— ${track.title} by ${track.artistName} on ECHO")
+                                putExtra(Intent.EXTRA_TEXT, "\"$activeLine\"\n\nâ€” ${track.title} by ${track.artistName} on ECHO")
                             }
                             context.startActivity(Intent.createChooser(shareIntent, "Share lyrics"))
                         }) {

@@ -50,6 +50,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -628,12 +629,20 @@ private fun LyricsPreviewCard(
     onClick: () -> Unit
 ) {
     val activeTheme = LocalAppTheme.current
-    val sampleLyrics = com.spotify.clone.core.data.SampleCatalog.sampleTracks.find {
-        it.title.contains(track.title, ignoreCase = true) || track.title.contains(it.title, ignoreCase = true)
-    }?.lyrics ?: emptyList()
-    val effectiveLyrics = if (track.lyrics.isNotEmpty()) track.lyrics else sampleLyrics
+    var effectiveLyrics by remember(track.id) {
+        mutableStateOf(com.spotify.clone.core.lyrics.LyricsRepository.getCachedLyrics(track))
+    }
+
+    LaunchedEffect(track.id) {
+        if (effectiveLyrics.isEmpty() || effectiveLyrics.size < 8) {
+            val resolved = com.spotify.clone.core.lyrics.LyricsRepository.getOrFetchLyrics(track)
+            if (resolved.isNotEmpty()) {
+                effectiveLyrics = resolved
+            }
+        }
+    }
     val hasLyrics = effectiveLyrics.isNotEmpty()
-    val previewLines = if (hasLyrics) effectiveLyrics.take(3).map { it.words } else listOf("Lyrics not available", "Tap to open acoustic sound visualizer")
+    val previewLines = if (hasLyrics) effectiveLyrics.take(3).map { it.words } else listOf("Synchronizing lyrics...", "Tap to open full lyrics sheet")
 
     Column(
         modifier = Modifier
