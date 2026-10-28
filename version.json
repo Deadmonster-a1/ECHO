@@ -3,8 +3,8 @@
   "versionName": "1.0.1",
   "releaseTitle": "ECHO v1.0.1 — Performance, Audio Cache & Lock-Screen Polish",
   "releaseNotes": "• Upgraded Media3 audio cache pipeline with 250MB local LRU buffering\n• Fluid soundwave progress bar on mini-player and expanded now-playing screen\n• Added native 3x1 and 4x2 interactive launcher widgets\n• Fixed background playback battery drain on Android 14/15\n• Direct in-app update installer via FileProvider",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v1.0.1/echo-release.apk",
-  "apkSize": 4353992,
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v1.0.1/echo.apk",
+  "apkSize": 4371037,
   "mandatory": false,
   "publishedAt": "2026-10-28T14:00:00Z"
 }
