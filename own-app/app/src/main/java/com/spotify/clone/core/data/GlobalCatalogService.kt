@@ -21,11 +21,17 @@ import java.net.URLEncoder
  */
 class GlobalCatalogService {
 
+    companion object {
+        private const val TAG = "GlobalCatalog"
+        private val trackQueryCache = java.util.concurrent.ConcurrentHashMap<String, List<Track>>()
+        private val playlistQueryCache = java.util.concurrent.ConcurrentHashMap<String, Playlist>()
+    }
+
     private fun openConnection(urlStr: String, referer: String? = null): HttpURLConnection {
         val url = URL(urlStr)
         val conn = url.openConnection() as HttpURLConnection
-        conn.connectTimeout = 8000
-        conn.readTimeout = 12000
+        conn.connectTimeout = 3000
+        conn.readTimeout = 4000
         conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
         if (referer != null) {
             conn.setRequestProperty("Referer", referer)
@@ -38,6 +44,12 @@ class GlobalCatalogService {
      * Fetches full-length studio tracks directly from high-fidelity streaming pipeline.
      */
     suspend fun fetchSaavnTracks(query: String, limit: Int = 25): List<Track> = withContext(Dispatchers.IO) {
+        val cacheKey = "${query.trim().lowercase()}_$limit"
+        val cached = trackQueryCache[cacheKey]
+        if (cached != null && cached.isNotEmpty()) {
+            return@withContext cached
+        }
+
         val tracks = mutableListOf<Track>()
         try {
             val encoded = URLEncoder.encode(query.trim(), "UTF-8")
@@ -87,6 +99,9 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error in fetchSaavnTracks for query '$query'", e)
+        }
+        if (tracks.isNotEmpty()) {
+            trackQueryCache[cacheKey] = tracks
         }
         tracks
     }
@@ -678,9 +693,5 @@ class GlobalCatalogService {
             "english" -> searchTracks("top hits 2026", limit = 20)
             else -> fetchSaavnTracks("top hits", limit = 20)
         }
-    }
-
-    companion object {
-        private const val TAG = "GlobalCatalogService"
     }
 }

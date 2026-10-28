@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 class AudioRepository(
     private val context: Context,
@@ -31,80 +32,97 @@ class AudioRepository(
     private val playlistDao = database.playlistDao()
 
     suspend fun getHomePlaylists(): List<Playlist> = withContext(Dispatchers.IO) {
+        val inMemory = cachedHomePlaylists
+        if (!inMemory.isNullOrEmpty()) {
+            return@withContext inMemory
+        }
+
         // 1. Fetch Tollywood Telugu Top Hits (Devara, Pushpa 2, Kalki, RRR, Guntur Kaaram)
         val teluguTopHitsDeferred = async {
-            try { globalCatalog.getTeluguTopHitsPlaylist() } catch (e: Exception) { null }
+            try { withTimeoutOrNull(2500) { globalCatalog.getTeluguTopHitsPlaylist() } } catch (e: Exception) { null }
         }
 
         // 2. Fetch Sid Sriram Telugu Melodies
         val sidSriramHitsDeferred = async {
-            try { globalCatalog.getSidSriramMelodiesPlaylist() } catch (e: Exception) { null }
+            try { withTimeoutOrNull(2500) { globalCatalog.getSidSriramMelodiesPlaylist() } } catch (e: Exception) { null }
         }
 
         // 3. Fetch curated global top hits playlist
         val topHitsDeferred = async {
             try {
-                globalCatalog.getCuratedPlaylist(
-                    term = "top hits 2026",
-                    playlistName = "Today's Top Hits",
-                    coverUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-                    country = "IN"
-                )
+                withTimeoutOrNull(2500) {
+                    globalCatalog.getCuratedPlaylist(
+                        term = "top hits 2026",
+                        playlistName = "Today's Top Hits",
+                        coverUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
+                        country = "IN"
+                    )
+                }
             } catch (e: Exception) { null }
         }
 
         // 4. Fetch Devara Part 1
         val devaraDeferred = async {
             try {
-                globalCatalog.getCuratedPlaylist(
-                    term = "Devara Part 1",
-                    playlistName = "Devara: Part 1",
-                    coverUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg"
-                )
+                withTimeoutOrNull(2500) {
+                    globalCatalog.getCuratedPlaylist(
+                        term = "Devara Part 1",
+                        playlistName = "Devara: Part 1",
+                        coverUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg"
+                    )
+                }
             } catch (e: Exception) { null }
         }
 
         // 5. Fetch Pushpa 2: The Rule
         val pushpa2Deferred = async {
             try {
-                globalCatalog.getCuratedPlaylist(
-                    term = "Pushpa 2 The Rule",
-                    playlistName = "Pushpa 2: The Rule",
-                    coverUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg"
-                )
+                withTimeoutOrNull(2500) {
+                    globalCatalog.getCuratedPlaylist(
+                        term = "Pushpa 2 The Rule",
+                        playlistName = "Pushpa 2: The Rule",
+                        coverUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg"
+                    )
+                }
             } catch (e: Exception) { null }
         }
 
         // 6. Fetch Sita Ramam
         val sitaRamamDeferred = async {
             try {
-                globalCatalog.getCuratedPlaylist(
-                    term = "Sita Ramam",
-                    playlistName = "Sita Ramam",
-                    coverUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg"
-                )
+                withTimeoutOrNull(2500) {
+                    globalCatalog.getCuratedPlaylist(
+                        term = "Sita Ramam",
+                        playlistName = "Sita Ramam",
+                        coverUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg"
+                    )
+                }
             } catch (e: Exception) { null }
         }
 
         // 7. Fetch Kalki 2898 AD
         val kalkiDeferred = async {
             try {
-                globalCatalog.getCuratedPlaylist(
-                    term = "Kalki 2898 AD",
-                    playlistName = "Kalki 2898 AD",
-                    coverUrl = "https://c.saavncdn.com/264/Kalki-2898-AD-Telugu-2024-20240710180801-500x500.jpg"
-                )
+                withTimeoutOrNull(2500) {
+                    globalCatalog.getCuratedPlaylist(
+                        term = "Kalki 2898 AD",
+                        playlistName = "Kalki 2898 AD",
+                        coverUrl = "https://c.saavncdn.com/264/Kalki-2898-AD-Telugu-2024-20240710180801-500x500.jpg"
+                    )
+                }
             } catch (e: Exception) { null }
         }
 
         // 8. Fetch Daily Telugu Mix
         val dailyMixDeferred = async {
             try {
-                globalCatalog.getCuratedPlaylist(
-                    term = "Telugu 2026",
-                    playlistName = "Daily Telugu Mix",
-                    coverUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg"
-                )
+                withTimeoutOrNull(2500) {
+                    globalCatalog.getCuratedPlaylist(
+                        term = "Telugu 2026",
+                        playlistName = "Daily Telugu Mix",
+                        coverUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg"
+                    )
+                }
             } catch (e: Exception) { null }
         }
 
@@ -135,6 +153,7 @@ class AudioRepository(
         }
         val finalPlaylists = distinct.distinctBy { it.id }
         finalPlaylists.forEach { playlistCache[it.id] = it }
+        cachedHomePlaylists = finalPlaylists
         finalPlaylists
     }
 
@@ -320,6 +339,8 @@ class AudioRepository(
 
     companion object {
         private val playlistCache = java.util.concurrent.ConcurrentHashMap<String, Playlist>()
+        @Volatile
+        private var cachedHomePlaylists: List<Playlist>? = null
     }
 
     suspend fun createPlaylist(name: String, description: String = ""): Playlist = withContext(Dispatchers.IO) {
