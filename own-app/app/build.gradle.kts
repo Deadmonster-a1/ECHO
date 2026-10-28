@@ -23,12 +23,23 @@ android {
         create("release") {
             val envPath = System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
             val propPath = (project.findProperty("KEYSTORE_PATH") as? String)?.takeIf { it.isNotBlank() }
-            val keystorePath = envPath ?: propPath
-            if (keystorePath != null && file(keystorePath).isFile) {
-                storeFile = file(keystorePath)
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: (project.findProperty("KEYSTORE_PASSWORD") as? String) ?: ""
-                keyAlias = System.getenv("KEY_ALIAS") ?: (project.findProperty("KEY_ALIAS") as? String) ?: ""
-                keyPassword = System.getenv("KEY_PASSWORD") ?: (project.findProperty("KEY_PASSWORD") as? String) ?: ""
+            val customKeystorePath = envPath ?: propPath
+            val projectKeystore = rootProject.file("keystore/echo-release.jks")
+
+            if (customKeystorePath != null && file(customKeystorePath).isFile) {
+                storeFile = file(customKeystorePath)
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: (project.findProperty("KEYSTORE_PASSWORD") as? String) ?: "echomusicplayer"
+                keyAlias = System.getenv("KEY_ALIAS") ?: (project.findProperty("KEY_ALIAS") as? String) ?: "echokey"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: (project.findProperty("KEY_PASSWORD") as? String) ?: "echomusicplayer"
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            } else if (projectKeystore.isFile) {
+                storeFile = projectKeystore
+                storePassword = "echomusicplayer"
+                keyAlias = "echokey"
+                keyPassword = "echomusicplayer"
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true

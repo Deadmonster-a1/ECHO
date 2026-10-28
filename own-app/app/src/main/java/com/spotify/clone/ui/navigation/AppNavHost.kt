@@ -455,6 +455,9 @@ fun AppNavHost(modifier: Modifier = Modifier) {
                                     isDownloadingUpdate = false
                                     if (apkFile != null && apkFile.exists() && apkFile.length() > 1_000_000L) {
                                         showLiveUpdateDialog = false
+                                        if (!AppUpdateManager.canRequestPackageInstalls(context)) {
+                                            AppUpdateManager.openInstallPermissionSettings(context)
+                                        }
                                         AppUpdateManager.installApk(context, apkFile)
                                     } else {
                                         Toast.makeText(context, "Direct download failed. Opening browser...", Toast.LENGTH_LONG).show()
