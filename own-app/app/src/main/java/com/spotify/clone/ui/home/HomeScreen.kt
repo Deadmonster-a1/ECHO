@@ -61,7 +61,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,7 +87,6 @@ import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoPressable
 import com.spotify.clone.core.model.Artist
-import com.spotify.clone.core.model.EditorialBanner
 import com.spotify.clone.core.model.Playlist
 import com.spotify.clone.core.model.Track
 import com.spotify.clone.core.player.MusicController
@@ -140,24 +138,6 @@ fun HomeScreen(
         }
     }
 
-    // Scroll-linked parallax translation for Hero Artwork
-    val heroParallaxOffsetY by remember {
-        derivedStateOf {
-            if (isReducedMotion) 0f
-            else if (listState.firstVisibleItemIndex <= 1) {
-                (listState.firstVisibleItemScrollOffset * 0.32f).coerceIn(0f, 120f)
-            } else 0f
-        }
-    }
-
-    val heroScale by remember {
-        derivedStateOf {
-            if (isReducedMotion) 1f
-            else if (listState.firstVisibleItemIndex == 0) {
-                (1f - (listState.firstVisibleItemScrollOffset / 4000f)).coerceIn(0.94f, 1f)
-            } else 0.94f
-        }
-    }
 
     if (state.isLoading) {
         Box(
@@ -258,20 +238,6 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // F. Featured Spotlight Hero with Parallax
-            state.currentHero?.let { hero ->
-                item(key = "featured_hero_${hero.id}") {
-                    FeaturedHeroCard(
-                        banner = hero,
-                        parallaxY = heroParallaxOffsetY,
-                        scale = heroScale,
-                        onPlayClick = { viewModel.dispatch(HomeEvent.PlayHero(hero)) },
-                        onCardClick = { hero.targetPlaylistId?.let { onPlaylistClick(it) } },
-                        isDarkMode = isDarkMode
-                    )
-                    Spacer(modifier = Modifier.height(28.dp))
-                }
-            }
 
             // G. Blockbuster Albums & Soundtracks with Floating Play FABs
             if (state.sculpturalAlbums.isNotEmpty()) {
@@ -1001,129 +967,6 @@ private fun MoodFilterRow(
     }
 }
 
-/**
- * Featured Spotlight Playlist Hero Card
- */
-@Composable
-private fun FeaturedHeroCard(
-    banner: EditorialBanner,
-    parallaxY: Float,
-    scale: Float,
-    onPlayClick: () -> Unit,
-    onCardClick: () -> Unit,
-    isDarkMode: Boolean
-) {
-    val activeTheme = LocalAppTheme.current
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .height(310.dp)
-            .graphicsLayer {
-                translationY = -parallaxY
-                scaleX = scale
-                scaleY = scale
-            }
-            .shadow(
-                elevation = if (isDarkMode) 6.dp else 12.dp,
-                shape = RoundedCornerShape(26.dp),
-                ambientColor = Color.Black.copy(alpha = 0.20f)
-            )
-            .clip(RoundedCornerShape(26.dp))
-            .background(if (isDarkMode) Color(0xFF1B1A26) else Color(0xFF201538))
-            .echoPressable(scaleOnPress = 0.98f, onClick = onCardClick)
-    ) {
-        AsyncImage(
-            model = banner.coverArtUrl,
-            contentDescription = banner.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Black.copy(alpha = 0.15f),
-                            Color.Black.copy(alpha = 0.40f),
-                            Color.Black.copy(alpha = 0.92f)
-                        )
-                    )
-                )
-        )
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.Bottom
-        ) {
-            Column {
-                Text(
-                    text = banner.title,
-                    color = Color.White,
-                    fontFamily = FontFamily.Serif,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 24.sp,
-                    lineHeight = 30.sp,
-                    letterSpacing = (-0.4).sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = banner.subtitle,
-                    color = Color.White.copy(alpha = 0.82f),
-                    fontSize = 13.sp,
-                    lineHeight = 17.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Box(
-                    modifier = Modifier
-                        .shadow(
-                            elevation = 6.dp,
-                            shape = RoundedCornerShape(24.dp),
-                            ambientColor = activeTheme.primaryColor.copy(alpha = 0.35f)
-                        )
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(activeTheme.primaryColor)
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = onPlayClick
-                        )
-                        .padding(horizontal = 22.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.PlayArrow,
-                            contentDescription = "Listen to the Flow",
-                            tint = Color(0xFF121212),
-                            modifier = Modifier.size(19.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Listen to the Flow",
-                            color = Color(0xFF121212),
-                            fontSize = 13.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
 
 /**
  * Sculptural Album Card with Floating Play FAB

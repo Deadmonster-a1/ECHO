@@ -69,6 +69,7 @@ import com.spotify.clone.core.designsystem.EchoPlayFab
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.echoPressable
+import com.spotify.clone.core.download.TrackDownloadManager
 import com.spotify.clone.core.model.Playlist
 import com.spotify.clone.core.model.Track
 import com.spotify.clone.core.player.MusicController
@@ -140,8 +141,13 @@ fun PlaylistDetailScreen(
 
     val currentPlaylist = playlist!!
     val context = LocalContext.current
+    val downloadManager = remember { TrackDownloadManager.getInstance(context) }
+    val downloadedPlaylistIds by downloadManager.downloadedPlaylistIds.collectAsState()
+    val downloadedTrackIds by downloadManager.downloadedTrackIds.collectAsState()
+    val isDownloaded = downloadedPlaylistIds.contains(currentPlaylist.id) ||
+        (currentPlaylist.tracks.isNotEmpty() && currentPlaylist.tracks.all { downloadedTrackIds.contains(it.id) })
+    var isDownloading by remember { mutableStateOf(false) }
     var isSaved by remember { mutableStateOf(false) }
-    var isDownloaded by remember { mutableStateOf(false) }
     var showPlaylistOptions by remember { mutableStateOf(false) }
     var selectedTrackForOptions by remember { mutableStateOf<Track?>(null) }
 
@@ -302,16 +308,39 @@ fun PlaylistDetailScreen(
                             )
                         }
 
-                        IconButton(onClick = {
-                            isDownloaded = !isDownloaded
-                            val msg = if (isDownloaded) "Downloaded ${currentPlaylist.tracks.size} tracks for offline playback" else "Removed downloads"
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                        }) {
-                            Icon(
-                                imageVector = if (isDownloaded) Icons.Filled.DownloadDone else Icons.Filled.Download,
-                                contentDescription = "Download",
-                                tint = if (isDownloaded) activeTheme.primaryColor else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        IconButton(
+                            enabled = !isDownloading,
+                            onClick = {
+                                if (isDownloaded) {
+                                    downloadManager.removePlaylistDownload(currentPlaylist.id)
+                                    Toast.makeText(context, "Removed downloads for this playlist", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    isDownloading = true
+                                    Toast.makeText(context, "Downloading ${currentPlaylist.tracks.size} tracks for offline playback...", Toast.LENGTH_SHORT).show()
+                                    downloadManager.downloadPlaylist(
+                                        playlist = currentPlaylist,
+                                        onProgress = { done, total -> },
+                                        onComplete = { count ->
+                                            isDownloading = false
+                                            Toast.makeText(context, "Downloaded $count/${currentPlaylist.tracks.size} tracks", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                }
+                            }
+                        ) {
+                            if (isDownloading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp),
+                                    strokeWidth = 2.dp,
+                                    color = activeTheme.primaryColor
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (isDownloaded) Icons.Filled.DownloadDone else Icons.Filled.Download,
+                                    contentDescription = "Download",
+                                    tint = if (isDownloaded) activeTheme.primaryColor else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
 
                         IconButton(onClick = { showPlaylistOptions = true }) {

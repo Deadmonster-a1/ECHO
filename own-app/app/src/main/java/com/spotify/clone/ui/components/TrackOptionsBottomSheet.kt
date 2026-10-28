@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
+import com.spotify.clone.core.download.TrackDownloadManager
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
@@ -184,12 +186,24 @@ fun TrackOptionsBottomSheet(
                 }
             )
 
+            val downloadManager = TrackDownloadManager.getInstance(context)
+            val isDownloaded = downloadManager.isTrackDownloaded(track.id)
+
             // Option 4: Download for offline
             TrackOptionRow(
-                icon = Icons.Filled.Download,
-                label = "Download for offline listening",
+                icon = if (isDownloaded) Icons.Filled.DownloadDone else Icons.Filled.Download,
+                label = if (isDownloaded) "Remove downloaded song" else "Download for offline listening",
                 onClick = {
-                    Toast.makeText(context, "Downloaded \"${track.title}\"", Toast.LENGTH_SHORT).show()
+                    if (isDownloaded) {
+                        downloadManager.removeTrackDownload(track.id)
+                        Toast.makeText(context, "Removed download: \"${track.title}\"", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Downloading \"${track.title}\" for offline...", Toast.LENGTH_SHORT).show()
+                        downloadManager.downloadTrack(track) { ok ->
+                            val msg = if (ok) "Downloaded \"${track.title}\"" else "Failed to download \"${track.title}\""
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    }
                     onDismiss()
                 }
             )

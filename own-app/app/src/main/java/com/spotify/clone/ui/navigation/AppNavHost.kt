@@ -300,15 +300,13 @@ fun AppNavHost(modifier: Modifier = Modifier) {
             }
         }
 
-        // Fullscreen Now Playing Overlay with Coordinated Motion
+        // Fullscreen Now Playing Overlay - Smooth Clean Slide without spring bounce
         AnimatedVisibility(
             visible = isPlayerExpanded,
-            enter = if (isReducedMotion) androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(0))
-            else (slideInVertically(animationSpec = com.spotify.clone.core.designsystem.EchoMotion.springGentle()) { it } +
-                    androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(com.spotify.clone.core.designsystem.EchoMotion.DurationStandard))),
-            exit = if (isReducedMotion) androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(0))
-            else (slideOutVertically(animationSpec = com.spotify.clone.core.designsystem.EchoMotion.springSnappy()) { it } +
-                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(com.spotify.clone.core.designsystem.EchoMotion.DurationStandard)))
+            enter = slideInVertically(animationSpec = androidx.compose.animation.core.tween(260)) { it } +
+                    androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)),
+            exit = slideOutVertically(animationSpec = androidx.compose.animation.core.tween(220)) { it } +
+                    androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(180))
         ) {
             NowPlayingScreen(
                 musicController = musicController,

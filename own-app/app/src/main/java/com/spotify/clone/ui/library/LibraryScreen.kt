@@ -32,7 +32,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
+import com.spotify.clone.core.download.TrackDownloadManager
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -96,12 +99,24 @@ fun LibraryScreen(
     var isSearchActive by remember { mutableStateOf(false) }
     var librarySearchQuery by remember { mutableStateOf("") }
 
+    val downloadManager = remember { TrackDownloadManager.getInstance(context) }
+    val downloadedTrackIds by downloadManager.downloadedTrackIds.collectAsState()
+    val downloadedPlaylistIds by downloadManager.downloadedPlaylistIds.collectAsState()
+
     val isLikedTab = state.selectedFilter == "Liked"
-    val filteredPlaylists = state.playlists.filter {
+    val isDownloadedTab = state.selectedFilter == "Downloaded"
+    val downloadedTracks = remember(downloadedTrackIds) { downloadManager.getAllDownloadedTracks() }
+
+    val allPlaylists = remember(state.playlists, downloadedPlaylistIds) {
+        val extra = downloadManager.getAllDownloadedPlaylists().filter { dp -> state.playlists.none { it.id == dp.id } }
+        state.playlists + extra
+    }
+
+    val filteredPlaylists = allPlaylists.filter {
         it.id != "pl_liked_songs" &&
         (librarySearchQuery.isBlank() || it.name.contains(librarySearchQuery, ignoreCase = true)) &&
         when (state.selectedFilter) {
-            "Downloaded" -> it.id.contains("telugu") || it.id.contains("custom")
+            "Downloaded" -> downloadedPlaylistIds.contains(it.id) || it.tracks.any { t -> downloadedTrackIds.contains(t.id) }
             else -> true
         }
     }
@@ -400,6 +415,276 @@ fun LibraryScreen(
                                     tint = activeTheme.primaryColor,
                                     modifier = Modifier.size(20.dp)
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+        } else if (isDownloadedTab) {
+            LazyColumn(
+                contentPadding = PaddingValues(bottom = 120.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                if (downloadedTracks.isEmpty() && filteredPlaylists.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 32.dp, vertical = 64.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(activeTheme.primaryColor.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Download,
+                                    contentDescription = null,
+                                    tint = activeTheme.primaryColor,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(18.dp))
+                            Text(
+                                text = "No downloaded music yet",
+                                color = MaterialTheme.colorScheme.onBackground,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Download songs or playlists by tapping the download icon to listen offline anywhere without internet.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.5.sp,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                lineHeight = 19.sp
+                            )
+                        }
+                    }
+                } else {
+                    if (downloadedTracks.isNotEmpty()) {
+                        item {
+                            // Downloaded Songs Header Card
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(
+                                        Brush.linearGradient(
+                                            listOf(activeTheme.primaryColor.copy(alpha = 0.85f), activeTheme.gradientEnd)
+                                        )
+                                    )
+                                    .padding(18.dp)
+                            ) {
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(46.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.White.copy(alpha = 0.25f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.DownloadDone,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(26.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(
+                                                    text = "Downloaded Songs",
+                                                    color = Color.White,
+                                                    fontSize = 20.sp,
+                                                    fontWeight = FontWeight.ExtraBold
+                                                )
+                                                Text(
+                                                    text = "${downloadedTracks.size} songs ready for offline listening",
+                                                    color = Color.White.copy(alpha = 0.85f),
+                                                    fontSize = 12.5.sp
+                                                )
+                                            }
+                                        }
+
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            // Shuffle Button
+                                            IconButton(
+                                                onClick = {
+                                                    if (downloadedTracks.isNotEmpty()) {
+                                                        val shuffled = downloadedTracks.shuffled()
+                                                        musicController.playTrack(shuffled.first(), shuffled)
+                                                    }
+                                                },
+                                                modifier = Modifier
+                                                    .size(42.dp)
+                                                    .clip(CircleShape)
+                                                    .background(Color.White.copy(alpha = 0.2f))
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.Shuffle,
+                                                    contentDescription = "Shuffle Downloaded",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+
+                                            // Play FAB
+                                            val isDownloadedPlaying = playbackState.isPlaying && playbackState.queue.any { q -> downloadedTracks.any { it.id == q.id } }
+                                            EchoPlayFab(
+                                                isPlaying = isDownloadedPlaying,
+                                                onToggle = {
+                                                    if (downloadedTracks.isNotEmpty()) {
+                                                        if (isDownloadedPlaying) musicController.togglePlayPause()
+                                                        else musicController.playTrack(downloadedTracks.first(), downloadedTracks)
+                                                    }
+                                                },
+                                                size = 42.dp,
+                                                containerColor = Color.White,
+                                                contentColor = Color(0xFF15141D)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        items(downloadedTracks) { track ->
+                            val isPlaying = playbackState.currentTrack?.id == track.id && playbackState.isPlaying
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .echoPressable(scaleOnPress = 0.98f) {
+                                        musicController.playTrack(track, downloadedTracks)
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = track.coverArtUrl,
+                                    contentDescription = track.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(52.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                )
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = track.title,
+                                        color = if (isPlaying) activeTheme.primaryColor else MaterialTheme.colorScheme.onBackground,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.5.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Filled.DownloadDone,
+                                            contentDescription = "Downloaded",
+                                            tint = activeTheme.primaryColor,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "${track.artistName} • ${track.albumName}",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+
+                                IconButton(onClick = {
+                                    downloadManager.removeTrackDownload(track.id)
+                                    Toast.makeText(context, "Removed from downloads", Toast.LENGTH_SHORT).show()
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.DownloadDone,
+                                        contentDescription = "Remove download",
+                                        tint = activeTheme.primaryColor,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (filteredPlaylists.isNotEmpty()) {
+                        item {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Downloaded Playlists",
+                                color = MaterialTheme.colorScheme.onBackground,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        items(filteredPlaylists) { playlist ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .echoPressable(scaleOnPress = 0.98f) { onPlaylistClick(playlist.id) }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                AsyncImage(
+                                    model = playlist.coverArtUrl,
+                                    contentDescription = playlist.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                )
+
+                                Spacer(modifier = Modifier.width(14.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = playlist.name,
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Filled.DownloadDone,
+                                            contentDescription = "Downloaded",
+                                            tint = activeTheme.primaryColor,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "Playlist • ${playlist.ownerName}",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 12.5.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

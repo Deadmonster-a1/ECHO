@@ -72,11 +72,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import androidx.compose.material.icons.filled.DownloadDone
 import com.spotify.clone.core.designsystem.EchoHeartButton
 import com.spotify.clone.core.designsystem.EchoMotion
 import com.spotify.clone.core.designsystem.EchoPlayFab
-import com.spotify.clone.core.designsystem.EchoSoundSculpture
 import com.spotify.clone.core.designsystem.LocalAppTheme
+import com.spotify.clone.core.download.TrackDownloadManager
 import com.spotify.clone.core.designsystem.LocalReducedMotion
 import androidx.compose.ui.platform.LocalContext
 import com.spotify.clone.core.designsystem.echoPressable
@@ -115,6 +116,8 @@ fun NowPlayingScreen(
 
     val syncManager = remember { DeviceSyncManager.getInstance(context) }
     val syncState by syncManager.syncState.collectAsState()
+    val downloadManager = remember { TrackDownloadManager.getInstance(context) }
+    val isDownloaded = downloadManager.isTrackDownloaded(track.id)
 
     var showQueueSheet by remember { mutableStateOf(false) }
     var showTrackOptionsSheet by remember { mutableStateOf(false) }
@@ -136,13 +139,13 @@ fun NowPlayingScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        activeTheme.primaryColor.copy(alpha = 0.35f),
-                        MaterialTheme.colorScheme.background,
-                        Color(0xFF0B0B10)
+                        activeTheme.primaryColor.copy(alpha = 0.38f),
+                        activeTheme.darkBackgroundColor.copy(alpha = 0.88f),
+                        Color(0xFF0F0E17),
+                        Color(0xFF08070D)
                     )
                 )
             )
@@ -162,14 +165,6 @@ fun NowPlayingScreen(
             },
         contentAlignment = Alignment.TopCenter
     ) {
-        // Living ECHO Sound Sculpture in background
-        EchoSoundSculpture(
-            isPlaying = state.isPlaying,
-            trackKey = track.id,
-            alpha = 0.45f,
-            modifier = Modifier.fillMaxSize()
-        )
-
         Column(
             modifier = Modifier
                 .widthIn(max = 580.dp)
@@ -203,13 +198,14 @@ fun NowPlayingScreen(
                 ) {
                     Text(
                         text = "PLAYING FROM PLAYLIST",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.65f),
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.2.sp
+                        letterSpacing = 1.4.sp
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = track.albumName,
+                        text = track.albumName.ifBlank { "Now Playing" },
                         color = Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -230,31 +226,57 @@ fun NowPlayingScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // 2. Signature Artwork Visual Anchor
+            // 2. High-Aesthetic Album Artwork with Ambient Depth Glow
             Box(
                 modifier = Modifier
                     .widthIn(max = 380.dp)
                     .fillMaxWidth(0.92f)
-                    .aspectRatio(1f)
-                    .shadow(elevation = 20.dp, shape = RoundedCornerShape(20.dp), ambientColor = activeTheme.primaryColor.copy(alpha = 0.3f))
-                    .clip(RoundedCornerShape(20.dp))
-                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1B1A25)),
+                    .aspectRatio(1f),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(
-                    model = track.coverArtUrl,
-                    contentDescription = track.albumName,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
+                // Ambient color glow behind artwork
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize(0.96f)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(
+                                    activeTheme.primaryColor.copy(alpha = 0.30f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
                 )
+
+                // High-resolution Artwork Anchor
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .shadow(
+                            elevation = 24.dp,
+                            shape = RoundedCornerShape(20.dp),
+                            ambientColor = activeTheme.primaryColor.copy(alpha = 0.45f),
+                            spotColor = Color.Black.copy(alpha = 0.70f)
+                        )
+                        .clip(RoundedCornerShape(20.dp))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
+                        .background(Color(0xFF1B1A25)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = track.coverArtUrl,
+                        contentDescription = track.albumName,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(26.dp))
 
-            // 3. Track Title, Artist & Tactile Favorite
+            // 3. Track Title, Artist with Explicit Badge & Tactile Favorite
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -269,16 +291,34 @@ fun NowPlayingScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = track.artistName,
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 16.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.clickable {
-                            onViewArtist?.invoke(track.artistName)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (track.isExplicit) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(end = 6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(Color.White.copy(alpha = 0.45f))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                Text(
+                                    text = "E",
+                                    color = Color.Black,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
                         }
-                    )
+                        Text(
+                            text = track.artistName,
+                            color = Color.White.copy(alpha = 0.75f),
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.clickable {
+                                onViewArtist?.invoke(track.artistName)
+                            }
+                        )
+                    }
                 }
 
                 EchoHeartButton(
@@ -288,9 +328,9 @@ fun NowPlayingScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Genuine Verified Stream Telemetry Badges
+            // Genuine Verified Stream Telemetry Badges (Studio Master, Lossless, Offline)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -298,27 +338,54 @@ fun NowPlayingScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Offline Downloaded Badge (if cached locally)
+                if (isDownloaded) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(activeTheme.primaryColor.copy(alpha = 0.18f))
+                            .border(1.dp, activeTheme.primaryColor.copy(alpha = 0.40f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Filled.DownloadDone,
+                                contentDescription = "Offline Downloaded",
+                                tint = activeTheme.primaryColor,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Offline Downloaded",
+                                color = activeTheme.primaryColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
                 // Verified Studio Master Badge
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
-                        .background(activeTheme.primaryColor.copy(alpha = 0.18f))
-                        .border(1.dp, activeTheme.primaryColor.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(6.dp))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Filled.GraphicEq,
                             contentDescription = "Studio",
-                            tint = activeTheme.primaryColor,
+                            tint = Color.White.copy(alpha = 0.9f),
                             modifier = Modifier.size(13.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "320 kbps Studio Master",
-                            color = activeTheme.primaryColor,
+                            color = Color.White.copy(alpha = 0.9f),
                             fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -459,28 +526,30 @@ fun NowPlayingScreen(
                         .background(
                             if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null)
                                 activeTheme.primaryColor.copy(alpha = 0.22f)
-                            else Color.Transparent
+                            else Color.White.copy(alpha = 0.08f)
                         )
                         .clickable { showDevicesSheet = true }
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Devices,
                         contentDescription = "Devices",
                         tint = if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null)
                             activeTheme.primaryColor
-                        else Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(22.dp)
+                        else Color.White.copy(alpha = 0.75f),
+                        modifier = Modifier.size(18.dp)
                     )
-                    if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (syncState.activeSession != null) "Jam Active" else "${syncState.activeDeviceCount} Devices",
-                            color = activeTheme.primaryColor,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (syncState.activeSession != null) "Jam Active" 
+                               else if (syncState.isMultiRoomAudioEnabled) "${syncState.activeDeviceCount} Devices"
+                               else "This Phone",
+                        color = if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null)
+                            activeTheme.primaryColor
+                        else Color.White.copy(alpha = 0.85f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
 
                 // Speed Pill
@@ -489,7 +558,7 @@ fun NowPlayingScreen(
                         .clip(RoundedCornerShape(20.dp))
                         .background(
                             if (playbackSpeed != 1.0f) activeTheme.primaryColor.copy(alpha = 0.25f)
-                            else Color.White.copy(alpha = 0.12f)
+                            else Color.White.copy(alpha = 0.10f)
                         )
                         .clickable { showSpeedSheet = true }
                         .padding(horizontal = 14.dp, vertical = 6.dp),
@@ -503,70 +572,32 @@ fun NowPlayingScreen(
                             imageVector = Icons.Filled.Speed,
                             contentDescription = "Playback Speed",
                             tint = if (playbackSpeed != 1.0f) activeTheme.primaryColor else Color.White.copy(alpha = 0.7f),
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                         Text(
                             text = if (playbackSpeed == 1.0f) "1x" else "${playbackSpeed}x",
                             color = if (playbackSpeed != 1.0f) activeTheme.primaryColor else Color.White,
-                            fontSize = 13.sp,
+                            fontSize = 12.5.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
-                IconButton(onClick = { showQueueSheet = true }) {
+                // Queue button
+                IconButton(
+                    onClick = { showQueueSheet = true },
+                    modifier = Modifier.size(40.dp)
+                ) {
                     Icon(
                         imageVector = Icons.Filled.QueueMusic,
                         contentDescription = "Queue",
-                        tint = Color.White.copy(alpha = 0.7f)
+                        tint = Color.White.copy(alpha = 0.8f),
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // Active Device / Multi-Room / Jam status banner
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.07f))
-                    .clickable { showDevicesSheet = true }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Devices,
-                        contentDescription = null,
-                        tint = if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null) activeTheme.primaryColor else Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = syncState.listeningStatusDescription,
-                        color = if (syncState.isMultiRoomAudioEnabled || syncState.activeSession != null) activeTheme.primaryColor else Color.White.copy(alpha = 0.9f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "DEVICES",
-                    color = activeTheme.primaryColor,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(22.dp))
 
             // 7. Synchronized Lyrics Preview Card
             LyricsPreviewCard(
