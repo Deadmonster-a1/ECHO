@@ -21,8 +21,8 @@ object SampleCatalog {
         artistName = "Shilpa Rao, Anirudh Ravichander",
         albumName = "Devara: Part 1",
         coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-        durationMs = 224000L,
-        mediaUri = "",
+        durationMs = 222000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyMaCcla+iAEnWKGhjucPDOQMuVXLGmbqF4ufcJUQKLmvyzYWZhzpVWBw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Chuttamalle chuttesaave thuntari chupultho"),
             LyricLine(14000L, "Chuttukora maatalatho allari reppalatho"),
@@ -38,8 +38,8 @@ object SampleCatalog {
         artistName = "Anirudh Ravichander",
         albumName = "Devara: Part 1",
         coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-        durationMs = 196000L,
-        mediaUri = "",
+        durationMs = 195000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyBBiimzn9tc9nco0itIplb91h8qnOCWfSJeSWUrTfVnObIMg+VE4Rfxw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "All hail the tiger! Fear song"),
             LyricLine(14000L, "Chora chora chora samudraanne daate veera"),
@@ -55,7 +55,7 @@ object SampleCatalog {
         albumName = "Devara: Part 1",
         coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
         durationMs = 229000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyyLC1Sr5tlHNnAl68sYNquxL1indmYJDU/5nwdJWTO3wdiD6/VI7vghw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Daavudi Daavudi mass step eyyi"),
             LyricLine(12000L, "Oorantha thirigi dhoom dhaam cheyyi"),
@@ -70,8 +70,8 @@ object SampleCatalog {
         artistName = "Kaala Bhairava, Anirudh Ravichander",
         albumName = "Devara: Part 1",
         coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-        durationMs = 190000L,
-        mediaUri = "",
+        durationMs = 174000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyoXmZjMjtCbg4/oPpySiQPbdXC3jQdOSVIMJs1pxvHLZg4u/AZSX3Lxw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Ayudha Pooja cheyyara samudraputhaada"),
             LyricLine(15000L, "Kathi pattina cheyyi dharmani nilabettu"),
@@ -88,7 +88,7 @@ object SampleCatalog {
         albumName = "Pushpa 2: The Rule",
         coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
         durationMs = 256000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDymza0K1NmnzXPT5c4khZBeZ7WgcFEV/SR6IIp6YDLVyE8Fpck9hNy4hw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Pushpa Pushpa Pushpa Pushpa Raj"),
             LyricLine(14000L, "Taggede le antu vachade"),
@@ -105,7 +105,7 @@ object SampleCatalog {
         albumName = "Pushpa 2: The Rule",
         coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
         durationMs = 260000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyVs4cGWximUIfqMBYOjdt4dpOg/Y+Qy5M5u1LEbTalrw6cjVlmGT4Lhw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Sooseki aggiravva laaga chuseki"),
             LyricLine(14000L, "Muddula gumpula naduma kaliseki"),
@@ -121,7 +121,7 @@ object SampleCatalog {
         albumName = "Pushpa 2: The Rule",
         coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
         durationMs = 247000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyDaLFFpsCrkc/223u+UAfUUmJbRidTvaicMteyJm8zhJxYSn2hPR1Nhw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Peelings peelings mass peelings"),
             LyricLine(14000L, "Dance floor adhiripoyina feelings"),
@@ -136,8 +136,8 @@ object SampleCatalog {
         artistName = "Sublahshini, Devi Sri Prasad",
         albumName = "Pushpa 2: The Rule",
         coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
-        durationMs = 230000L,
-        mediaUri = "",
+        durationMs = 248000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDymqqxav/w4B2dJtzHv5NHAIZksK1vNN8lSJ6czI01rtmDdeRLZU7LFhw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Kissik kissik ani kotteti chupulu"),
             LyricLine(12000L, "Dhoom dhaam step latho allari uupulu"),
@@ -154,7 +154,7 @@ object SampleCatalog {
         albumName = "Guntur Kaaram",
         coverArtUrl = "https://c.saavncdn.com/000/Guntur-Kaaram-Telugu-2023-20240126145901-500x500.jpg",
         durationMs = 216000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyAYSpkEihdkG4+AFn1gYNkJM9bhyDhDoC00is5zg9wSEUPgFYtzlXCxw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Kurchi madathapetti kottinatte untadi"),
             LyricLine(12000L, "Masala daawat ki vachinattu untadi"),
@@ -170,7 +170,7 @@ object SampleCatalog {
         albumName = "Guntur Kaaram",
         coverArtUrl = "https://c.saavncdn.com/000/Guntur-Kaaram-Telugu-2023-20240126145901-500x500.jpg",
         durationMs = 206000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyUTCwI9AItR66rnc9xx0Tv2osLVlQ/Cixs800jzw5IP7pVlRPOuoXgxw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Dum masala dum masala guntur spicy"),
             LyricLine(14000L, "Babu swag chusi fans antha crazy"),
@@ -185,8 +185,8 @@ object SampleCatalog {
         artistName = "Javed Ali, Thaman S",
         albumName = "Guntur Kaaram",
         coverArtUrl = "https://c.saavncdn.com/000/Guntur-Kaaram-Telugu-2023-20240126145901-500x500.jpg",
-        durationMs = 250000L,
-        mediaUri = "",
+        durationMs = 242000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDymZ4tQpuKyr91NUzJIstrtsZPzZMuLyy+Fi4WEMqUQYSi3pZDHbI6/Bw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Amma ane maata lo preme unnadamma"),
             LyricLine(15000L, "Gunde lothula nunchi vacche paata ide gamma"),
@@ -203,7 +203,7 @@ object SampleCatalog {
         albumName = "Kalki 2898 AD",
         coverArtUrl = "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg",
         durationMs = 163000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDynszYR1k/ojCtZwDkcJXW+nWktSBSdDYVSeGbzIIyelaOUnKyWJfsLBw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Bhairava vachaduraa kaalaniki adhipathi"),
             LyricLine(14000L, "Kalki jagathiki nayakudu mana sathi"),
@@ -218,8 +218,8 @@ object SampleCatalog {
         artistName = "Santhosh Narayanan, Sanjith Hegde",
         albumName = "Kalki 2898 AD",
         coverArtUrl = "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg",
-        durationMs = 210000L,
-        mediaUri = "",
+        durationMs = 207000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyiY+mB17omEQEp5JgVa2nqna1v2myXZ/6llALll5mW9S4k4zrRajvexw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Ta takkara complex loki dhoosukochi"),
             LyricLine(14000L, "Kalalanni nijamaina vela chusi"),
@@ -234,8 +234,8 @@ object SampleCatalog {
         artistName = "Kaala Bhairava, Santhosh Narayanan",
         albumName = "Kalki 2898 AD",
         coverArtUrl = "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg",
-        durationMs = 180000L,
-        mediaUri = "",
+        durationMs = 189000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDykajXvJEDz3mrAAGV+xeh7a/vBHOTDVTsanq23EWQ0tUl3uHmuT6BJhw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Kalki roopam avatharinche vela"),
             LyricLine(15000L, "Dharma sansthapanarthaya sambhavami yuge yuge"),
@@ -252,7 +252,7 @@ object SampleCatalog {
         albumName = "Ala Vaikunthapurramuloo",
         coverArtUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg",
         durationMs = 219000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyBTJ4G3/I1AorZTT0gsv5kZrBofZqrazGks5ucgS6HLBm12GRaz2PMBw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Samajavaragamana ninu choosi aaga galana"),
             LyricLine(16000L, "Manasu meeda vayasuki unna aasa aapanaina"),
@@ -268,7 +268,7 @@ object SampleCatalog {
         albumName = "Ala Vaikunthapurramuloo",
         coverArtUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg",
         durationMs = 198000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDy6cNRQV5rpqCV4BYCV1yJyIhUmSDmawrl4K+qb2UgyflhwcuQJos6BBw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Butta bomma butta bomma nannu suttu kollavura"),
             LyricLine(14000L, "Kalla ninda aasa nimpina muddu gummavu nuvvura"),
@@ -283,8 +283,8 @@ object SampleCatalog {
         artistName = "Anurag Kulkarni, Mangli, Thaman S",
         albumName = "Ala Vaikunthapurramuloo",
         coverArtUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg",
-        durationMs = 237000L,
-        mediaUri = "",
+        durationMs = 245000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyBeH1z8NaJLegYmdptoH6W34g9WIY9W6OaZ96FcYP/jfUPa9/otj+kRw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Ramuloo Ramulaa nannakada sitti pettavura"),
             LyricLine(14000L, "Gunde lothula nunchi vacche paata paadara"),
@@ -301,7 +301,7 @@ object SampleCatalog {
         albumName = "Sita Ramam",
         coverArtUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg",
         durationMs = 218000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyYzLitKzQefYsZ0b37qj3k5mZQELrI4mYHy6fp6cdcnvjqGVpx8QTQRw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Inthandham daari mabbula naduma"),
             LyricLine(14000L, "Inthandham vennela kurise kshanamo"),
@@ -316,8 +316,8 @@ object SampleCatalog {
         artistName = "S.P. Charan, Ramya Behara, Vishal Chandrashekhar",
         albumName = "Sita Ramam",
         coverArtUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg",
-        durationMs = 244000L,
-        mediaUri = "",
+        durationMs = 246000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyOpwiDEJmhiWfwS0i/nc/TYHPTM7xwUqtzlI06nVIzICvf5OZt0ldcBw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Oh Sita Hey Rama mana prema chiranjeevi"),
             LyricLine(15000L, "Lekhala thoti allina prema kavithavam ide"),
@@ -332,8 +332,8 @@ object SampleCatalog {
         artistName = "Anurag Kulkarni, Sinduri Vishal, Vishal Chandrashekhar",
         albumName = "Sita Ramam",
         coverArtUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg",
-        durationMs = 265000L,
-        mediaUri = "",
+        durationMs = 232000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyo3FJ30+AC3zGHSzJZdIYJ4PhXVnce/yW9mZI01YzVYntgAC+hGkInBw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Kaanunna kalyanam kallaara chudali"),
             LyricLine(15000L, "Prema pelli bandham loki adugu pettali"),
@@ -350,7 +350,7 @@ object SampleCatalog {
         albumName = "RRR",
         coverArtUrl = "https://c.saavncdn.com/683/RRR-Telugu-Telugu-2022-20250828171313-500x500.jpg",
         durationMs = 214000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyK1tSoSB+oPrTJYqQ1jcTCNgc6b6boKXKeppOEkUoiK5Fp6jyXWA3QBw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Naatu Naatu Naatu Naatu Veera Naatu"),
             LyricLine(14000L, "Pola gattu dummulona potlaram katti"),
@@ -366,7 +366,7 @@ object SampleCatalog {
         albumName = "RRR",
         coverArtUrl = "https://c.saavncdn.com/683/RRR-Telugu-Telugu-2022-20250828171313-500x500.jpg",
         durationMs = 340000L,
-        mediaUri = "",
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyCWNfpkQqJNYVawpRJ3uktWhrWcckjdcBi4qytVQodFgj46tVl5XDnhw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Nippu thoti neellu kalise dosti geetham"),
             LyricLine(16000L, "Praanamaina iche sneham idi chirakaalam"),
@@ -381,8 +381,8 @@ object SampleCatalog {
         artistName = "Kaala Bhairava, M.M. Keeravani",
         albumName = "RRR",
         coverArtUrl = "https://c.saavncdn.com/683/RRR-Telugu-Telugu-2022-20250828171313-500x500.jpg",
-        durationMs = 255000L,
-        mediaUri = "",
+        durationMs = 254000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyYRJed3UIdRwBHU2mQ14OgEAnBnBJuYrttXfZeGnk19WoEvYcYesRrBw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Komuram Bheemudo Komuram Bheemudo"),
             LyricLine(15000L, "Korra korra goddallona ninnu chusiri"),
@@ -397,9 +397,9 @@ object SampleCatalog {
         title = "Samayama",
         artistName = "Anurag Kulkarni, Sithara, Hesham Abdul Wahab",
         albumName = "Hi Nanna",
-        coverArtUrl = "https://c.saavncdn.com/307/Samayama-From-Hi-Nanna-Telugu-2023-20230918164922-500x500.jpg",
-        durationMs = 238000L,
-        mediaUri = "",
+        coverArtUrl = "https://c.saavncdn.com/253/Hi-Nanna-Telugu-Telugu-2023-20240109191037-500x500.jpg",
+        durationMs = 204000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyprimJkoXJVCdMtzDMUkTu7HaAD7oAImZx8IUcWuLgylZ0CdhfyjM5hw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Samayama aagi poraa konchem sepu"),
             LyricLine(15000L, "E kshanam cheripovaddu manasula chupu"),
@@ -414,8 +414,8 @@ object SampleCatalog {
         artistName = "Sid Sriram, Gopi Sundar",
         albumName = "Geetha Govindam",
         coverArtUrl = "https://c.saavncdn.com/237/Geetha-Govindam-Telugu-2018-20180921-500x500.jpg",
-        durationMs = 267000L,
-        mediaUri = "",
+        durationMs = 266000L,
+        mediaUri = "saavn_enc:ID2ieOjCrwfgWvL5sXl4B1ImC5QfbsDyTwMMUO2ElmZ5QH82uuJIjRieZfpyM0PoDXkn76/rAa2csrtu8BIoSRw7tS9a8Gtq",
         lyrics = listOf(
             LyricLine(0L, "Inkem inkem inkem kaavaale chaale idhi chaale"),
             LyricLine(15000L, "Neeve unte naatho paate jeevithame panduge"),
@@ -580,8 +580,8 @@ object SampleCatalog {
             artistName = "Ranveer Allahbadia",
             albumName = "The Ranveer Show",
             coverArtUrl = "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=500&auto=format&fit=crop&q=80",
-            durationMs = 2840000L,
-            mediaUri = ""
+            durationMs = 284000L,
+            mediaUri = "https://ia600908.us.archive.org/8/items/testmp3testfile/mpthreetest.mp3"
         ),
         Track(
             id = "ep_huberman_1",
@@ -589,8 +589,8 @@ object SampleCatalog {
             artistName = "Dr. Andrew Huberman",
             albumName = "Huberman Lab",
             coverArtUrl = "https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=500&auto=format&fit=crop&q=80",
-            durationMs = 4320000L,
-            mediaUri = ""
+            durationMs = 432000L,
+            mediaUri = "https://ia600908.us.archive.org/8/items/testmp3testfile/mpthreetest.mp3"
         ),
         Track(
             id = "ep_tollywood_insider_1",
@@ -598,8 +598,8 @@ object SampleCatalog {
             artistName = "Tollywood Audio Insider",
             albumName = "Tollywood Insider Podcast",
             coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-            durationMs = 2100000L,
-            mediaUri = ""
+            durationMs = 210000L,
+            mediaUri = "https://ia600908.us.archive.org/8/items/testmp3testfile/mpthreetest.mp3"
         )
     )
 

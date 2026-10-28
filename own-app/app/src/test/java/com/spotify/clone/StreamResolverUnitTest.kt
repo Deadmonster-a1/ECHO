@@ -59,7 +59,7 @@ class StreamResolverUnitTest {
             albumName = "Album",
             coverArtUrl = "",
             durationMs = 120000L,
-            mediaUri = "https://commondatastorage.googleapis.com/codeskulptor-demos/DDR_assets/Kangaroo_MusiQue_-_The_Neverending_Story.mp3"
+            mediaUri = "https://aac.saavncdn.com/123/full_audio_320kbps.mp4"
         )
         assertFalse(FullTrackStreamResolver.needsResolution(track))
     }

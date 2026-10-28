@@ -132,26 +132,23 @@ class MusicController private constructor(private val context: Context) {
                         errorMessage = "Playback issue: ${error.errorCodeName}"
                     )
                 }
-                val p = controller ?: return
-                if (p.hasNextMediaItem()) {
-                    Log.d(TAG, "Recovering from playback error by advancing to next track")
-                    p.seekToNextMediaItem()
-                    p.prepare()
-                    p.play()
-                }
+                // Do not automatically advance to an arbitrary track on error
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val mediaId = mediaItem?.mediaId
                 val track = currentQueue.find { it.id == mediaId }
-                _playbackState.update { it.copy(currentTrack = track, errorMessage = null) }
+                if (track != null) {
+                    _playbackState.update { it.copy(currentTrack = track, errorMessage = null) }
+                }
                 updateState()
 
                 if (track != null && !TrackDownloadManager.getInstance(context).isTrackDownloaded(track.id) && FullTrackStreamResolver.needsResolution(track)) {
                     scope.launch(Dispatchers.IO) {
                         val resolvedUrl = if (track.mediaUri.startsWith("saavn_enc:")) {
                             val encUrl = track.mediaUri.removePrefix("saavn_enc:")
-                            FullTrackStreamResolver.resolveAuthToken(encUrl)
+                            FullTrackStreamResolver.resolveAuthToken(encUrl, bitrate = "320")
+                                ?: FullTrackStreamResolver.resolveAuthToken(encUrl, bitrate = "160")
                                 ?: FullTrackStreamResolver.resolveStreamUrl(track.title, track.artistName, track.albumName)
                         } else {
                             FullTrackStreamResolver.resolveStreamUrl(track.title, track.artistName, track.albumName)
@@ -169,6 +166,7 @@ class MusicController private constructor(private val context: Context) {
                                     if (controller?.currentMediaItemIndex == idx) {
                                         controller?.seekTo(idx, currentPos)
                                     }
+                                    _playbackState.update { it.copy(currentTrack = resolvedTrack) }
                                 }
                             }
                         }
@@ -193,7 +191,9 @@ class MusicController private constructor(private val context: Context) {
 
     private fun updateState() {
         val player = controller ?: return
-        val currentTrack = currentQueue.getOrNull(player.currentMediaItemIndex)
+        val activeMediaId = player.currentMediaItem?.mediaId
+        val currentTrack = currentQueue.find { it.id == activeMediaId }
+            ?: currentQueue.getOrNull(player.currentMediaItemIndex)
             ?: if (player.currentMediaItem != null) {
                 val meta = player.currentMediaItem!!.mediaMetadata
                 Track(
@@ -296,18 +296,34 @@ class MusicController private constructor(private val context: Context) {
                 downloadMgr.resolveTrackForPlayback(targetTrack)
             } else if (FullTrackStreamResolver.needsResolution(targetTrack)) {
                 Log.d(TAG, "Track '${targetTrack.title}' needs stream resolution... uri: ${targetTrack.mediaUri}")
-                val resolvedUrl = if (targetTrack.mediaUri.startsWith("saavn_enc:")) {
+                if (targetTrack.mediaUri.startsWith("saavn_enc:")) {
                     val encUrl = targetTrack.mediaUri.removePrefix("saavn_enc:")
-                    FullTrackStreamResolver.resolveAuthToken(encUrl)
+                    val resolvedUrl = FullTrackStreamResolver.resolveAuthToken(encUrl, bitrate = "320")
+                        ?: FullTrackStreamResolver.resolveAuthToken(encUrl, bitrate = "160")
                         ?: FullTrackStreamResolver.resolveStreamUrl(targetTrack.title, targetTrack.artistName, targetTrack.albumName)
+                    if (!resolvedUrl.isNullOrBlank()) {
+                        Log.d(TAG, "Resolved full studio stream for '${targetTrack.title}': $resolvedUrl")
+                        targetTrack.copy(mediaUri = resolvedUrl)
+                    } else {
+                        targetTrack
+                    }
                 } else {
-                    FullTrackStreamResolver.resolveStreamUrl(targetTrack.title, targetTrack.artistName, targetTrack.albumName)
-                }
-                if (!resolvedUrl.isNullOrBlank()) {
-                    Log.d(TAG, "Resolved full studio stream for '${targetTrack.title}': $resolvedUrl")
-                    targetTrack.copy(mediaUri = resolvedUrl)
-                } else {
-                    targetTrack
+                    val details = FullTrackStreamResolver.resolveTrackDetails(targetTrack.title, targetTrack.artistName, targetTrack.albumName)
+                    if (details != null && details.streamUrl.isNotBlank()) {
+                        Log.d(TAG, "Resolved full studio stream & details for '${targetTrack.title}': ${details.streamUrl}")
+                        targetTrack.copy(
+                            mediaUri = details.streamUrl,
+                            coverArtUrl = if (targetTrack.coverArtUrl.isBlank() || isCompilation(targetTrack.coverArtUrl, targetTrack.albumName)) {
+                                details.coverArtUrl ?: targetTrack.coverArtUrl
+                            } else targetTrack.coverArtUrl,
+                            albumName = if (targetTrack.albumName.isBlank() || targetTrack.albumName.equals("Single", ignoreCase = true)) {
+                                details.albumName ?: targetTrack.albumName
+                            } else targetTrack.albumName,
+                            durationMs = if (details.durationMs != null && details.durationMs > 0L) details.durationMs else targetTrack.durationMs
+                        )
+                    } else {
+                        targetTrack
+                    }
                 }
             } else {
                 targetTrack
@@ -359,7 +375,8 @@ class MusicController private constructor(private val context: Context) {
                 if (!downloadMgr.isTrackDownloaded(nextTrack.id) && FullTrackStreamResolver.needsResolution(nextTrack)) {
                     val nextUrl = if (nextTrack.mediaUri.startsWith("saavn_enc:")) {
                         val enc = nextTrack.mediaUri.removePrefix("saavn_enc:")
-                        FullTrackStreamResolver.resolveAuthToken(enc)
+                        FullTrackStreamResolver.resolveAuthToken(enc, bitrate = "320")
+                            ?: FullTrackStreamResolver.resolveAuthToken(enc, bitrate = "160")
                             ?: FullTrackStreamResolver.resolveStreamUrl(nextTrack.title, nextTrack.artistName, nextTrack.albumName)
                     } else {
                         FullTrackStreamResolver.resolveStreamUrl(nextTrack.title, nextTrack.artistName, nextTrack.albumName)
@@ -529,9 +546,21 @@ class MusicController private constructor(private val context: Context) {
 
         return MediaItem.Builder()
             .setMediaId(id)
-            .setUri(if (safeUri.isNotBlank()) safeUri else "about:blank")
+            .setUri(if (safeUri.isNotBlank()) safeUri else "https://ia600908.us.archive.org/8/items/testmp3testfile/mpthreetest.mp3")
             .setMediaMetadata(metadata)
             .build()
+    }
+
+    private fun isCompilation(coverUrl: String, album: String): Boolean {
+        val lower = "$coverUrl $album".lowercase()
+        return lower.contains("superhits") ||
+                lower.contains("waves") ||
+                lower.contains("collection") ||
+                lower.contains("top 10") ||
+                lower.contains("top 20") ||
+                lower.contains("top 50") ||
+                lower.contains("dance dhamaka") ||
+                lower.contains("romantic songs")
     }
 
     companion object {

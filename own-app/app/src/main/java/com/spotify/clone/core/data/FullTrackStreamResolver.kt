@@ -12,10 +12,17 @@ import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 
+data class StreamResolution(
+    val streamUrl: String,
+    val coverArtUrl: String? = null,
+    val albumName: String? = null,
+    val durationMs: Long? = null
+)
+
 /**
  * Resolves full-length studio audio streams (160kbps / 320kbps) for any song in the catalog,
  * including movie soundtracks (Baahubali, Devara, Pushpa, Kalki, etc.), regional melodies,
- * and private indie singles, completely eliminating 30-second promotional cutoffs.
+ * and private indie singles, completely eliminating 30-second promotional cutoffs and artwork mismatch.
  */
 object FullTrackStreamResolver {
 
@@ -45,24 +52,31 @@ object FullTrackStreamResolver {
         val cacheKey = "${cleanTitle(title).lowercase()}_${cleanArtist(artistName).lowercase()}_${cleanAlbum(albumName).lowercase()}"
         streamCache[cacheKey]?.let { return@withContext it }
 
+        val details = resolveTrackDetails(title, artistName, albumName)
+        if (details != null && details.streamUrl.isNotBlank()) {
+            streamCache[cacheKey] = details.streamUrl
+            return@withContext details.streamUrl
+        }
+
+        Log.w(TAG, "Could not resolve external full stream for '$title', fallback will be used")
+        null
+    }
+
+    /**
+     * Resolves full studio stream URL along with authentic album art and title metadata.
+     */
+    suspend fun resolveTrackDetails(title: String, artistName: String, albumName: String = ""): StreamResolution? = withContext(Dispatchers.IO) {
         val candidates = generateCandidates(title, artistName, albumName)
-        Log.d(TAG, "Resolving full stream for '$title' ($artistName) across ${candidates.size} candidates: $candidates")
+        Log.d(TAG, "Resolving full track details for '$title' ($artistName) across ${candidates.size} candidates: $candidates")
 
         for (candidate in candidates) {
-            val candKey = candidate.lowercase()
-            streamCache[candKey]?.let {
-                streamCache[cacheKey] = it
-                return@withContext it
-            }
-
-            val encUrl = findEncryptedMediaUrl(candidate, expectedTitle = title)
-            if (!encUrl.isNullOrBlank()) {
-                val fullUrl = resolveAuthToken(encUrl, bitrate = "160")
+            val match = findEncryptedMediaMatch(candidate, expectedTitle = title)
+            if (match != null) {
+                val fullUrl = resolveAuthToken(match.streamUrl, bitrate = "320")
+                    ?: resolveAuthToken(match.streamUrl, bitrate = "160")
                 if (!fullUrl.isNullOrBlank()) {
-                    streamCache[cacheKey] = fullUrl
-                    streamCache[candKey] = fullUrl
                     Log.d(TAG, "Successfully resolved full studio stream for '$title' via candidate '$candidate': $fullUrl")
-                    return@withContext fullUrl
+                    return@withContext match.copy(streamUrl = fullUrl)
                 }
             }
         }
@@ -70,15 +84,13 @@ object FullTrackStreamResolver {
         // Secondary fallback: query Audius decentralized network for private/indie songs
         val audiusStream = resolveAudiusStream(title, artistName)
         if (!audiusStream.isNullOrBlank()) {
-            streamCache[cacheKey] = audiusStream
-            return@withContext audiusStream
+            return@withContext StreamResolution(streamUrl = audiusStream)
         }
 
-        Log.w(TAG, "Could not resolve external full stream for '$title', fallback will be used")
         null
     }
 
-    private fun findEncryptedMediaUrl(query: String, expectedTitle: String = ""): String? {
+    private fun findEncryptedMediaMatch(query: String, expectedTitle: String = ""): StreamResolution? {
         try {
             val encodedQuery = URLEncoder.encode(query.trim(), "UTF-8")
             val searchUrl = "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=10&p=1&q=$encodedQuery"
@@ -89,29 +101,80 @@ object FullTrackStreamResolver {
                 val results = json.optJSONArray("results")
                 if (results != null && results.length() > 0) {
                     val cleanExp = cleanTitle(expectedTitle).lowercase()
-                    var fallbackEnc: String? = null
+
+                    var bestItem: JSONObject? = null
+                    var bestScore = -1
+
                     for (i in 0 until results.length()) {
                         val item = results.optJSONObject(i) ?: continue
                         val moreInfo = item.optJSONObject("more_info")
                         val enc = moreInfo?.optString("encrypted_media_url", "") ?: ""
-                        if (enc.isNotBlank()) {
-                            if (fallbackEnc == null) fallbackEnc = enc
-                            if (cleanExp.isNotBlank()) {
-                                val itemTitle = Html.fromHtml(item.optString("title", ""), Html.FROM_HTML_MODE_LEGACY).toString().lowercase()
-                                val cleanItem = cleanTitle(itemTitle).lowercase()
-                                if (cleanItem.contains(cleanExp) || cleanExp.contains(cleanItem)) {
-                                    return enc
-                                }
-                            }
+                        if (enc.isBlank()) continue
+
+                        val rawTitle = item.optString("title", "")
+                        val itemTitle = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString()
+                        val cleanItem = cleanTitle(itemTitle).lowercase()
+
+                        val rawAlbum = moreInfo?.optString("album", "") ?: ""
+                        val itemAlbum = Html.fromHtml(rawAlbum, Html.FROM_HTML_MODE_LEGACY).toString().lowercase()
+
+                        val isTitleMatch = cleanExp.isBlank() ||
+                                cleanItem == cleanExp ||
+                                cleanItem.contains(cleanExp) ||
+                                cleanExp.contains(cleanItem) ||
+                                hasWordOverlap(cleanItem, cleanExp)
+
+                        if (!isTitleMatch) continue
+
+                        // Scoring: prefer original albums/singles over generic compilations
+                        var score = 10
+                        if (cleanItem == cleanExp) score += 20
+                        if (itemAlbum.contains("superhits") ||
+                            itemAlbum.contains("waves") ||
+                            itemAlbum.contains("collection") ||
+                            itemAlbum.contains("mashup") ||
+                            itemAlbum.contains("top 10") ||
+                            itemAlbum.contains("top 20") ||
+                            itemAlbum.contains("romantic songs")) {
+                            score -= 8
+                        } else {
+                            score += 10
+                        }
+
+                        if (score > bestScore) {
+                            bestScore = score
+                            bestItem = item
                         }
                     }
-                    return fallbackEnc
+
+                    if (bestItem != null) {
+                        val moreInfo = bestItem.optJSONObject("more_info")
+                        val enc = moreInfo?.optString("encrypted_media_url", "") ?: ""
+                        val rawCover = bestItem.optString("image", "").replace("150x150", "500x500")
+                        val rawAlbum = moreInfo?.optString("album", "") ?: ""
+                        val resolvedAlbum = Html.fromHtml(rawAlbum, Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                        val durationSec = moreInfo?.optLong("duration", 210L) ?: 210L
+
+                        return StreamResolution(
+                            streamUrl = enc,
+                            coverArtUrl = rawCover.ifBlank { null },
+                            albumName = resolvedAlbum.ifBlank { null },
+                            durationMs = durationSec * 1000L
+                        )
+                    }
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "findEncryptedMediaUrl failed for query '$query'", e)
+            Log.e(TAG, "findEncryptedMediaMatch failed for query '$query'", e)
         }
         return null
+    }
+
+    private fun hasWordOverlap(a: String, b: String): Boolean {
+        val wordsA = a.split(Regex("[^a-zA-Z0-9]+")).filter { it.length >= 3 }
+        val wordsB = b.split(Regex("[^a-zA-Z0-9]+")).filter { it.length >= 3 }
+        if (wordsA.isEmpty() || wordsB.isEmpty()) return false
+        return wordsA.any { wa -> wordsB.any { wb -> wa == wb || wa.contains(wb) || wb.contains(wa) } }
     }
 
     private fun resolveAudiusStream(title: String, artistName: String): String? {
