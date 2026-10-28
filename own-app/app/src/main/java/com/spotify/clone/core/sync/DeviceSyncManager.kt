@@ -84,6 +84,56 @@ class DeviceSyncManager private constructor(private val context: Context) {
             volume = 0.90f,
             connectionType = "Local Audio DAC • 320kbps Master",
             latencyMs = 0
+        ),
+        EchoDevice(
+            id = "dev_buds",
+            name = "Galaxy Buds Pro / Echo Buds",
+            type = DeviceType.PHONE,
+            isCurrent = false,
+            isSyncedInMultiRoom = false,
+            volume = 0.85f,
+            connectionType = "Bluetooth LDAC • 990kbps 24-bit",
+            latencyMs = 24
+        ),
+        EchoDevice(
+            id = "dev_speaker",
+            name = "Living Room Studio Hi-Fi",
+            type = DeviceType.SPEAKER,
+            isCurrent = false,
+            isSyncedInMultiRoom = false,
+            volume = 0.75f,
+            connectionType = "Wi-Fi Lossless • 24-bit/96kHz",
+            latencyMs = 12
+        ),
+        EchoDevice(
+            id = "dev_tv",
+            name = "Bedroom Smart Display TV",
+            type = DeviceType.TV,
+            isCurrent = false,
+            isSyncedInMultiRoom = false,
+            volume = 0.60f,
+            connectionType = "Google Cast • 320kbps Master",
+            latencyMs = 38
+        ),
+        EchoDevice(
+            id = "dev_pc",
+            name = "MacBook Pro / Studio PC",
+            type = DeviceType.COMPUTER,
+            isCurrent = false,
+            isSyncedInMultiRoom = false,
+            volume = 0.80f,
+            connectionType = "ECHO Connect • FLAC Lossless",
+            latencyMs = 8
+        ),
+        EchoDevice(
+            id = "dev_car",
+            name = "Car Audio System",
+            type = DeviceType.CAR,
+            isCurrent = false,
+            isSyncedInMultiRoom = false,
+            volume = 0.70f,
+            connectionType = "Android Auto Wireless",
+            latencyMs = 30
         )
     )
 
@@ -99,7 +149,10 @@ class DeviceSyncManager private constructor(private val context: Context) {
     fun selectSingleDevice(deviceId: String) {
         _syncState.update { state ->
             val updated = state.devices.map { device ->
-                device.copy(isCurrent = device.id == deviceId)
+                device.copy(
+                    isCurrent = device.id == deviceId,
+                    isSyncedInMultiRoom = if (device.id == deviceId) true else false
+                )
             }
             state.copy(devices = updated, isMultiRoomAudioEnabled = false)
         }

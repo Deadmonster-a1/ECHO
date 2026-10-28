@@ -5,6 +5,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,12 +15,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
-import com.spotify.clone.core.download.TrackDownloadManager
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
@@ -31,13 +34,23 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,13 +62,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.spotify.clone.core.data.AudioRepository
+import com.spotify.clone.core.data.GlobalCatalogService
+import com.spotify.clone.core.model.Playlist
 import com.spotify.clone.core.designsystem.SpotifyDarkGray
 import com.spotify.clone.core.designsystem.SpotifyGreen
 import com.spotify.clone.core.designsystem.SpotifyLightGray
 import com.spotify.clone.core.designsystem.SpotifyTextSecondary
 import com.spotify.clone.core.designsystem.SpotifyWhite
+import com.spotify.clone.core.download.TrackDownloadManager
 import com.spotify.clone.core.model.Track
 import com.spotify.clone.core.player.MusicController
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,7 +90,14 @@ fun TrackOptionsBottomSheet(
     onViewArtist: ((String) -> Unit)? = null
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val repository = remember { AudioRepository(context.applicationContext) }
+
+    var showPlaylistDialog by remember { mutableStateOf(false) }
+    var userPlaylists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+    var newPlaylistNameInput by remember { mutableStateOf("") }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -140,18 +166,33 @@ fun TrackOptionsBottomSheet(
                 }
             )
 
-            // Option 2: Start Song Radio (JioSaavn Radio feature)
+            // Option 2: Start Song Radio (Dynamic curated radio queue)
             TrackOptionRow(
                 icon = Icons.Filled.Radio,
                 label = "Start song radio",
                 onClick = {
-                    musicController.playTrack(track, listOf(track))
-                    Toast.makeText(context, "Playing Radio for \"${track.title}\"", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "📻 Tuning into \"${track.title}\" Radio Station...", Toast.LENGTH_SHORT).show()
                     onDismiss()
+                    scope.launch {
+                        val relatedTracks = try {
+                            val globalCatalog = GlobalCatalogService()
+                            val artistHits = globalCatalog.fetchSaavnTracks(track.artistName, limit = 20)
+                            if (artistHits.size >= 5) {
+                                artistHits
+                            } else {
+                                globalCatalog.fetchSaavnTracks("${track.title} ${track.artistName}", limit = 20)
+                            }
+                        } catch (e: Exception) {
+                            emptyList()
+                        }
+                        val radioQueue = (listOf(track) + relatedTracks.filter { it.id != track.id }).distinctBy { it.id }
+                        musicController.playTrack(track, radioQueue)
+                        Toast.makeText(context, "📻 Playing \"${track.title}\" Radio (${radioQueue.size} songs)", Toast.LENGTH_SHORT).show()
+                    }
                 }
             )
 
-            // Option 3: Set as JioTune / Ringtone (JioSaavn feature)
+            // Option 3: Set as JioTune / Ringtone Studio
             TrackOptionRow(
                 icon = Icons.Filled.NotificationsActive,
                 label = "Set as JioTune / Ringtone Studio",
@@ -160,7 +201,7 @@ fun TrackOptionsBottomSheet(
                     if (onJioTuneClick != null) {
                         onJioTuneClick()
                     } else {
-                        Toast.makeText(context, "Set \"${track.title}\" as your default ringtone", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Opening Ringtone Studio for \"${track.title}\"...", Toast.LENGTH_SHORT).show()
                     }
                 }
             )
@@ -171,36 +212,39 @@ fun TrackOptionsBottomSheet(
                 label = "Add to queue",
                 onClick = {
                     musicController.addToQueue(track)
-                    Toast.makeText(context, "Added to queue", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Added to queue: \"${track.title}\"", Toast.LENGTH_SHORT).show()
                     onDismiss()
                 }
             )
 
-            // Option 3: Add to playlist
+            // Option 5: Add to playlist
             TrackOptionRow(
                 icon = Icons.Filled.PlaylistAdd,
                 label = "Add to playlist",
                 onClick = {
-                    Toast.makeText(context, "Saved to library", Toast.LENGTH_SHORT).show()
-                    onDismiss()
+                    scope.launch {
+                        userPlaylists = repository.getUserPlaylists().first()
+                        showPlaylistDialog = true
+                    }
                 }
             )
 
             val downloadManager = TrackDownloadManager.getInstance(context)
             val isDownloaded = downloadManager.isTrackDownloaded(track.id)
 
-            // Option 4: Download for offline
+            // Option 6: Download for offline
             TrackOptionRow(
                 icon = if (isDownloaded) Icons.Filled.DownloadDone else Icons.Filled.Download,
+                iconTint = if (isDownloaded) SpotifyGreen else SpotifyWhite,
                 label = if (isDownloaded) "Remove downloaded song" else "Download for offline listening",
                 onClick = {
                     if (isDownloaded) {
                         downloadManager.removeTrackDownload(track.id)
                         Toast.makeText(context, "Removed download: \"${track.title}\"", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(context, "Downloading \"${track.title}\" for offline...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Downloading \"${track.title}\" in 320 kbps Master...", Toast.LENGTH_SHORT).show()
                         downloadManager.downloadTrack(track) { ok ->
-                            val msg = if (ok) "Downloaded \"${track.title}\"" else "Failed to download \"${track.title}\""
+                            val msg = if (ok) "✓ Downloaded \"${track.title}\" for offline playback" else "Failed to download \"${track.title}\""
                             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                         }
                     }
@@ -208,7 +252,7 @@ fun TrackOptionsBottomSheet(
                 }
             )
 
-            // Option 5: Share
+            // Option 7: Share
             TrackOptionRow(
                 icon = Icons.Filled.Share,
                 label = "Share",
@@ -228,7 +272,7 @@ fun TrackOptionsBottomSheet(
                 }
             )
 
-            // Option 9: Song Audio Details & Credits (Apple Music / Tidal feature)
+            // Option 9: Song Audio Details & Credits
             TrackOptionRow(
                 icon = Icons.Filled.Info,
                 label = "Song info & studio credits",
@@ -242,7 +286,7 @@ fun TrackOptionsBottomSheet(
                 }
             )
 
-            // Option 7: Sleep Timer
+            // Option 10: Sleep Timer
             if (onSleepTimerClick != null) {
                 TrackOptionRow(
                     icon = Icons.Outlined.Bedtime,
@@ -254,7 +298,7 @@ fun TrackOptionsBottomSheet(
                 )
             }
 
-            // Option 8: Equalizer
+            // Option 11: Equalizer
             if (onEqualizerClick != null) {
                 TrackOptionRow(
                     icon = Icons.Filled.GraphicEq,
@@ -266,7 +310,7 @@ fun TrackOptionsBottomSheet(
                 )
             }
 
-            // Option 9: Playback Speed
+            // Option 12: Playback Speed
             if (onSpeedClick != null) {
                 TrackOptionRow(
                     icon = Icons.Filled.Speed,
@@ -278,6 +322,136 @@ fun TrackOptionsBottomSheet(
                 )
             }
         }
+    }
+
+    // Playlist Picker Dialog
+    if (showPlaylistDialog) {
+        AlertDialog(
+            onDismissRequest = { showPlaylistDialog = false },
+            title = {
+                Text("Add to Playlist", fontWeight = FontWeight.Bold, color = SpotifyWhite)
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Create New Playlist Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable {
+                                showPlaylistDialog = false
+                                showCreatePlaylistDialog = true
+                            }
+                            .padding(vertical = 10.dp, horizontal = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(SpotifyGreen.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Filled.Add, contentDescription = null, tint = SpotifyGreen)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("New Playlist", fontWeight = FontWeight.Bold, color = SpotifyGreen, fontSize = 15.sp)
+                    }
+
+                    Divider(color = SpotifyLightGray.copy(alpha = 0.2f), modifier = Modifier.padding(vertical = 6.dp))
+
+                    if (userPlaylists.isEmpty()) {
+                        Text(
+                            text = "No custom playlists yet. Tap 'New Playlist' above to create one!",
+                            color = SpotifyTextSecondary,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(vertical = 12.dp)
+                        )
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                            items(userPlaylists) { pl ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            scope.launch {
+                                                repository.addTrackToPlaylist(track, pl.id)
+                                                Toast.makeText(context, "✓ Added \"${track.title}\" to ${pl.name}", Toast.LENGTH_SHORT).show()
+                                                showPlaylistDialog = false
+                                                onDismiss()
+                                            }
+                                        }
+                                        .padding(vertical = 10.dp, horizontal = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = pl.name,
+                                        color = SpotifyWhite,
+                                        fontWeight = FontWeight.Medium,
+                                        fontSize = 14.5.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPlaylistDialog = false }) {
+                    Text("Cancel", color = SpotifyWhite)
+                }
+            },
+            containerColor = SpotifyDarkGray
+        )
+    }
+
+    // Create New Playlist Dialog
+    if (showCreatePlaylistDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreatePlaylistDialog = false },
+            title = {
+                Text("Give your playlist a name", fontWeight = FontWeight.Bold, color = SpotifyWhite)
+            },
+            text = {
+                OutlinedTextField(
+                    value = newPlaylistNameInput,
+                    onValueChange = { newPlaylistNameInput = it },
+                    placeholder = { Text("My Playlist #1") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                ElevatedButton(
+                    onClick = {
+                        val name = newPlaylistNameInput.trim().ifBlank { "My Playlist" }
+                        scope.launch {
+                            val newPl = repository.createPlaylist(name)
+                            repository.addTrackToPlaylist(track, newPl.id)
+                            Toast.makeText(context, "✓ Created \"$name\" and added \"${track.title}\"", Toast.LENGTH_SHORT).show()
+                            showCreatePlaylistDialog = false
+                            onDismiss()
+                        }
+                    },
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = SpotifyGreen,
+                        contentColor = SpotifyWhite
+                    )
+                ) {
+                    Text("Create")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreatePlaylistDialog = false }) {
+                    Text("Cancel", color = SpotifyWhite)
+                }
+            },
+            containerColor = SpotifyDarkGray
+        )
     }
 }
 

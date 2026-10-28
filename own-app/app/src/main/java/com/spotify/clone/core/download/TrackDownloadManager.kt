@@ -93,6 +93,13 @@ class TrackDownloadManager private constructor(private val context: Context) {
         return if (file.exists() && file.length() > 50_000L) file else null
     }
 
+    suspend fun ensureDownloadedTrackFile(track: Track): File? {
+        val existing = getDownloadedTrackFile(track.id)
+        if (existing != null) return existing
+        val success = performTrackDownload(track)
+        return if (success) getDownloadedTrackFile(track.id) else null
+    }
+
     fun resolveTrackForPlayback(track: Track): Track {
         val localFile = getDownloadedTrackFile(track.id)
         return if (localFile != null && localFile.exists() && localFile.length() > 50_000L) {
