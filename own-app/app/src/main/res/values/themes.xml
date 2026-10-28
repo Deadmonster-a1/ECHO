@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.SpotifyClone" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#101016</item>
+        <item name="android:navigationBarColor">#101016</item>
+        <item name="android:windowBackground">#101016</item>
+    </style>
+    <style name="Theme.Echo" parent="Theme.SpotifyClone" />
+</resources>

@@ -1,0 +1,16 @@
+<resources>
+    <!-- Brand ECHO Palette -->
+    <color name="echo_ivory">#F5F2EE</color>
+    <color name="echo_charcoal">#101016</color>
+    <color name="echo_lavender">#A79BFF</color>
+    <color name="echo_coral">#FF9C88</color>
+    <color name="echo_blue">#A8C9FF</color>
+    <color name="echo_gray">#777680</color>
+
+    <color name="spotify_black">#101016</color>
+    <color name="spotify_dark_gray">#181822</color>
+    <color name="spotify_light_gray">#282836</color>
+    <color name="spotify_green">#A79BFF</color>
+    <color name="spotify_white">#FFFFFF</color>
+    <color name="spotify_text_secondary">#777680</color>
+</resources>

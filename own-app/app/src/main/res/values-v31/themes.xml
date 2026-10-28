@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.SpotifyClone" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#101016</item>
+        <item name="android:navigationBarColor">#101016</item>
+        <item name="android:windowBackground">#101016</item>
+        <item name="android:windowSplashScreenBackground">#101016</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_echo_launcher_foreground</item>
+    </style>
+    <style name="Theme.Echo" parent="Theme.SpotifyClone" />
+</resources>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- By default, enforce secure HTTPS traffic -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Allow cleartext traffic only for specific legacy audio CDN endpoints if needed -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">saavncdn.com</domain>
+        <domain includeSubdomains="true">jiosaavn.com</domain>
+        <domain includeSubdomains="true">googleusercontent.com</domain>
+    </domain-config>
+</network-security-config>
