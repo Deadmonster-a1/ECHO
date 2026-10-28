@@ -2,8 +2,8 @@
   "versionCode": 5,
   "versionName": "1.0.4",
   "releaseTitle": "ECHO v1.0.4 — Direct Update Fix & Persistent User Profile",
-  "releaseNotes": "• Fixed in-app update installer with automated cross-CDN redirect following\n• Fixed user name prompt persistence so it never asks again once saved\n• Added direct 1-tap Browser Download fallback in update dialog\n• Clean Home header with official ECHO branding\n• Removed filter pills and album 320kbps badge",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v1.0.4/echo.apk",
+  "releaseNotes": "• Fixed in-app update installer with automated direct CDN delivery\n• Fixed user name prompt persistence so it never asks again once saved\n• Added direct 1-tap Browser Download fallback in update dialog\n• Clean Home header with official ECHO branding\n• Removed filter pills and album 320kbps badge",
+  "downloadUrl": "https://raw.githubusercontent.com/Deadmonster-a1/ECHO/main/echo.apk",
   "apkSize": 4387429,
   "mandatory": false,
   "publishedAt": "2026-10-28T12:40:00Z"
