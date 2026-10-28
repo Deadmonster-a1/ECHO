@@ -1,5 +1,6 @@
 package com.spotify.clone.ui.player
 
+import androidx.activity.compose.BackHandler
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
@@ -24,6 +25,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -87,6 +90,7 @@ fun FullscreenLyricsSheet(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    BackHandler(onBack = onClose)
     val activeTheme = LocalAppTheme.current
     val isReducedMotion = LocalReducedMotion.current
     val playbackState by musicController.playbackState.collectAsState()
@@ -149,12 +153,12 @@ fun FullscreenLyricsSheet(
     ) {
 
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             // Header Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 36.dp, start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    .padding(top = 12.dp, start = 16.dp, end = 16.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
