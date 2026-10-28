@@ -86,7 +86,7 @@ class TeluguMusicRecommender(context: Context) {
             )
             "mass", "energy" -> EditorialBanner(
                 id = "hero_pushpa2",
-                eyebrow = "✦ TOLLYWOOD MASS EXPLOSION",
+                eyebrow = "",
                 title = "Pushpa 2: The Rule",
                 subtitle = "Pushpa Pushpa, Kurchi Madathapetti & thunderous commercial anthems.",
                 coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
@@ -125,7 +125,7 @@ class TeluguMusicRecommender(context: Context) {
                 when (getTimeOfDay()) {
                     TimeContext.MORNING -> EditorialBanner(
                         id = "hero_devara_morning",
-                        eyebrow = "✦ MORNING SPOTLIGHT • TOLLYWOOD",
+                        eyebrow = "",
                         title = "Devara: Part 1 Hits",
                         subtitle = "Chuttamalle, Fear Song & Anirudh's grand coastal soundscapes.",
                         coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
@@ -134,7 +134,7 @@ class TeluguMusicRecommender(context: Context) {
                     )
                     TimeContext.AFTERNOON -> EditorialBanner(
                         id = "hero_kalki",
-                        eyebrow = "✦ EPIC SCI-FI SPECTACLE",
+                        eyebrow = "",
                         title = "Kalki 2898 AD",
                         subtitle = "Bhairava Anthem, Ta Takkara & Santhosh Narayanan's futuristic score.",
                         coverArtUrl = "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg",
@@ -143,7 +143,7 @@ class TeluguMusicRecommender(context: Context) {
                     )
                     TimeContext.EVENING -> EditorialBanner(
                         id = "hero_pushpa2_evening",
-                        eyebrow = "✦ PRIME TIME TOLLYWOOD",
+                        eyebrow = "",
                         title = "Pushpa 2: The Rule",
                         subtitle = "Pushpa Pushpa, Sooseki & high-voltage Devi Sri Prasad beats.",
                         coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
@@ -152,7 +152,7 @@ class TeluguMusicRecommender(context: Context) {
                     )
                     TimeContext.NIGHT -> EditorialBanner(
                         id = "hero_devara_night",
-                        eyebrow = "✦ MIDNIGHT REVERIE • TOLLYWOOD",
+                        eyebrow = "",
                         title = "Devara: Part 1 Hits",
                         subtitle = "Chuttamalle, Daavudi & Anirudh's soulful ocean melodies.",
                         coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",

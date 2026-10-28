@@ -195,11 +195,9 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 130.dp)
         ) {
-            // A. Top Bar (Avatar + Content Filter Pills + Notification + EQ + Theme Toggle)
+            // A. Top Bar (Avatar + ECHO Branding + Notification + Theme Toggle)
             item(key = "top_brand_bar") {
                 EchoTopAppBar(
-                    selectedFilter = state.selectedFilter,
-                    onSelectFilter = { viewModel.dispatch(HomeEvent.SelectFilter(it)) },
                     onProfileClick = onProfileClick,
                     onSpeedClick = { showEqualizerSheet = true },
                     onToggleTheme = { ThemeManager.toggleDarkMode() },
@@ -217,7 +215,7 @@ fun HomeScreen(
             }
 
             // C. 2x4 "Jump Back In" (Quick Access Grid)
-            if (state.quickPlayGrid.isNotEmpty() && state.selectedFilter != "Podcasts") {
+            if (state.quickPlayGrid.isNotEmpty()) {
                 item(key = "quick_access_grid") {
                     QuickAccessSection(
                         items = state.quickPlayGrid,
@@ -238,51 +236,45 @@ fun HomeScreen(
             }
 
             // D. Spotify Daylist & AI Listening Flow Card
-            if (state.selectedFilter != "Podcasts") {
-                item(key = "daylist_flow_card") {
-                    DaylistCard(
-                        onPlayClick = {
-                            state.featuredPlaylists.firstOrNull()?.let {
-                                viewModel.dispatch(HomeEvent.PlayPlaylist(it))
-                            }
-                        },
-                        isDarkMode = isDarkMode
-                    )
-                    Spacer(modifier = Modifier.height(22.dp))
-                }
+            item(key = "daylist_flow_card") {
+                DaylistCard(
+                    onPlayClick = {
+                        state.featuredPlaylists.firstOrNull()?.let {
+                            viewModel.dispatch(HomeEvent.PlayPlaylist(it))
+                        }
+                    },
+                    isDarkMode = isDarkMode
+                )
+                Spacer(modifier = Modifier.height(22.dp))
             }
 
             // E. Real-time Mood Selector (All, Melody, Mass, Lo-Fi, Indie, Devotional)
-            if (state.selectedFilter != "Podcasts") {
-                item(key = "mood_selector") {
-                    MoodFilterRow(
-                        selectedMood = state.selectedMood,
-                        onSelectMood = { viewModel.dispatch(HomeEvent.SelectMood(it)) },
-                        isDarkMode = isDarkMode
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
+            item(key = "mood_selector") {
+                MoodFilterRow(
+                    selectedMood = state.selectedMood,
+                    onSelectMood = { viewModel.dispatch(HomeEvent.SelectMood(it)) },
+                    isDarkMode = isDarkMode
+                )
+                Spacer(modifier = Modifier.height(24.dp))
             }
 
             // F. Featured Spotlight Hero with Parallax
             state.currentHero?.let { hero ->
-                if (state.selectedFilter != "Podcasts") {
-                    item(key = "featured_hero_${hero.id}") {
-                        FeaturedHeroCard(
-                            banner = hero,
-                            parallaxY = heroParallaxOffsetY,
-                            scale = heroScale,
-                            onPlayClick = { viewModel.dispatch(HomeEvent.PlayHero(hero)) },
-                            onCardClick = { hero.targetPlaylistId?.let { onPlaylistClick(it) } },
-                            isDarkMode = isDarkMode
-                        )
-                        Spacer(modifier = Modifier.height(28.dp))
-                    }
+                item(key = "featured_hero_${hero.id}") {
+                    FeaturedHeroCard(
+                        banner = hero,
+                        parallaxY = heroParallaxOffsetY,
+                        scale = heroScale,
+                        onPlayClick = { viewModel.dispatch(HomeEvent.PlayHero(hero)) },
+                        onCardClick = { hero.targetPlaylistId?.let { onPlaylistClick(it) } },
+                        isDarkMode = isDarkMode
+                    )
+                    Spacer(modifier = Modifier.height(28.dp))
                 }
             }
 
             // G. Blockbuster Albums & Soundtracks with Floating Play FABs
-            if (state.sculpturalAlbums.isNotEmpty() && state.selectedFilter != "Podcasts") {
+            if (state.sculpturalAlbums.isNotEmpty()) {
                 item(key = "sculptural_albums_section") {
                     SectionHeaderWithAction(
                         title = "Blockbuster Albums & Soundtracks",
@@ -312,7 +304,7 @@ fun HomeScreen(
             }
 
             // H. Made For You (Personalized Mixes & Radio)
-            if (state.madeForYou.isNotEmpty() && state.selectedFilter != "Podcasts") {
+            if (state.madeForYou.isNotEmpty()) {
                 item(key = "made_for_you_section") {
                     SectionHeaderWithAction(
                         title = "Made For You • Personalized Mixes",
@@ -338,13 +330,12 @@ fun HomeScreen(
                 }
             }
 
-            // H2. Popular Podcasts and Shows (Always visible on Home and Podcasts filter)
+            // H2. Popular Podcasts and Shows
             if (state.podcasts.isNotEmpty()) {
                 item(key = "podcasts_shelf_section") {
                     SectionHeaderWithAction(
                         title = "Popular Podcasts & Shows",
-                        subtitle = "Conversations, culture, health, technology and self-growth",
-                        onActionClick = { viewModel.dispatch(HomeEvent.SelectFilter("Podcasts")) }
+                        subtitle = "Conversations, culture, health, technology and self-growth"
                     )
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp),
@@ -366,41 +357,12 @@ fun HomeScreen(
                 }
             }
 
-            // H3. Featured Podcast Episodes (Featured when Podcasts filter is active)
-            if (state.selectedFilter == "Podcasts" && state.podcastEpisodes.isNotEmpty()) {
-                item(key = "podcast_episodes_section") {
-                    SectionHeaderWithAction(
-                        title = "Featured Podcast Episodes",
-                        subtitle = "Trending episodes with 320kbps crystal clear voice audio"
-                    )
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        state.podcastEpisodes.forEach { episode ->
-                            val isPlayingThis = playbackState.currentTrack?.id == episode.id && playbackState.isPlaying
-                            PodcastEpisodeRow(
-                                episode = episode,
-                                isPlaying = isPlayingThis,
-                                onClick = {
-                                    viewModel.dispatch(HomeEvent.PlayTrack(episode, state.podcastEpisodes))
-                                },
-                                isDarkMode = isDarkMode
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-            }
-
-            // I. Trending Singles (Studio Master 320kbps)
+            // I. Trending Singles
             if (state.bestNewSongs.isNotEmpty()) {
                 item(key = "best_new_songs_section") {
                     SectionHeaderWithAction(
-                        title = if (state.selectedFilter == "Podcasts") "Trending Audio & Shows" else "Trending Singles • Studio Master",
-                        subtitle = if (state.selectedFilter == "Podcasts") "Top conversations, episodes & discussions" else "Tollywood chart-toppers • 320kbps Lossless"
+                        title = "Trending Singles • Studio Master",
+                        subtitle = "Top chart-toppers & high-fidelity audio"
                     )
                     BestNewSongsCarousel(
                         tracks = state.bestNewSongs,
@@ -417,7 +379,7 @@ fun HomeScreen(
             }
 
             // J. Artist Radio Stations (Top Music Directors & Vocalists)
-            if (state.artistRadios.isNotEmpty() && state.selectedFilter != "Podcasts") {
+            if (state.artistRadios.isNotEmpty()) {
                 item(key = "artist_radios_section") {
                     SectionHeaderWithAction(
                         title = "Top Music Directors & Artists",
@@ -461,12 +423,10 @@ fun HomeScreen(
 }
 
 /**
- * Top App Bar: Profile Avatar + Contextual Content Pills (All | Music | Podcasts) + Action icons
+ * Top App Bar: Profile Avatar + ECHO Branding + Action icons
  */
 @Composable
 private fun EchoTopAppBar(
-    selectedFilter: String,
-    onSelectFilter: (String) -> Unit,
     onProfileClick: () -> Unit,
     onSpeedClick: () -> Unit,
     onToggleTheme: () -> Unit,
@@ -494,7 +454,7 @@ private fun EchoTopAppBar(
                 .echoPressable(scaleOnPress = 0.90f, onClick = onProfileClick),
             contentAlignment = Alignment.Center
         ) {
-            val userInitial = UserProfileManager.getDisplayName().firstOrNull()?.uppercase() ?: "T"
+            val userInitial = UserProfileManager.getDisplayName().firstOrNull()?.uppercase() ?: "E"
             Text(
                 text = userInitial,
                 color = activeTheme.primaryColor,
@@ -505,34 +465,15 @@ private fun EchoTopAppBar(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // Contextual Content Filter Pills (All | Music | Podcasts)
-        Row(
-            modifier = Modifier.weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            listOf("All", "Music", "Podcasts").forEach { filter ->
-                val isSelected = selectedFilter == filter
-                val pillBg = if (isSelected) activeTheme.primaryColor else if (isDarkMode) Color(0xFF282736) else Color(0xFFEAE6E1)
-                val pillText = if (isSelected) Color.White else if (isDarkMode) Color(0xFFE2DFEC) else Color(0xFF33323B)
+        Text(
+            text = "ECHO",
+            color = if (isDarkMode) Color.White else Color(0xFF17171C),
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 1.2.sp
+        )
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(pillBg)
-                        .echoPressable(scaleOnPress = 0.95f) { onSelectFilter(filter) }
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = filter,
-                        color = pillText,
-                        fontSize = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                    )
-                }
-            }
-        }
+        Spacer(modifier = Modifier.weight(1f))
 
         // Notification Bell ("What's New")
         Box(
@@ -1118,35 +1059,8 @@ private fun FeaturedHeroCard(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(20.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.Bottom
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(activeTheme.primaryColor.copy(alpha = 0.88f))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = banner.eyebrow,
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = 0.8.sp
-                    )
-                }
-
-                Text(
-                    text = "Tollywood Master • 320kbps",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-
             Column {
                 Text(
                     text = banner.title,

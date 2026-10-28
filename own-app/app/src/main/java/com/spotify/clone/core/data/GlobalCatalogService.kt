@@ -354,7 +354,7 @@ class GlobalCatalogService {
         return listOf(
             EditorialBanner(
                 id = "hero_devara",
-                eyebrow = "✦ TOLLYWOOD BLOCKBUSTER",
+                eyebrow = "",
                 title = "Devara: Part 1 Hits",
                 subtitle = "Chuttamalle, Fear Song & Daavudi by Anirudh Ravichander",
                 coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
