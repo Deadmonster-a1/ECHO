@@ -33,8 +33,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
@@ -86,7 +84,6 @@ fun FullscreenLyricsSheet(
     track: Track,
     musicController: MusicController,
     onClose: () -> Unit,
-    initialSingMode: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -95,8 +92,6 @@ fun FullscreenLyricsSheet(
     val playbackState by musicController.playbackState.collectAsState()
     val currentPos = playbackState.currentPositionMs
 
-    var isSingModeActive by remember(initialSingMode) { mutableStateOf(initialSingMode) }
-    var vocalAttenuation by remember { mutableFloatStateOf(0.70f) }
 
     val sampleLyrics = com.spotify.clone.core.data.SampleCatalog.sampleTracks.find {
         it.title.contains(track.title, ignoreCase = true) || track.title.contains(it.title, ignoreCase = true)
@@ -182,30 +177,7 @@ fun FullscreenLyricsSheet(
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Apple Music Sing (Karaoke) Button
-                    IconButton(onClick = {
-                        isSingModeActive = !isSingModeActive
-                        val msg = if (isSingModeActive) "Apple Music Sing: Vocal Attenuator Enabled" else "Apple Music Sing Disabled"
-                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                    }) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(if (isSingModeActive) activeTheme.primaryColor else Color.Black.copy(alpha = 0.35f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = if (isSingModeActive) Icons.Filled.Mic else Icons.Filled.MicOff,
-                                contentDescription = "Apple Music Sing",
-                                tint = if (isSingModeActive) Color.Black else Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    if (hasLyrics) {
+                if (hasLyrics) {
                         Spacer(modifier = Modifier.width(6.dp))
                         IconButton(onClick = {
                             val activeLine = lines.getOrNull(activeIndex)?.words ?: track.title
@@ -231,9 +203,6 @@ fun FullscreenLyricsSheet(
                                 )
                             }
                         }
-                    } else {
-                        Spacer(modifier = Modifier.size(6.dp))
-                    }
                 }
             }
 
@@ -270,30 +239,30 @@ fun FullscreenLyricsSheet(
                             label = "lyric_color"
                         )
 
-                        val lyricBoxModifier = if (isActive && isSingModeActive) {
+                        val lyricBoxModifier = if (isActive) {
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
                                     Brush.horizontalGradient(
                                         listOf(
-                                            activeTheme.primaryColor.copy(alpha = 0.30f),
+                                            activeTheme.primaryColor.copy(alpha = 0.22f),
                                             Color.Transparent
                                         )
                                     )
                                 )
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
                         } else {
                             Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp)
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
                         }
 
                         Box(modifier = lyricBoxModifier) {
                             Text(
                                 text = line.words,
-                                color = if (isActive && isSingModeActive) activeTheme.primaryColor else lineColor,
-                                fontSize = if (isActive) (if (isSingModeActive) 25.sp else 23.sp) else 18.sp,
+                                color = if (isActive) Color.White else lineColor,
+                                fontSize = if (isActive) 23.sp else 18.sp,
                                 fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.Medium,
                                 lineHeight = if (isActive) 34.sp else 26.sp,
                                 modifier = Modifier
@@ -356,66 +325,6 @@ fun FullscreenLyricsSheet(
                 }
             }
 
-            // Apple Music Sing Vocal Attenuation Floating Slider
-            AnimatedVisibility(
-                visible = isSingModeActive,
-                enter = fadeIn() + slideInVertically { it / 2 },
-                exit = fadeOut()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 6.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black.copy(alpha = 0.75f))
-                        .border(1.dp, activeTheme.primaryColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.Mic,
-                                contentDescription = null,
-                                tint = activeTheme.primaryColor,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Apple Music Sing • Vocal Attenuator",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
-                        Text(
-                            text = "${(vocalAttenuation * 100).toInt()}% Vocals",
-                            color = activeTheme.primaryColor,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
-                    Slider(
-                        value = vocalAttenuation,
-                        onValueChange = { vocalAttenuation = it },
-                        valueRange = 0f..1f,
-                        colors = SliderDefaults.colors(
-                            thumbColor = activeTheme.primaryColor,
-                            activeTrackColor = activeTheme.primaryColor,
-                            inactiveTrackColor = Color.White.copy(alpha = 0.2f)
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Text(
-                        text = if (vocalAttenuation <= 0.15f) "Karaoke Instrumental Backing Track (Lead Vocals Muted)" else "Attenuating lead vocal frequencies for real-time sing-along",
-                        color = Color.White.copy(alpha = 0.65f),
-                        fontSize = 11.sp
-                    )
-                }
-            }
 
             // Accessible Playback Transport Bar at bottom of Lyrics
             Column(

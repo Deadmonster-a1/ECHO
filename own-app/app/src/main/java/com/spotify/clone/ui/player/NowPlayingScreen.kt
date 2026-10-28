@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.outlined.Devices
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,7 +49,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -126,8 +124,6 @@ fun NowPlayingScreen(
     var showEqualizerSheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
     var showFullscreenLyrics by remember { mutableStateOf(false) }
-    var openWithSingMode by remember { mutableStateOf(false) }
-    var showAudioQualityDialog by remember { mutableStateOf(false) }
     var showJioTuneSheet by remember { mutableStateOf(false) }
     var showSongCreditsSheet by remember { mutableStateOf(false) }
 
@@ -292,6 +288,16 @@ fun NowPlayingScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isDownloaded) {
+                            Icon(
+                                imageVector = Icons.Filled.DownloadDone,
+                                contentDescription = "Downloaded",
+                                tint = activeTheme.primaryColor,
+                                modifier = Modifier
+                                    .padding(end = 6.dp)
+                                    .size(16.dp)
+                            )
+                        }
                         if (track.isExplicit) {
                             Box(
                                 modifier = Modifier
@@ -328,85 +334,7 @@ fun NowPlayingScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Genuine Verified Stream Telemetry Badges (Studio Master, Lossless, Offline)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { showAudioQualityDialog = true },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Offline Downloaded Badge (if cached locally)
-                if (isDownloaded) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(activeTheme.primaryColor.copy(alpha = 0.18f))
-                            .border(1.dp, activeTheme.primaryColor.copy(alpha = 0.40f), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.DownloadDone,
-                                contentDescription = "Offline Downloaded",
-                                tint = activeTheme.primaryColor,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Offline Downloaded",
-                                color = activeTheme.primaryColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-
-                // Verified Studio Master Badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.GraphicEq,
-                            contentDescription = "Studio",
-                            tint = Color.White.copy(alpha = 0.9f),
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "320 kbps Studio Master",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                // Lossless Quality Info
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.White.copy(alpha = 0.08f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "ALAC / 48 kHz",
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             // 4. Scrubber & Timers
             val currentPos = if (isUserScrubbing) (scrubPosition * state.durationMs).toLong() else state.currentPositionMs
@@ -424,7 +352,7 @@ fun NowPlayingScreen(
                 },
                 colors = SliderDefaults.colors(
                     thumbColor = Color.White,
-                    activeTrackColor = activeTheme.primaryColor,
+                    activeTrackColor = Color.White,
                     inactiveTrackColor = Color.White.copy(alpha = 0.18f)
                 ),
                 modifier = Modifier.fillMaxWidth()
@@ -603,11 +531,6 @@ fun NowPlayingScreen(
             LyricsPreviewCard(
                 track = track,
                 onClick = {
-                    openWithSingMode = false
-                    showFullscreenLyrics = true
-                },
-                onSingClick = {
-                    openWithSingMode = true
                     showFullscreenLyrics = true
                 }
             )
@@ -693,72 +616,16 @@ fun NowPlayingScreen(
         FullscreenLyricsSheet(
             track = track,
             musicController = musicController,
-            initialSingMode = openWithSingMode,
             onClose = { showFullscreenLyrics = false }
         )
     }
 
-    if (showAudioQualityDialog) {
-        AlertDialog(
-            onDismissRequest = { showAudioQualityDialog = false },
-            containerColor = Color(0xFF1B1A25),
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Filled.GraphicEq,
-                        contentDescription = null,
-                        tint = activeTheme.primaryColor,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Verified Stream Telemetry", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "Audio is streamed via direct high-bitrate studio master CDN channels with local LRU chunk caching for zero dropouts.",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 13.sp
-                    )
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Bitrate", color = Color.White, fontSize = 13.sp)
-                        Text("320 kbps High Fidelity", color = activeTheme.primaryColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Codec", color = Color.White, fontSize = 13.sp)
-                        Text("M4A / AAC Studio", color = Color.White, fontSize = 13.sp)
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Caching Pipeline", color = Color.White, fontSize = 13.sp)
-                        Text("250 MB LRU Active", color = activeTheme.primaryColor, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAudioQualityDialog = false }) {
-                    Text("Done", color = activeTheme.primaryColor, fontWeight = FontWeight.Bold)
-                }
-            }
-        )
-    }
 }
 
 @Composable
 private fun LyricsPreviewCard(
     track: com.spotify.clone.core.model.Track,
-    onClick: () -> Unit,
-    onSingClick: () -> Unit = {}
+    onClick: () -> Unit
 ) {
     val activeTheme = LocalAppTheme.current
     val sampleLyrics = com.spotify.clone.core.data.SampleCatalog.sampleTracks.find {
@@ -766,16 +633,16 @@ private fun LyricsPreviewCard(
     }?.lyrics ?: emptyList()
     val effectiveLyrics = if (track.lyrics.isNotEmpty()) track.lyrics else sampleLyrics
     val hasLyrics = effectiveLyrics.isNotEmpty()
-    val previewLines = if (hasLyrics) effectiveLyrics.take(3).map { it.words } else listOf("Synchronized lyrics unavailable", "Tap to open acoustic sound visualizer")
+    val previewLines = if (hasLyrics) effectiveLyrics.take(3).map { it.words } else listOf("Lyrics not available", "Tap to open acoustic sound visualizer")
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(Color.White.copy(alpha = 0.08f))
-            .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(16.dp))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
-            .padding(20.dp)
+            .padding(horizontal = 20.dp, vertical = 18.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -789,7 +656,7 @@ private fun LyricsPreviewCard(
                     tint = activeTheme.primaryColor,
                     modifier = Modifier.size(16.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Lyrics",
                     color = Color.White,
@@ -797,44 +664,36 @@ private fun LyricsPreviewCard(
                     fontSize = 16.sp
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(activeTheme.primaryColor.copy(alpha = 0.2f))
-                        .clickable(onClick = onSingClick)
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = "SING / KARAOKE",
-                        color = activeTheme.primaryColor,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
                 Text(
                     text = "EXPAND",
-                    color = activeTheme.primaryColor,
+                    color = Color.White.copy(alpha = 0.90f),
                     fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     letterSpacing = 1.sp
                 )
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         previewLines.forEach { line ->
             Text(
                 text = line,
-                color = if (hasLyrics) Color.White.copy(alpha = 0.9f) else Color.White.copy(alpha = 0.6f),
+                color = if (hasLyrics) Color.White.copy(alpha = 0.92f) else Color.White.copy(alpha = 0.55f),
                 fontWeight = FontWeight.Bold,
                 fontSize = 17.sp,
-                lineHeight = 24.sp
+                lineHeight = 25.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
+            Spacer(modifier = Modifier.height(2.dp))
         }
     }
 }
-
 private fun formatTime(millis: Long): String {
     val totalSeconds = (millis / 1000).coerceAtLeast(0)
     val minutes = totalSeconds / 60
