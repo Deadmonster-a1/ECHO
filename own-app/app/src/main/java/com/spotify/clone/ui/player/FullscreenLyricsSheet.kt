@@ -68,7 +68,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spotify.clone.core.designsystem.EchoMotion
-import com.spotify.clone.core.designsystem.EchoSoundSculpture
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.echoPressable
@@ -132,13 +131,7 @@ fun FullscreenLyricsSheet(
                 )
             )
     ) {
-        // Living ECHO sculpture ambient lighting in background
-        EchoSoundSculpture(
-            isPlaying = playbackState.isPlaying,
-            trackKey = track.id,
-            alpha = 0.35f,
-            modifier = Modifier.fillMaxSize()
-        )
+
 
         Column(modifier = Modifier.fillMaxSize()) {
             // Header Bar

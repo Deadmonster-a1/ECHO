@@ -16,6 +16,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.spotify.clone.core.data.AudioRepository
 import com.spotify.clone.core.data.FullTrackStreamResolver
 import com.spotify.clone.core.data.SampleCatalog
+import com.spotify.clone.core.download.TrackDownloadManager
 import com.spotify.clone.core.model.PlaybackState
 import com.spotify.clone.core.model.RepeatMode
 import com.spotify.clone.core.model.Track
@@ -146,7 +147,7 @@ class MusicController private constructor(private val context: Context) {
                 _playbackState.update { it.copy(currentTrack = track, errorMessage = null) }
                 updateState()
 
-                if (track != null && FullTrackStreamResolver.needsResolution(track)) {
+                if (track != null && !TrackDownloadManager.getInstance(context).isTrackDownloaded(track.id) && FullTrackStreamResolver.needsResolution(track)) {
                     scope.launch(Dispatchers.IO) {
                         val resolvedUrl = if (track.mediaUri.startsWith("saavn_enc:")) {
                             val encUrl = track.mediaUri.removePrefix("saavn_enc:")
@@ -280,26 +281,38 @@ class MusicController private constructor(private val context: Context) {
         }
 
         scope.launch(Dispatchers.IO) {
-            val resolvedTrack = if (FullTrackStreamResolver.needsResolution(track)) {
-                Log.d(TAG, "Track '${track.title}' needs stream resolution... uri: ${track.mediaUri}")
-                val resolvedUrl = if (track.mediaUri.startsWith("saavn_enc:")) {
-                    val encUrl = track.mediaUri.removePrefix("saavn_enc:")
-                    FullTrackStreamResolver.resolveAuthToken(encUrl)
-                        ?: FullTrackStreamResolver.resolveStreamUrl(track.title, track.artistName, track.albumName)
+            val downloadMgr = TrackDownloadManager.getInstance(context)
+            val updatedQueue = queue.map { t ->
+                if (downloadMgr.isTrackDownloaded(t.id)) {
+                    downloadMgr.resolveTrackForPlayback(t)
                 } else {
-                    FullTrackStreamResolver.resolveStreamUrl(track.title, track.artistName, track.albumName)
+                    t
+                }
+            }.toMutableList()
+
+            val targetTrack = updatedQueue.getOrNull(startIndex) ?: track
+            val resolvedTrack = if (downloadMgr.isTrackDownloaded(targetTrack.id)) {
+                Log.d(TAG, "Playing downloaded offline file for '${targetTrack.title}'")
+                downloadMgr.resolveTrackForPlayback(targetTrack)
+            } else if (FullTrackStreamResolver.needsResolution(targetTrack)) {
+                Log.d(TAG, "Track '${targetTrack.title}' needs stream resolution... uri: ${targetTrack.mediaUri}")
+                val resolvedUrl = if (targetTrack.mediaUri.startsWith("saavn_enc:")) {
+                    val encUrl = targetTrack.mediaUri.removePrefix("saavn_enc:")
+                    FullTrackStreamResolver.resolveAuthToken(encUrl)
+                        ?: FullTrackStreamResolver.resolveStreamUrl(targetTrack.title, targetTrack.artistName, targetTrack.albumName)
+                } else {
+                    FullTrackStreamResolver.resolveStreamUrl(targetTrack.title, targetTrack.artistName, targetTrack.albumName)
                 }
                 if (!resolvedUrl.isNullOrBlank()) {
-                    Log.d(TAG, "Resolved full studio stream for '${track.title}': $resolvedUrl")
-                    track.copy(mediaUri = resolvedUrl)
+                    Log.d(TAG, "Resolved full studio stream for '${targetTrack.title}': $resolvedUrl")
+                    targetTrack.copy(mediaUri = resolvedUrl)
                 } else {
-                    track
+                    targetTrack
                 }
             } else {
-                track
+                targetTrack
             }
 
-            val updatedQueue = queue.toMutableList()
             if (startIndex in updatedQueue.indices) {
                 updatedQueue[startIndex] = resolvedTrack
             }
@@ -343,7 +356,7 @@ class MusicController private constructor(private val context: Context) {
             val nextIndex = startIndex + 1
             if (nextIndex < updatedQueue.size) {
                 val nextTrack = updatedQueue[nextIndex]
-                if (FullTrackStreamResolver.needsResolution(nextTrack)) {
+                if (!downloadMgr.isTrackDownloaded(nextTrack.id) && FullTrackStreamResolver.needsResolution(nextTrack)) {
                     val nextUrl = if (nextTrack.mediaUri.startsWith("saavn_enc:")) {
                         val enc = nextTrack.mediaUri.removePrefix("saavn_enc:")
                         FullTrackStreamResolver.resolveAuthToken(enc)

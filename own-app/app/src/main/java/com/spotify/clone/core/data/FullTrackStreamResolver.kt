@@ -138,7 +138,7 @@ object FullTrackStreamResolver {
             if (conn.responseCode == 200) {
                 val json = JSONObject(conn.inputStream.bufferedReader().readText())
                 val authUrl = json.optString("auth_url", "")
-                if (authUrl.isNotBlank()) {
+                if (authUrl.isNotBlank() && authUrl != "false") {
                     return@withContext authUrl
                 }
             }

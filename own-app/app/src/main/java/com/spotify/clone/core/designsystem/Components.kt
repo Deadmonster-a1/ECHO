@@ -161,24 +161,15 @@ fun EchoHeartButton(
     val isReducedMotion = LocalReducedMotion.current
     val activeTheme = LocalAppTheme.current
 
-    val heartScale by animateFloatAsState(
-        targetValue = if (isFavorite) 1.15f else 1.0f,
-        animationSpec = if (isReducedMotion) tween(0) else spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "heart_bounce"
-    )
-
     val tintColor by animateColorAsState(
         targetValue = if (isFavorite) activeTheme.primaryColor else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(if (isReducedMotion) 0 else 200),
+        animationSpec = tween(120),
         label = "heart_tint"
     )
 
     IconButton(
         onClick = onToggle,
-        modifier = modifier.scale(if (isReducedMotion) 1.0f else heartScale)
+        modifier = modifier
     ) {
         Icon(
             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
