@@ -32,6 +32,8 @@ object FullTrackStreamResolver {
                 uri.contains("preview") ||
                 uri.contains("apple.com") ||
                 uri.contains("mzstatic") ||
+                uri.contains("codeskulptor") ||
+                uri.contains("googleapis.com") ||
                 uri.startsWith("saavn_enc:")
     }
 
@@ -53,7 +55,7 @@ object FullTrackStreamResolver {
                 return@withContext it
             }
 
-            val encUrl = findEncryptedMediaUrl(candidate)
+            val encUrl = findEncryptedMediaUrl(candidate, expectedTitle = title)
             if (!encUrl.isNullOrBlank()) {
                 val fullUrl = resolveAuthToken(encUrl, bitrate = "160")
                 if (!fullUrl.isNullOrBlank()) {
@@ -76,24 +78,34 @@ object FullTrackStreamResolver {
         null
     }
 
-    private fun findEncryptedMediaUrl(query: String): String? {
+    private fun findEncryptedMediaUrl(query: String, expectedTitle: String = ""): String? {
         try {
             val encodedQuery = URLEncoder.encode(query.trim(), "UTF-8")
-            val searchUrl = "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=5&p=1&q=$encodedQuery"
+            val searchUrl = "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=10&p=1&q=$encodedQuery"
             val conn = openConnection(searchUrl)
             if (conn.responseCode == 200) {
                 val respText = conn.inputStream.bufferedReader().readText()
                 val json = JSONObject(respText)
                 val results = json.optJSONArray("results")
                 if (results != null && results.length() > 0) {
+                    val cleanExp = cleanTitle(expectedTitle).lowercase()
+                    var fallbackEnc: String? = null
                     for (i in 0 until results.length()) {
                         val item = results.optJSONObject(i) ?: continue
                         val moreInfo = item.optJSONObject("more_info")
                         val enc = moreInfo?.optString("encrypted_media_url", "") ?: ""
                         if (enc.isNotBlank()) {
-                            return enc
+                            if (fallbackEnc == null) fallbackEnc = enc
+                            if (cleanExp.isNotBlank()) {
+                                val itemTitle = Html.fromHtml(item.optString("title", ""), Html.FROM_HTML_MODE_LEGACY).toString().lowercase()
+                                val cleanItem = cleanTitle(itemTitle).lowercase()
+                                if (cleanItem.contains(cleanExp) || cleanExp.contains(cleanItem)) {
+                                    return enc
+                                }
+                            }
                         }
                     }
+                    return fallbackEnc
                 }
             }
         } catch (e: Exception) {
