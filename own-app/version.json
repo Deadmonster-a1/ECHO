@@ -1,10 +1,10 @@
 {
-  "versionCode": 2,
-  "versionName": "1.0.1",
-  "releaseTitle": "ECHO v1.0.1 - Live Update",
-  "releaseNotes": "English Romanized lyrics engine, automated smooth lyrics sync, and redesigned lyrics player UI/UX",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v1.0.1/echo.apk",
-  "apkSize": 4436730,
+  "versionCode": 3,
+  "versionName": "1.0.2",
+  "releaseTitle": "ECHO v1.0.2 - Live Update",
+  "releaseNotes": "Premium update card, English Romanized lyrics engine, automated smooth lyrics sync, and redesigned lyrics player UI/UX",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v1.0.2/echo.apk",
+  "apkSize": 4436870,
   "mandatory": false,
-  "publishedAt": "2026-10-29T05:30:39Z"
+  "publishedAt": "2026-10-29T06:05:58Z"
 }

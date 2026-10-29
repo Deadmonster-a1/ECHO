@@ -39,11 +39,27 @@ object AppUpdateManager {
     fun getInstalledVersionName(context: Context): String {
         return try {
             val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-            pInfo.versionName ?: "1.0.1"
+            pInfo.versionName ?: "1.0.0"
         } catch (e: Exception) {
-            "1.0.1"
+            "1.0.0"
         }
     }
+
+    fun getInstalledVersionCode(context: Context): Long {
+        return try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pInfo.longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                pInfo.versionCode.toLong()
+            }
+        } catch (e: Exception) {
+            1L
+        }
+    }
+
+    suspend fun checkForUpdates(currentVersion: String): Result<UpdateInfo?> = checkForUpdates(null, currentVersion)
 
     /**
      * Checks for updates using a multi-tier fallback strategy:
@@ -51,14 +67,18 @@ object AppUpdateManager {
      * 2. Direct raw version.json from GitHub with anti-caching query tokens.
      * 3. Official GitHub Releases API (releases/latest).
      */
-    suspend fun checkForUpdates(currentVersion: String = "1.0.0"): Result<UpdateInfo?> = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdates(
+        context: Context? = null,
+        currentVersion: String = "1.0.0"
+    ): Result<UpdateInfo?> = withContext(Dispatchers.IO) {
         val cleanCurrent = currentVersion.removePrefix("v").trim()
+        val currentCode = context?.let { getInstalledVersionCode(it) } ?: 1L
         val timestamp = System.currentTimeMillis()
 
         // Strategy 1: Ultra-fast Global Edge CDN (jsDelivr)
         try {
             val cdnUrl = "https://cdn.jsdelivr.net/gh/$githubOwner/$githubRepo@main/version.json?t=$timestamp"
-            val cdnResult = fetchVersionFromJson(cdnUrl, cleanCurrent)
+            val cdnResult = fetchVersionFromJson(cdnUrl, cleanCurrent, currentCode)
             if (cdnResult != null) {
                 Log.d(TAG, "Update detected via jsDelivr CDN: ${cdnResult.versionName}")
                 return@withContext Result.success(cdnResult)
@@ -70,7 +90,7 @@ object AppUpdateManager {
         // Strategy 2: Fast raw version.json from GitHub
         try {
             val rawUrl = "https://raw.githubusercontent.com/$githubOwner/$githubRepo/main/version.json?t=$timestamp"
-            val rawResult = fetchVersionFromJson(rawUrl, cleanCurrent)
+            val rawResult = fetchVersionFromJson(rawUrl, cleanCurrent, currentCode)
             if (rawResult != null) {
                 Log.d(TAG, "Update detected via raw GitHub: ${rawResult.versionName}")
                 return@withContext Result.success(rawResult)
@@ -79,7 +99,7 @@ object AppUpdateManager {
             Log.d(TAG, "Raw version.json not available, falling back to GitHub Releases API: ${e.message}")
         }
 
-        // Strategy 2: GitHub Releases API
+        // Strategy 3: GitHub Releases API
         try {
             val apiUrl = "https://api.github.com/repos/$githubOwner/$githubRepo/releases/latest"
             val url = URL(apiUrl)
@@ -144,7 +164,7 @@ object AppUpdateManager {
         }
     }
 
-    private fun fetchVersionFromJson(rawUrl: String, currentVersion: String): UpdateInfo? {
+    private fun fetchVersionFromJson(rawUrl: String, currentVersion: String, currentCode: Long = 1L): UpdateInfo? {
         val connection = (URL(rawUrl).openConnection() as HttpURLConnection).apply {
             connectTimeout = 7000
             readTimeout = 7000
@@ -162,13 +182,17 @@ object AppUpdateManager {
         val json = JSONObject(response)
 
         val remoteVersion = json.optString("versionName", "").removePrefix("v").trim()
+        val remoteCode = json.optLong("versionCode", 0L)
         val title = json.optString("releaseTitle", "ECHO v$remoteVersion Update")
         val notes = json.optString("releaseNotes", "Bug fixes and performance improvements.")
         val downloadUrl = json.optString("downloadUrl", "")
         val size = json.optLong("apkSize", 0L)
         val mandatory = json.optBoolean("mandatory", false)
 
-        if (isNewerVersion(remoteVersion, currentVersion) && downloadUrl.isNotBlank()) {
+        val isCodeNewer = remoteCode > 0 && currentCode > 0 && remoteCode > currentCode
+        val isNameNewer = isNewerVersion(remoteVersion, currentVersion)
+
+        if ((isCodeNewer || isNameNewer) && downloadUrl.isNotBlank()) {
             return UpdateInfo(
                 versionName = remoteVersion,
                 releaseTitle = title,

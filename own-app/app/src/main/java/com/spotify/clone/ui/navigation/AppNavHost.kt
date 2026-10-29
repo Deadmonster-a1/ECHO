@@ -63,6 +63,24 @@ import com.spotify.clone.ui.home.HomeViewModel
 import com.spotify.clone.ui.library.LibraryScreen
 import com.spotify.clone.ui.library.LibraryViewModel
 import com.spotify.clone.ui.player.NowPlayingScreen
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import com.spotify.clone.core.designsystem.echoPressable
 import com.spotify.clone.ui.playlist.PlaylistDetailScreen
 import com.spotify.clone.ui.profile.ProfileScreen
 import com.spotify.clone.ui.search.SearchScreen
@@ -106,16 +124,27 @@ fun AppNavHost(modifier: Modifier = Modifier) {
     var isDownloadingUpdate by remember { mutableStateOf(false) }
     var updateDownloadProgress by remember { mutableFloatStateOf(0f) }
 
-    // Auto-check for updates on launch
-    LaunchedEffect(Unit) {
-        try {
-            val installedVer = AppUpdateManager.getInstalledVersionName(context)
-            val result = AppUpdateManager.checkForUpdates(installedVer)
-            result.getOrNull()?.let { update ->
-                availableLiveUpdate = update
-                showLiveUpdateDialog = true
+    // Auto-check for updates on launch and whenever returning to foreground
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                coroutineScope.launch {
+                    try {
+                        val installedVer = AppUpdateManager.getInstalledVersionName(context)
+                        val result = AppUpdateManager.checkForUpdates(context, installedVer)
+                        result.getOrNull()?.let { update ->
+                            availableLiveUpdate = update
+                            showLiveUpdateDialog = true
+                        }
+                    } catch (_: Exception) {}
+                }
             }
-        } catch (_: Exception) {}
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 
     Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -217,7 +246,7 @@ fun AppNavHost(modifier: Modifier = Modifier) {
                             coroutineScope.launch {
                                 val installedVer = AppUpdateManager.getInstalledVersionName(context)
                                 Toast.makeText(context, "Checking for ECHO updates...", Toast.LENGTH_SHORT).show()
-                                val result = AppUpdateManager.checkForUpdates(installedVer)
+                                val result = AppUpdateManager.checkForUpdates(context, installedVer)
                                 result.onSuccess { update ->
                                     if (update != null) {
                                         availableLiveUpdate = update
@@ -391,104 +420,276 @@ fun AppNavHost(modifier: Modifier = Modifier) {
             )
         }
 
-        // Direct In-App Live Update Dialog
+        // Premium Direct In-App Live Update Modal Card
         if (showLiveUpdateDialog && availableLiveUpdate != null) {
             val update = availableLiveUpdate!!
-            AlertDialog(
+            Dialog(
                 onDismissRequest = {
                     if (!isDownloadingUpdate) showLiveUpdateDialog = false
                 },
-                containerColor = MaterialTheme.colorScheme.surface,
-                title = {
-                    Column {
+                properties = DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = !isDownloadingUpdate,
+                    dismissOnClickOutside = !isDownloadingUpdate
+                )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFF242133),
+                                    Color(0xFF171524),
+                                    Color(0xFF0F0E16)
+                                )
+                            )
+                        )
+                        .border(
+                            width = 1.2.dp,
+                            brush = Brush.verticalGradient(
+                                listOf(
+                                    activeTheme.primaryColor.copy(alpha = 0.85f),
+                                    activeTheme.primaryColor.copy(alpha = 0.25f),
+                                    Color(0xFF333044)
+                                )
+                            ),
+                            shape = RoundedCornerShape(28.dp)
+                        )
+                        .padding(horizontal = 22.dp, vertical = 24.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Glowing Icon Badge
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(
+                                            activeTheme.primaryColor.copy(alpha = 0.35f),
+                                            activeTheme.primaryColor.copy(alpha = 0.06f),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
+                                .border(1.5.dp, activeTheme.primaryColor.copy(alpha = 0.7f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.AutoAwesome,
+                                contentDescription = null,
+                                tint = activeTheme.primaryColor,
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Category Pill Tag
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(activeTheme.primaryColor.copy(alpha = 0.18f))
+                                .border(1.dp, activeTheme.primaryColor.copy(alpha = 0.45f), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "NEW VERSION AVAILABLE",
+                                color = activeTheme.primaryColor,
+                                fontSize = 10.5.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = 1.2.sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Title & Version
                         Text(
-                            text = update.releaseTitle,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
+                            text = "ECHO v${update.versionName}",
+                            color = Color.White,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Version ${update.versionName} • Direct In-App Update",
-                            color = activeTheme.primaryColor,
+                            text = "Official Studio Live Update",
+                            color = Color.White.copy(alpha = 0.65f),
                             fontSize = 12.5.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = update.releaseNotes,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center
                         )
 
-                        if (isDownloadingUpdate) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            LinearProgressIndicator(
-                                progress = { updateDownloadProgress },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(6.dp),
-                                color = activeTheme.primaryColor,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            Text(
-                                text = "Downloading update: ${(updateDownloadProgress * 100).toInt()}%...",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 12.sp
-                            )
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            if (!isDownloadingUpdate) {
-                                isDownloadingUpdate = true
-                                coroutineScope.launch {
-                                    val apkFile = AppUpdateManager.downloadApk(context, update.downloadUrl) { progress ->
-                                        updateDownloadProgress = progress
-                                    }
-                                    isDownloadingUpdate = false
-                                    if (apkFile != null && apkFile.exists() && apkFile.length() > 1_000_000L) {
-                                        showLiveUpdateDialog = false
-                                        if (!AppUpdateManager.canRequestPackageInstalls(context)) {
-                                            AppUpdateManager.openInstallPermissionSettings(context)
-                                        }
-                                        AppUpdateManager.installApk(context, apkFile)
-                                    } else {
-                                        Toast.makeText(context, "Direct download failed. Opening browser...", Toast.LENGTH_LONG).show()
-                                        AppUpdateManager.openBrowserDownload(context, update.downloadUrl)
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Changelog Card
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(Color(0xFF191724))
+                                .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(18.dp))
+                                .padding(16.dp)
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Bolt,
+                                        contentDescription = null,
+                                        tint = activeTheme.primaryColor,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "WHAT'S NEW",
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp
+                                    )
+                                }
+
+                                update.releaseNotes.lines().filter { it.isNotBlank() }.forEach { line ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.Top
+                                    ) {
+                                        Text(
+                                            text = "•",
+                                            color = activeTheme.primaryColor,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(end = 8.dp)
+                                        )
+                                        Text(
+                                            text = line.removePrefix("•").removePrefix("-").trim(),
+                                            color = Color.White.copy(alpha = 0.85f),
+                                            fontSize = 13.sp,
+                                            lineHeight = 18.sp
+                                        )
                                     }
                                 }
                             }
-                        },
-                        enabled = !isDownloadingUpdate,
-                        colors = ButtonDefaults.buttonColors(containerColor = activeTheme.primaryColor),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(if (isDownloadingUpdate) "Downloading ${(updateDownloadProgress * 100).toInt()}%..." else "Update Now", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = if (!isDownloadingUpdate) {
-                    {
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton(onClick = {
-                                AppUpdateManager.openBrowserDownload(context, update.downloadUrl)
-                                showLiveUpdateDialog = false
-                            }) {
-                                Text("Browser", color = activeTheme.primaryColor, fontSize = 12.sp)
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Download progress or action buttons
+                        if (isDownloadingUpdate) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                LinearProgressIndicator(
+                                    progress = { updateDownloadProgress },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(8.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    color = activeTheme.primaryColor,
+                                    trackColor = Color(0xFF292639)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Downloading studio update...",
+                                        color = Color.White.copy(alpha = 0.7f),
+                                        fontSize = 12.sp
+                                    )
+                                    Text(
+                                        text = "${(updateDownloadProgress * 100).toInt()}%",
+                                        color = activeTheme.primaryColor,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
-                            TextButton(onClick = { showLiveUpdateDialog = false }) {
-                                Text("Later", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        } else {
+                            // "Update Now" Action Button
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                activeTheme.primaryColor,
+                                                activeTheme.primaryColor.copy(alpha = 0.85f)
+                                            )
+                                        )
+                                    )
+                                    .echoPressable(scaleOnPress = 0.96f) {
+                                        isDownloadingUpdate = true
+                                        coroutineScope.launch {
+                                            val apkFile = AppUpdateManager.downloadApk(context, update.downloadUrl) { progress ->
+                                                updateDownloadProgress = progress
+                                            }
+                                            isDownloadingUpdate = false
+                                            if (apkFile != null && apkFile.exists() && apkFile.length() > 1_000_000L) {
+                                                showLiveUpdateDialog = false
+                                                if (!AppUpdateManager.canRequestPackageInstalls(context)) {
+                                                    AppUpdateManager.openInstallPermissionSettings(context)
+                                                }
+                                                AppUpdateManager.installApk(context, apkFile)
+                                            } else {
+                                                Toast.makeText(context, "Direct download failed. Opening browser...", Toast.LENGTH_LONG).show()
+                                                AppUpdateManager.openBrowserDownload(context, update.downloadUrl)
+                                            }
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Update Now",
+                                    color = Color.White,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Secondary Options: Browser Mirror & Later
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = {
+                                    AppUpdateManager.openBrowserDownload(context, update.downloadUrl)
+                                    showLiveUpdateDialog = false
+                                }) {
+                                    Text(
+                                        text = "Download from Browser",
+                                        color = activeTheme.primaryColor.copy(alpha = 0.9f),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+
+                                TextButton(onClick = { showLiveUpdateDialog = false }) {
+                                    Text(
+                                        text = "Maybe Later",
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        fontSize = 12.sp
+                                    )
+                                }
                             }
                         }
                     }
-                } else null
-            )
+                }
+            }
         }
     }
 }
