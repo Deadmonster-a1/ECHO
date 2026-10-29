@@ -531,6 +531,7 @@ fun NowPlayingScreen(
             // 7. Synchronized Lyrics Preview Card
             LyricsPreviewCard(
                 track = track,
+                currentPosMs = state.currentPositionMs,
                 onClick = {
                     showFullscreenLyrics = true
                 }
@@ -626,23 +627,48 @@ fun NowPlayingScreen(
 @Composable
 private fun LyricsPreviewCard(
     track: com.spotify.clone.core.model.Track,
+    currentPosMs: Long,
     onClick: () -> Unit
 ) {
     val activeTheme = LocalAppTheme.current
-    var effectiveLyrics by remember(track.id) {
+    var lyricsResult by remember(track.id) {
         mutableStateOf(com.spotify.clone.core.lyrics.LyricsRepository.getCachedLyrics(track))
     }
 
     LaunchedEffect(track.id) {
-        if (effectiveLyrics.isEmpty() || effectiveLyrics.size < 8) {
+        if (lyricsResult.lines.isEmpty() || lyricsResult.syncType == com.spotify.clone.core.model.LyricsSyncType.NONE) {
             val resolved = com.spotify.clone.core.lyrics.LyricsRepository.getOrFetchLyrics(track)
-            if (resolved.isNotEmpty()) {
-                effectiveLyrics = resolved
+            if (resolved.lines.isNotEmpty()) {
+                lyricsResult = resolved
             }
         }
     }
-    val hasLyrics = effectiveLyrics.isNotEmpty()
-    val previewLines = if (hasLyrics) effectiveLyrics.take(3).map { it.words } else listOf("Synchronizing lyrics...", "Tap to open full lyrics sheet")
+    val lines = lyricsResult.lines
+    val hasLyrics = lines.isNotEmpty()
+    val isSynced = lyricsResult.syncType == com.spotify.clone.core.model.LyricsSyncType.LINE_SYNCED && hasLyrics && lines.first().timestampMs >= 0L
+
+    val activeIndex = remember(currentPosMs, lines, isSynced) {
+        if (!isSynced || lines.isEmpty()) {
+            0
+        } else if (currentPosMs < lines.first().timestampMs) {
+            -1
+        } else {
+            lines.indexOfLast { it.timestampMs <= currentPosMs }
+        }
+    }
+
+    val previewLines = when {
+        !hasLyrics -> listOf("Synchronizing lyrics...", "Tap to open full lyrics sheet")
+        !isSynced -> lines.take(3).map { it.romanized ?: it.words }
+        activeIndex == -1 -> listOf("♪ (Instrumental Intro)", lines.first().let { it.romanized ?: it.words })
+        else -> {
+            val curr = lines.getOrNull(activeIndex)
+            val currentLine = curr?.let { it.romanized ?: it.words } ?: ""
+            val next = lines.getOrNull(activeIndex + 1)
+            val nextLine = next?.let { it.romanized ?: it.words } ?: ""
+            listOf(currentLine, nextLine).filter { it.isNotBlank() }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -667,7 +693,7 @@ private fun LyricsPreviewCard(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Lyrics",
+                    text = if (isSynced) "Lyrics • Synced" else "Lyrics",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
@@ -689,12 +715,21 @@ private fun LyricsPreviewCard(
             }
         }
         Spacer(modifier = Modifier.height(14.dp))
-        previewLines.forEach { line ->
+        previewLines.forEachIndexed { idx, line ->
+            val isHighlight = isSynced && activeIndex >= 0 && idx == 0
+            val isIntro = isSynced && activeIndex == -1 && idx == 0
+            val textColor = when {
+                !hasLyrics -> Color(0xFF9E9AA8)
+                isIntro -> activeTheme.primaryColor
+                isHighlight -> Color.White
+                isSynced -> Color.White.copy(alpha = 0.55f)
+                else -> Color.White.copy(alpha = 0.85f)
+            }
             Text(
                 text = line,
-                color = if (hasLyrics) Color.White else Color(0xFF9E9AA8),
-                fontWeight = FontWeight.Bold,
-                fontSize = 17.sp,
+                color = textColor,
+                fontWeight = if (isHighlight || isIntro) FontWeight.ExtraBold else FontWeight.SemiBold,
+                fontSize = if (isHighlight) 18.sp else 16.sp,
                 lineHeight = 25.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis

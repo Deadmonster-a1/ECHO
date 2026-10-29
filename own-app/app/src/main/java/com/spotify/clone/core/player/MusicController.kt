@@ -242,7 +242,7 @@ class MusicController private constructor(private val context: Context) {
                         }
                     }
                 }
-                delay(300)
+                delay(75) // High-precision 75ms polling for instantaneous lyrics synchronization
             }
         }
     }
