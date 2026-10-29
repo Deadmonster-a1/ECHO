@@ -1,10 +1,10 @@
 {
-  "versionCode": 1,
-  "versionName": "1.0.0",
-  "releaseTitle": "ECHO Music Player v1.0.0 — Official Launch",
-  "releaseNotes": "• Complete, full-length synchronized lyrics for all songs with live karaoke scroll\n• High-fidelity 320kbps audio across entire catalog\n• Authentic album and film posters with synced lyrics\n• Custom Ringtone Studio & JioTune with precision waveform cutter\n• Offline Downloads & Echo Device Sync\n• 100% Solid Dark Theme UI & fast skeleton loading\n• Secure release signing for effortless in-app auto-updates",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v1.0.0/echo.apk",
-  "apkSize": 4420354,
+  "versionCode": 2,
+  "versionName": "1.0.1",
+  "releaseTitle": "ECHO v1.0.1 - Live Update",
+  "releaseNotes": "English Romanized lyrics engine, automated smooth lyrics sync, and redesigned lyrics player UI/UX",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v1.0.1/echo.apk",
+  "apkSize": 4436730,
   "mandatory": false,
-  "publishedAt": "2026-10-28T18:25:00Z"
+  "publishedAt": "2026-10-29T05:30:39Z"
 }

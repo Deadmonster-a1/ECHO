@@ -3,6 +3,8 @@ package com.spotify.clone.core.lyrics
 import android.text.Html
 import android.util.Log
 import com.spotify.clone.core.model.LyricLine
+import com.spotify.clone.core.model.LyricsResult
+import com.spotify.clone.core.model.LyricsSyncType
 import com.spotify.clone.core.model.Track
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -15,144 +17,198 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 
 /**
- * Enterprise-grade Lyrics Engine for ECHO.
- * Delivers full-length, synchronized lyrics for every song in the app:
- * 1. Curated high-fidelity lyrics for catalog blockbusters (0:00 to 3:30+).
- * 2. Dynamic LRCLIB synchronized and plain lyrics fetching.
- * 3. JioSaavn Lyrics API fallback.
- * 4. Intelligent pacing engine that formats plain lyrics into synchronized lines.
- * 5. High-fidelity acoustic structure fallback ensuring zero blank lyrics screens.
+ * Spotify-Grade Synchronized Lyrics Engine for ECHO.
+ *
+ * Implements real-time synchronized line tracking based on Spotify's reverse-engineered
+ * ColorLyrics architecture (ColorLyricsResponse / LyricsResponse):
+ * 1. LINE_SYNCED: True millisecond-level vocal timestamps matching the audio recording.
+ * 2. UNSYNCED: Clean static typography for plain lyrics without fabricated timings.
+ * 3. NONE: Honest, respectful "Lyrics Unavailable" state without synthetic commentary.
  */
 object LyricsRepository {
 
     private const val TAG = "EchoLyricsRepository"
-    private val memoryCache = ConcurrentHashMap<String, List<LyricLine>>()
+    private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+    private val memoryCache = ConcurrentHashMap<String, LyricsResult>()
     private val lrcPattern = Pattern.compile("\\[(\\d{2}):(\\d{2}(?:\\.\\d{1,3})?)\\](.*)")
 
     /**
      * Instantly retrieves cached or curated lyrics if available (synchronous).
      */
-    fun getCachedLyrics(track: Track): List<LyricLine> {
+    fun getCachedLyrics(track: Track): LyricsResult {
         val cacheKey = getCacheKey(track)
         memoryCache[cacheKey]?.let { return it }
 
+        // Check curated catalog
+        LyricsCatalog.findCuratedLyrics(track.id, track.title)?.let { lines ->
+            val result = LyricsResult(LyricsSyncType.LINE_SYNCED, lines, "Echo Verified Studio Sync")
+            memoryCache[cacheKey] = result
+            return result
+        }
+
         // Check if track object already has rich lyrics
-        if (track.lyrics.size > 8) {
-            memoryCache[cacheKey] = track.lyrics
-            return track.lyrics
+        if (track.lyrics.isNotEmpty()) {
+            val result = LyricsResult(track.lyricsSyncType, track.lyrics, "Embedded Metadata")
+            memoryCache[cacheKey] = result
+            return result
         }
 
-        // Check Curated catalog
-        LyricsCatalog.findCuratedLyrics(track.id, track.title)?.let {
-            memoryCache[cacheKey] = it
-            return it
-        }
-
-        return emptyList()
+        return LyricsResult(LyricsSyncType.NONE, emptyList(), "")
     }
 
     /**
-     * Resolves full lyrics asynchronously across all tiers:
-     * 1. Memory / Curated Catalog
-     * 2. LRCLIB Synced / Plain lyrics API
-     * 3. JioSaavn Lyrics API
-     * 4. Paced Acoustic Journey fallback
+     * Resolves full lyrics asynchronously across authoritative tiers:
+     * 1. Memory Cache
+     * 2. Curated Studio Catalog (authentic verified timestamps)
+     * 3. LRCLIB Synced API
+     * 4. LRCLIB Plain / JioSaavn Plain (honest UNSYNCED state)
      */
-    suspend fun getOrFetchLyrics(track: Track): List<LyricLine> = withContext(Dispatchers.IO) {
+    suspend fun getOrFetchLyrics(track: Track): LyricsResult = withContext(Dispatchers.IO) {
         val cacheKey = getCacheKey(track)
         memoryCache[cacheKey]?.let { return@withContext it }
 
-        // Tier 1: Curated Catalog
-        LyricsCatalog.findCuratedLyrics(track.id, track.title)?.let {
-            memoryCache[cacheKey] = it
-            return@withContext it
+        // Tier 1: Curated Studio Catalog
+        LyricsCatalog.findCuratedLyrics(track.id, track.title)?.let { lines ->
+            val result = LyricsResult(LyricsSyncType.LINE_SYNCED, lines, "Echo Verified Studio Sync")
+            memoryCache[cacheKey] = result
+            return@withContext result
         }
 
-        // Tier 2: LRCLIB API (Open Source Global Synced Lyrics)
+        // Tier 2: LRCLIB API (Global Synced Lyrics Engine)
         try {
-            val lrclibLines = fetchFromLrclib(track)
-            if (lrclibLines.isNotEmpty()) {
-                Log.d(TAG, "Loaded ${lrclibLines.size} lyrics lines from LRCLIB for '${track.title}'")
-                memoryCache[cacheKey] = lrclibLines
-                return@withContext lrclibLines
+            val lrclibResult = fetchFromLrclib(track)
+            if (lrclibResult != null && lrclibResult.lines.isNotEmpty()) {
+                Log.d(TAG, "Loaded ${lrclibResult.lines.size} lines (${lrclibResult.syncType}) from LRCLIB for '${track.title}'")
+                memoryCache[cacheKey] = lrclibResult
+                return@withContext lrclibResult
             }
         } catch (e: Exception) {
             Log.d(TAG, "LRCLIB lookup failed for '${track.title}': ${e.message}")
         }
 
         // Tier 3: JioSaavn Lyrics API
-        if (track.id.startsWith("saavn_")) {
+        if (track.id.startsWith("saavn_") || track.mediaUri.contains("saavn")) {
             try {
                 val saavnLines = fetchFromSaavn(track)
                 if (saavnLines.isNotEmpty()) {
-                    Log.d(TAG, "Loaded ${saavnLines.size} lyrics lines from Saavn for '${track.title}'")
-                    memoryCache[cacheKey] = saavnLines
-                    return@withContext saavnLines
+                    Log.d(TAG, "Loaded ${saavnLines.size} plain lines from Saavn for '${track.title}'")
+                    val result = LyricsResult(LyricsSyncType.UNSYNCED, saavnLines, "JioSaavn")
+                    memoryCache[cacheKey] = result
+                    return@withContext result
                 }
             } catch (e: Exception) {
                 Log.d(TAG, "Saavn lyrics lookup failed for '${track.title}': ${e.message}")
             }
         }
 
-        // Tier 4: Existing track lyrics if present
+        // Tier 4: Existing track embedded lyrics if present
         if (track.lyrics.isNotEmpty()) {
-            memoryCache[cacheKey] = track.lyrics
-            return@withContext track.lyrics
+            val result = LyricsResult(track.lyricsSyncType, track.lyrics, "Embedded Metadata")
+            memoryCache[cacheKey] = result
+            return@withContext result
         }
 
-        // Tier 5: Intelligent Paced Acoustic Lyrical Progression
-        val synthesized = generateAcousticLyrics(track)
-        memoryCache[cacheKey] = synthesized
-        return@withContext synthesized
+        // Tier 5: Honest Unavailable State
+        val unavailable = LyricsResult(LyricsSyncType.NONE, emptyList(), "")
+        memoryCache[cacheKey] = unavailable
+        return@withContext unavailable
     }
 
     private fun getCacheKey(track: Track): String {
-        return "${track.title.lowercase().trim()}_${track.artistName.lowercase().trim()}"
+        return "${cleanQuery(track.title).lowercase()}_${cleanQuery(track.artistName).lowercase()}"
     }
 
-    private fun fetchFromLrclib(track: Track): List<LyricLine> {
-        val cleanTitle = track.title.replace(Regex("(?i)\\(.*?\\)|\\[.*?\\]"), "").trim()
-        val primaryArtist = track.artistName.split(",", "&", "feat").firstOrNull()?.trim() ?: track.artistName
+    private fun cleanQuery(input: String): String {
+        return input.replace(Regex("(?i)\\(.*?\\)|\\[.*?\\]"), "").trim()
+    }
 
-        // Strategy A: Direct track/artist search
-        val query = "$cleanTitle $primaryArtist".trim()
-        val encodedQuery = URLEncoder.encode(query, "UTF-8")
-        val searchUrl = "https://lrclib.net/api/search?q=$encodedQuery"
+    private fun fetchFromLrclib(track: Track): LyricsResult? {
+        val cleanTitle = cleanQuery(track.title)
+        val primaryArtist = track.artistName.split(",", "&", "feat", "Feat").firstOrNull()?.trim() ?: track.artistName
 
-        val connection = (URL(searchUrl).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 6000
-            readTimeout = 8000
-            requestMethod = "GET"
-            setRequestProperty("User-Agent", "ECHO-Android-LyricsEngine/1.0")
-        }
-
-        if (connection.responseCode != 200) return emptyList()
-
-        val response = connection.inputStream.bufferedReader().use { it.readText() }
-        val array = JSONArray(response)
-        if (array.length() == 0) return emptyList()
-
-        // Prioritize entry with syncedLyrics
-        for (i in 0 until array.length()) {
-            val item = array.getJSONObject(i)
-            val synced = item.optString("syncedLyrics", "")
-            if (synced.isNotBlank()) {
-                val parsed = parseLrc(synced)
-                if (parsed.isNotEmpty()) return parsed
+        // Strategy A: Exact metadata match via /api/get
+        try {
+            val getUrl = buildString {
+                append("https://lrclib.net/api/get?")
+                append("track_name=").append(URLEncoder.encode(cleanTitle, "UTF-8"))
+                append("&artist_name=").append(URLEncoder.encode(primaryArtist, "UTF-8"))
+                if (track.durationMs > 10000L) {
+                    append("&duration=").append(track.durationMs / 1000L)
+                }
             }
-        }
 
-        // Fallback to plainLyrics paced evenly
-        for (i in 0 until array.length()) {
-            val item = array.getJSONObject(i)
-            val plain = item.optString("plainLyrics", "")
-            if (plain.isNotBlank()) {
-                val paced = pacePlainLyrics(plain, track.durationMs)
-                if (paced.isNotEmpty()) return paced
+            val conn = (URL(getUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5000
+                readTimeout = 6000
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", USER_AGENT)
             }
+
+            if (conn.responseCode == 200) {
+                val respText = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(respText)
+                val synced = json.optString("syncedLyrics", "")
+                if (synced.isNotBlank()) {
+                    val parsed = parseLrc(synced)
+                    if (parsed.isNotEmpty()) {
+                        return LyricsResult(LyricsSyncType.LINE_SYNCED, parsed, "LRCLIB Synced")
+                    }
+                }
+                val plain = json.optString("plainLyrics", "")
+                if (plain.isNotBlank()) {
+                    val plainLines = parsePlainLyrics(plain)
+                    if (plainLines.isNotEmpty()) {
+                        return LyricsResult(LyricsSyncType.UNSYNCED, plainLines, "LRCLIB Plain")
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "LRCLIB /api/get error: ${e.message}")
         }
 
-        return emptyList()
+        // Strategy B: Full text query via /api/search
+        try {
+            val query = "$cleanTitle $primaryArtist".trim()
+            val searchUrl = "https://lrclib.net/api/search?q=" + URLEncoder.encode(query, "UTF-8")
+            val conn = (URL(searchUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 6000
+                readTimeout = 7000
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", USER_AGENT)
+            }
+
+            if (conn.responseCode == 200) {
+                val respText = conn.inputStream.bufferedReader().use { it.readText() }
+                val array = JSONArray(respText)
+                // Prioritize synced
+                for (i in 0 until array.length()) {
+                    val item = array.getJSONObject(i)
+                    val synced = item.optString("syncedLyrics", "")
+                    if (synced.isNotBlank()) {
+                        val parsed = parseLrc(synced)
+                        if (parsed.isNotEmpty()) {
+                            return LyricsResult(LyricsSyncType.LINE_SYNCED, parsed, "LRCLIB Synced")
+                        }
+                    }
+                }
+                // Fallback to plain
+                for (i in 0 until array.length()) {
+                    val item = array.getJSONObject(i)
+                    val plain = item.optString("plainLyrics", "")
+                    if (plain.isNotBlank()) {
+                        val plainLines = parsePlainLyrics(plain)
+                        if (plainLines.isNotEmpty()) {
+                            return LyricsResult(LyricsSyncType.UNSYNCED, plainLines, "LRCLIB Plain")
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.d(TAG, "LRCLIB /api/search error: ${e.message}")
+        }
+
+        return null
     }
 
     private fun fetchFromSaavn(track: Track): List<LyricLine> {
@@ -160,11 +216,11 @@ object LyricsRepository {
         val urlStr = "https://www.jiosaavn.com/api.php?__call=lyrics.getLyrics&ctx=web6dot0&api_version=4&_format=json&_marker=0&lyrics_id=$saavnSongId"
 
         val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 6000
-            readTimeout = 8000
+            connectTimeout = 5000
+            readTimeout = 6000
             requestMethod = "GET"
             setRequestProperty("Referer", "https://www.jiosaavn.com/")
-            setRequestProperty("User-Agent", "Mozilla/5.0")
+            setRequestProperty("User-Agent", USER_AGENT)
         }
 
         if (conn.responseCode != 200) return emptyList()
@@ -175,11 +231,12 @@ object LyricsRepository {
         if (rawLyrics.isBlank()) return emptyList()
 
         val cleanLyrics = Html.fromHtml(rawLyrics, Html.FROM_HTML_MODE_LEGACY).toString()
-        return pacePlainLyrics(cleanLyrics, track.durationMs)
+        return parsePlainLyrics(cleanLyrics)
     }
 
     /**
      * Parses standard LRC format strings ([mm:ss.xx] words) into timestamped LyricLine objects.
+     * Supports multiple timestamp tags per line, millisecond precision, and ignores metadata headers.
      */
     fun parseLrc(lrcContent: String): List<LyricLine> {
         val lines = mutableListOf<LyricLine>()
@@ -188,6 +245,8 @@ object LyricsRepository {
         for (line in rawLines) {
             val trimmed = line.trim()
             if (trimmed.isBlank()) continue
+            // Skip ID3 tags like [ar:...], [ti:...], [al:...]
+            if (trimmed.matches(Regex("^\\[[a-zA-Z]+:.*?\\]$"))) continue
 
             val matcher = lrcPattern.matcher(trimmed)
             if (matcher.find()) {
@@ -209,49 +268,12 @@ object LyricsRepository {
     }
 
     /**
-     * Intelligently formats plain unsynchronized lyrics across the track's duration
-     * so that each line activates and scrolls smoothly during playback.
+     * Parses plain un-synchronized lyrics into LyricLine items with -1 timestamp.
      */
-    fun pacePlainLyrics(plainLyrics: String, durationMs: Long): List<LyricLine> {
-        val rawLines = plainLyrics.split("\n", "\r\n")
+    fun parsePlainLyrics(plainLyrics: String): List<LyricLine> {
+        return plainLyrics.split("\n", "\r\n")
             .map { it.trim() }
             .filter { it.isNotBlank() && !it.startsWith("[") }
-
-        if (rawLines.isEmpty()) return emptyList()
-
-        val effectiveDuration = if (durationMs > 30000L) durationMs else 210000L
-        val leadInMs = 6000L
-        val usableDuration = (effectiveDuration - leadInMs - 8000L).coerceAtLeast(10000L)
-        val intervalMs = (usableDuration / rawLines.size).coerceIn(2500L, 8000L)
-
-        val result = mutableListOf<LyricLine>()
-        result.add(LyricLine(0L, "♪ (Music prelude)"))
-
-        for (i in rawLines.indices) {
-            val timestamp = leadInMs + (i * intervalMs)
-            result.add(LyricLine(timestamp, rawLines[i]))
-        }
-
-        return result
-    }
-
-    /**
-     * Fallback that generates an authentic, rich musical progression journey
-     * for tracks without available external lyrics text.
-     */
-    private fun generateAcousticLyrics(track: Track): List<LyricLine> {
-        val duration = if (track.durationMs > 30000L) track.durationMs else 210000L
-        val step = duration / 8L
-
-        return listOf(
-            LyricLine(0L, "♪ (Melodic strings and acoustic prelude)"),
-            LyricLine(step, "Verse 1: Soulful melodic cadence of \"${track.title}\""),
-            LyricLine(step * 2, "Harmonies unfold by ${track.artistName}"),
-            LyricLine(step * 3, "Chorus: Anthemic vocal crescendo"),
-            LyricLine(step * 4, "♪ (Rhythmic instrumental beat & dynamic bass drop)"),
-            LyricLine(step * 5, "Verse 2: Intimate lyrical expression"),
-            LyricLine(step * 6, "Peak Chorus: High-energy melodic crescendo"),
-            LyricLine(step * 7, "♪ (Acoustic outro & harmonic resonance)")
-        )
+            .map { LyricLine(-1L, it) }
     }
 }
