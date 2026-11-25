@@ -509,7 +509,7 @@ fun SettingsScreen(
                 HorizontalDivider(color = dividerColor, thickness = 0.6.dp, modifier = Modifier.padding(start = 54.dp))
                 SettingsRow(
                     icon = Icons.Outlined.Info,
-                    title = "ECHO Music",
+                    title = "echo Music",
                     subtitle = "Version ${BuildConfig.VERSION_NAME} • Direct OTA updates enabled",
                     onClick = {}
                 )

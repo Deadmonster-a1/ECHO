@@ -455,7 +455,7 @@ private fun TrackOptionRow(
 private fun shareTrack(context: Context, track: Track) {
     val sendIntent = Intent().apply {
         action = Intent.ACTION_SEND
-        putExtra(Intent.EXTRA_TEXT, "Listen to \"${track.title}\" by ${track.artistName} on ECHO")
+        putExtra(Intent.EXTRA_TEXT, "Listen to \"${track.title}\" by ${track.artistName} on echo")
         type = "text/plain"
     }
     context.startActivity(Intent.createChooser(sendIntent, "Share Track"))

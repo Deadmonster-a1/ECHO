@@ -181,7 +181,7 @@ fun ShareLyricsDialog(
 
                             // Watermark
                             Text(
-                                text = "ECHO • Feel the sound",
+                                text = "echo • Feel the sound",
                                 color = artworkColors.vibrantAccent,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
@@ -250,7 +250,7 @@ fun ShareLyricsDialog(
                 Button(
                     onClick = {
                         val quote = selectedIndices.sorted().mapNotNull { lines.getOrNull(it)?.words }.joinToString("\n")
-                        val shareText = "\"$quote\"\n\n— ${track.title} by ${track.artistName} (via ECHO Music)"
+                        val shareText = "\"$quote\"\n\n— ${track.title} by ${track.artistName} (via echo Music)"
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "text/plain"
                             putExtra(Intent.EXTRA_TEXT, shareText)

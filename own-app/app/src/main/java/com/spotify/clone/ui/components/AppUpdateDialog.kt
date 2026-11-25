@@ -107,7 +107,7 @@ fun AppUpdateDialog(
                 enabled = !isDownloading,
                 onClick = {
                     if (!AppUpdateManager.canRequestPackageInstalls(context)) {
-                        Toast.makeText(context, "Allow ECHO to install app updates", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "Allow echo to install app updates", Toast.LENGTH_LONG).show()
                         AppUpdateManager.openInstallPermissionSettings(context)
                         return@Button
                     }

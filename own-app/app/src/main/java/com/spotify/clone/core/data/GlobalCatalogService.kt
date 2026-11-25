@@ -263,7 +263,7 @@ class GlobalCatalogService {
             name = "Tollywood Top Hits",
             description = "The biggest Telugu chartbusters from Devara, Pushpa 2, RRR, Kalki 2898 AD & more (Full Studio Versions).",
             coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-            ownerName = "ECHO Telugu",
+            ownerName = "echo Telugu",
             tracks = finalTracks
         )
     }
@@ -280,7 +280,7 @@ class GlobalCatalogService {
             name = "Sid Sriram Telugu Hits",
             description = "Soulful Telugu melodies sung by Sid Sriram: Inkem Inkem, Samajavaragamana & more (Full Versions).",
             coverArtUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg",
-            ownerName = "ECHO Curated",
+            ownerName = "echo Curated",
             tracks = finalTracks
         )
     }
@@ -297,7 +297,7 @@ class GlobalCatalogService {
             name = playlistName,
             description = "The hottest tracks right now across the catalog (Full Length).",
             coverArtUrl = coverUrl,
-            ownerName = "ECHO Curated",
+            ownerName = "echo Curated",
             tracks = finalTracks
         )
     }

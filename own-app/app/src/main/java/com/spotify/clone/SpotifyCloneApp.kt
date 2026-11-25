@@ -41,10 +41,10 @@ class SpotifyCloneApp : Application(), ImageLoaderFactory {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val playbackChannel = NotificationChannel(
                 PLAYBACK_CHANNEL_ID,
-                "ECHO Playback",
+                "echo Playback",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "ECHO music playback controls and notifications"
+                description = "echo music playback controls and notifications"
                 setShowBadge(false)
             }
 

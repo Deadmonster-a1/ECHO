@@ -297,7 +297,7 @@ object EchoRecommendationEngine {
                 name = "Discover Daily",
                 description = "AI-picked fresh tracks tailored to your taste • $topArtists",
                 coverArtUrl = discoverRecs.first().coverArtUrl,
-                ownerName = "ECHO AI",
+                ownerName = "echo AI",
                 tracks = spotifyArtistInterleave(discoverRecs)
             )
         } else null

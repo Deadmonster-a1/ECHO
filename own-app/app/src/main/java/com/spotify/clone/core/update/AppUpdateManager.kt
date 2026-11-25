@@ -183,7 +183,7 @@ object AppUpdateManager {
 
         val remoteVersion = json.optString("versionName", "").removePrefix("v").trim()
         val remoteCode = json.optLong("versionCode", 0L)
-        val title = json.optString("releaseTitle", "ECHO v$remoteVersion Update")
+        val title = json.optString("releaseTitle", "echo v$remoteVersion Update")
         val notes = json.optString("releaseNotes", "Bug fixes and performance improvements.")
         val downloadUrl = json.optString("downloadUrl", "")
         val size = json.optLong("apkSize", 0L)

@@ -38,7 +38,7 @@
             android:layout_height="wrap_content"
             android:ellipsize="end"
             android:maxLines="1"
-            android:text="ECHO"
+            android:text="echo"
             android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:textStyle="bold" />

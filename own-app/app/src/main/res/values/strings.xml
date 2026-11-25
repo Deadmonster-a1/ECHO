@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">ECHO</string>
+    <string name="app_name">echo</string>
     <string name="tagline">Feel the sound.</string>
     <string name="tab_home">Home</string>
     <string name="tab_search">Search</string>
@@ -8,8 +8,8 @@
     <string name="now_playing">Now Playing</string>
     <string name="queue_title">Queue</string>
     <string name="lyrics_title">Lyrics</string>
-    <string name="widget_compact_name">ECHO Compact Player</string>
+    <string name="widget_compact_name">echo Compact Player</string>
     <string name="widget_compact_description">Control current playback with quick previous, play/pause, and next actions.</string>
-    <string name="widget_expanded_name">ECHO Expanded Player</string>
+    <string name="widget_expanded_name">echo Expanded Player</string>
     <string name="widget_expanded_description">Large artwork, progress scrubber, and rich playback controls for your home screen.</string>
 </resources>

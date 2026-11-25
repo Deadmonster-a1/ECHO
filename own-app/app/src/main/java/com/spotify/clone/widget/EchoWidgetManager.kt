@@ -115,7 +115,7 @@ object EchoWidgetManager {
         val views = RemoteViews(context.packageName, R.layout.widget_compact)
 
         // Set metadata
-        views.setTextViewText(R.id.widget_track_title, track?.title ?: "ECHO")
+        views.setTextViewText(R.id.widget_track_title, track?.title ?: "echo")
         views.setTextViewText(R.id.widget_artist_name, track?.artistName ?: "Feel the sound")
 
         // Artwork
@@ -148,7 +148,7 @@ object EchoWidgetManager {
         val views = RemoteViews(context.packageName, R.layout.widget_expanded)
 
         // Set metadata
-        views.setTextViewText(R.id.widget_track_title, track?.title ?: "ECHO")
+        views.setTextViewText(R.id.widget_track_title, track?.title ?: "echo")
         views.setTextViewText(R.id.widget_artist_name, track?.artistName ?: "Feel the sound")
         views.setTextViewText(R.id.widget_album_name, track?.albumName ?: "Studio Master")
 
@@ -262,7 +262,7 @@ object EchoWidgetManager {
         val id = prefs.getString("track_id", null) ?: return null
         return Track(
             id = id,
-            title = prefs.getString("track_title", "ECHO") ?: "ECHO",
+            title = prefs.getString("track_title", "echo") ?: "echo",
             artistName = prefs.getString("artist_name", "Feel the sound") ?: "Feel the sound",
             albumName = prefs.getString("album_name", "Studio Master") ?: "Studio Master",
             coverArtUrl = prefs.getString("cover_art_url", "") ?: "",

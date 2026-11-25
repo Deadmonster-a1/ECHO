@@ -396,7 +396,7 @@ object SampleCatalog {
             name = "Daily Telugu Mix",
             description = "A personalized blend of your favorite Tollywood hits & fresh melodies.",
             coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-            ownerName = "ECHO For You",
+            ownerName = "echo For You",
             tracks = sampleTracks
         ),
         Playlist(

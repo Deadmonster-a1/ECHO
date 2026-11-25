@@ -26,7 +26,7 @@ enum class AppThemeOption(
     PASTEL_PRISM(
         id = "pastel_prism",
         displayName = "Pastel Prism",
-        subtitle = "Signature ECHO rose, lavender, sky & aqua palette",
+        subtitle = "Signature echo rose, lavender, sky & aqua palette",
         primaryColor = Color(0xFF7B6EF6),
         primaryPressed = Color(0xFF6254E8),
         darkBackgroundColor = Color(0xFF09090E),

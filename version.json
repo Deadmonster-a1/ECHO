@@ -1,10 +1,10 @@
 {
-  "versionCode": 4,
-  "versionName": "2.0.0",
-  "releaseTitle": "ECHO v2.0.0 - Daily AI Home & Studio Upgrades",
-  "releaseNotes": "Daily auto-updating Home with on-device AI/ML recommendation models, automatic background Studio HD song upgrader, Pastel Prism redesign, direct OTA updates, and fixed Home tab navigation.",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.0.0/echo.apk",
-  "apkSize": 4512587,
+  "versionCode": 5,
+  "versionName": "2.0.1",
+  "releaseTitle": "echo v2.0.1 - Brand Refresh & Daily AI Home",
+  "releaseNotes": "Updated app display branding from ECHO to echo across launcher, splash, widgets, settings, and share sheets, alongside daily auto-updating AI Home and background Studio HD song upgrades.",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.0.1/echo.apk",
+  "apkSize": 4512615,
   "mandatory": false,
-  "publishedAt": "2026-11-25T14:53:00Z"
+  "publishedAt": "2026-11-25T15:40:00Z"
 }

@@ -209,7 +209,7 @@ fun EchoSplashOverlay(
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text(
-                    text = "ECHO",
+                    text = "echo",
                     color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
