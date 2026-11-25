@@ -42,3 +42,6 @@ test_catalog_search.py
 .DS_Store
 Thumbs.db
 *.log
+
+# Obsidian
+.obsidian/

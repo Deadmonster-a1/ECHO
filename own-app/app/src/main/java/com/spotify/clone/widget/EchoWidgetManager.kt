@@ -17,7 +17,7 @@ import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.graphics.drawable.toBitmap
-import coil.ImageLoader
+import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.spotify.clone.MainActivity
@@ -45,13 +45,15 @@ object EchoWidgetManager {
     const val ACTION_OPEN_LIBRARY = "com.spotify.clone.widget.ACTION_OPEN_LIBRARY"
 
     private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private var updateJob: Job? = null
 
     fun updateAll(context: Context, state: PlaybackState) {
         val appContext = context.applicationContext
         // Persist state so widgets retain context across reboots and process recreation
         persistState(appContext, state)
 
-        scope.launch {
+        updateJob?.cancel()
+        updateJob = scope.launch {
             val appWidgetManager = AppWidgetManager.getInstance(appContext) ?: return@launch
             val compactComponent = ComponentName(appContext, EchoCompactWidgetProvider::class.java)
             val expandedComponent = ComponentName(appContext, EchoExpandedWidgetProvider::class.java)
@@ -205,7 +207,7 @@ object EchoWidgetManager {
     private suspend fun loadRoundedArtwork(context: Context, url: String?): Bitmap? = withContext(Dispatchers.IO) {
         if (url.isNullOrBlank()) return@withContext null
         try {
-            val loader = ImageLoader(context)
+            val loader = context.imageLoader
             val request = ImageRequest.Builder(context)
                 .data(url)
                 .size(300, 300)

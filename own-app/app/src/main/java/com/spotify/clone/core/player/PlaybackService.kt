@@ -1,7 +1,10 @@
 package com.spotify.clone.core.player
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
+import android.media.audiofx.Equalizer
+import android.media.audiofx.LoudnessEnhancer
 import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -10,7 +13,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -22,15 +24,107 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.spotify.clone.MainActivity
 import com.spotify.clone.R
 import com.spotify.clone.SpotifyCloneApp
+import com.spotify.clone.core.settings.SettingsManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class PlaybackService : MediaSessionService() {
 
     private var player: ExoPlayer? = null
     private var mediaSession: MediaSession? = null
+    private var equalizer: Equalizer? = null
+    private var loudnessEnhancer: LoudnessEnhancer? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCreate() {
         super.onCreate()
+        SettingsManager.init(this)
         initializePlayer()
+        observeDspSettings()
+    }
+
+    private fun observeDspSettings() {
+        serviceScope.launch {
+            SettingsManager.eqUpdateSignal.collectLatest { applyDspSettings() }
+        }
+        serviceScope.launch {
+            SettingsManager.audioNormalization.collectLatest { applyDspSettings() }
+        }
+    }
+
+    @OptIn(UnstableApi::class)
+    private fun attachAudioEffects(audioSessionId: Int) {
+        if (audioSessionId == C.AUDIO_SESSION_ID_UNSET || audioSessionId <= 0) return
+        releaseAudioEffects()
+        try {
+            equalizer = Equalizer(0, audioSessionId)
+        } catch (e: Exception) {
+            Log.w(TAG, "Hardware Equalizer unavailable on session $audioSessionId: ${e.message}")
+        }
+        try {
+            loudnessEnhancer = LoudnessEnhancer(audioSessionId)
+        } catch (e: Exception) {
+            Log.w(TAG, "LoudnessEnhancer unavailable on session $audioSessionId: ${e.message}")
+        }
+        applyDspSettings()
+    }
+
+    private fun applyDspSettings() {
+        val prefs = getSharedPreferences("spotify_eq_prefs", Context.MODE_PRIVATE)
+        val userEqEnabled = prefs.getBoolean("eq_enabled", true)
+        val normEnabled = SettingsManager.audioNormalization.value
+
+        try {
+            equalizer?.let { eq ->
+                eq.enabled = userEqEnabled
+                if (userEqEnabled) {
+                    val range = eq.bandLevelRange
+                    val minMb = range[0].toInt()
+                    val maxMb = range[1].toInt()
+                    val numBands = eq.numberOfBands.toInt()
+                    val useAutoBands = SettingsManager.autoGenreEq.value && prefs.contains("auto_eq_preset")
+                    val bandPrefix = if (useAutoBands) "auto_band_" else "band_"
+                    val userBands = FloatArray(5) { i ->
+                        prefs.getFloat("$bandPrefix$i", prefs.getFloat("band_$i", 0f))
+                    }
+
+                    for (b in 0 until numBands) {
+                        val centerHz = eq.getCenterFreq(b.toShort()) / 1000f
+                        val userBandIdx = when {
+                            centerHz < 120f -> 0
+                            centerHz < 450f -> 1
+                            centerHz < 1800f -> 2
+                            centerHz < 6500f -> 3
+                            else -> 4
+                        }
+                        val levelMb = scaleEqMillibels(userBands[userBandIdx], minMb, maxMb)
+                        eq.setBandLevel(b.toShort(), levelMb)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed applying EQ settings: ${e.message}")
+        }
+
+        try {
+            loudnessEnhancer?.let { le ->
+                le.enabled = normEnabled
+                le.setTargetGain(if (normEnabled) 250 else 0)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed applying LoudnessEnhancer: ${e.message}")
+        }
+    }
+
+    private fun releaseAudioEffects() {
+        try { equalizer?.release() } catch (_: Exception) {}
+        equalizer = null
+        try { loudnessEnhancer?.release() } catch (_: Exception) {}
+        loudnessEnhancer = null
     }
 
     @OptIn(UnstableApi::class)
@@ -40,7 +134,6 @@ class PlaybackService : MediaSessionService() {
             .setUsage(C.USAGE_MEDIA)
             .build()
 
-        // Robust HTTP data source with standard user-agent, Referer, and cross-protocol redirect support
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36")
             .setDefaultRequestProperties(mapOf("Referer" to "https://www.jiosaavn.com/"))
@@ -48,7 +141,6 @@ class PlaybackService : MediaSessionService() {
             .setReadTimeoutMs(20000)
             .setAllowCrossProtocolRedirects(true)
 
-        // ECHO chunk-caching pipeline: routes audio requests through 250MB local LRU cache
         val cachedDataSourceFactory = AudioCacheManager.createCacheDataSourceFactory(this, httpDataSourceFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(cachedDataSourceFactory)
 
@@ -59,25 +151,15 @@ class PlaybackService : MediaSessionService() {
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build().apply {
                 addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        val stateStr = when (playbackState) {
-                            Player.STATE_IDLE -> "STATE_IDLE"
-                            Player.STATE_BUFFERING -> "STATE_BUFFERING"
-                            Player.STATE_READY -> "STATE_READY"
-                            Player.STATE_ENDED -> "STATE_ENDED"
-                            else -> "UNKNOWN"
-                        }
-                        Log.d(TAG, "ExoPlayer playback state changed to: $stateStr")
-                    }
-
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        Log.d(TAG, "ExoPlayer isPlaying: $isPlaying")
-                    }
-
                     override fun onPlayerError(error: PlaybackException) {
                         Log.e(TAG, "ExoPlayer error: ${error.errorCodeName} - ${error.message}", error)
                     }
+
+                    override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                        attachAudioEffects(audioSessionId)
+                    }
                 })
+                attachAudioEffects(audioSessionId)
             }
 
         val sessionActivityIntent = Intent(this, MainActivity::class.java).apply {
@@ -98,7 +180,6 @@ class PlaybackService : MediaSessionService() {
                 startIndex: Int,
                 startPositionMs: Long
             ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
-                Log.d(TAG, "MediaSession.Callback: onSetMediaItems with ${mediaItems.size} items, startIndex: $startIndex")
                 return Futures.immediateFuture(
                     MediaSession.MediaItemsWithStartPosition(mediaItems, startIndex, startPositionMs)
                 )
@@ -109,7 +190,6 @@ class PlaybackService : MediaSessionService() {
                 controller: MediaSession.ControllerInfo,
                 mediaItems: MutableList<MediaItem>
             ): ListenableFuture<MutableList<MediaItem>> {
-                Log.d(TAG, "MediaSession.Callback: onAddMediaItems with ${mediaItems.size} items")
                 return Futures.immediateFuture(mediaItems)
             }
         }
@@ -126,10 +206,8 @@ class PlaybackService : MediaSessionService() {
                 .build()
             setMediaNotificationProvider(notificationProvider)
         } catch (e: Exception) {
-            Log.w(TAG, "DefaultMediaNotificationProvider customization fallback: ${e.message}")
+            Log.w(TAG, "Notification provider fallback: ${e.message}")
         }
-
-        Log.d(TAG, "PlaybackService initialized with MediaSession")
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
@@ -139,14 +217,14 @@ class PlaybackService : MediaSessionService() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         val p = mediaSession?.player
         if (p == null || !p.playWhenReady || p.mediaItemCount == 0 || p.playbackState == Player.STATE_ENDED || p.playbackState == Player.STATE_IDLE) {
-            Log.d(TAG, "Task removed and player is not actively playing, stopping service")
             stopSelf()
         }
         super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
-        Log.d(TAG, "PlaybackService onDestroy")
+        serviceScope.cancel()
+        releaseAudioEffects()
         mediaSession?.run {
             player.release()
             release()
@@ -158,5 +236,19 @@ class PlaybackService : MediaSessionService() {
 
     companion object {
         private const val TAG = "EchoPlaybackService"
+
+        /**
+         * Maps a user dB setting in [-12, +12] into hardware millibels respecting
+         * asymmetric min/max device ranges.
+         */
+        fun scaleEqMillibels(userDb: Float, minMb: Int, maxMb: Int): Short {
+            val clampedDb = userDb.coerceIn(-12f, 12f)
+            val scaled = if (clampedDb >= 0f) {
+                (clampedDb / 12f) * maxMb
+            } else {
+                (clampedDb / 12f) * (-minMb)
+            }
+            return scaled.toInt().coerceIn(minMb, maxMb).toShort()
+        }
     }
 }

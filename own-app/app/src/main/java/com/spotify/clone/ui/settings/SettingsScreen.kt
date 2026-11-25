@@ -1,15 +1,14 @@
 package com.spotify.clone.ui.settings
 
-import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.text.style.TextOverflow
-import com.spotify.clone.core.update.AppUpdateManager
-import com.spotify.clone.core.update.UpdateInfo
-import kotlinx.coroutines.launch
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -31,23 +30,27 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.filled.Animation
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Equalizer
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Radio
+import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
@@ -63,846 +66,596 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.spotify.clone.BuildConfig
+import com.spotify.clone.core.data.AudioRepository
 import com.spotify.clone.core.designsystem.AppThemeOption
+import com.spotify.clone.core.designsystem.EchoInsetCard
 import com.spotify.clone.core.designsystem.EchoMotion
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.ThemeManager
+import com.spotify.clone.core.designsystem.echoContrastOn
 import com.spotify.clone.core.designsystem.echoPressable
+import com.spotify.clone.core.designsystem.echoPrismBrush
+import com.spotify.clone.core.designsystem.echoSpecularBorder
+import com.spotify.clone.core.designsystem.resolvedBackground
+import com.spotify.clone.core.designsystem.resolvedBorder
+import com.spotify.clone.core.designsystem.resolvedCard
+import com.spotify.clone.core.designsystem.tabularFigures
+import com.spotify.clone.core.download.TrackDownloadManager
+import com.spotify.clone.core.player.MusicController
+import com.spotify.clone.core.profile.PrismAvatarOption
+import com.spotify.clone.core.profile.UserProfileManager
+import com.spotify.clone.core.recommendation.EchoRecommendationEngine
 import com.spotify.clone.core.settings.SettingsManager
 import com.spotify.clone.ui.components.EqualizerBottomSheet
+import com.spotify.clone.ui.components.PlaybackSpeedBottomSheet
+import java.util.Locale
 import kotlin.math.roundToInt
 
+/**
+ * Apple Inset-Grouped Settings Screen with tactile swatch selection,
+ * specular surface borders, and smooth theme feedback.
+ */
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
-    onProfileClick: () -> Unit,
+    onRestartOnboarding: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val currentTheme by ThemeManager.currentTheme.collectAsState()
+    val activeTheme = LocalAppTheme.current
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val isReducedMotion by ThemeManager.reducedMotion.collectAsState()
+    val userName by UserProfileManager.userName.collectAsState()
+    val avatarId by UserProfileManager.avatarId.collectAsState()
+    val preferredLanguages by UserProfileManager.preferredLanguages.collectAsState()
+    val favoriteArtists by UserProfileManager.favoriteArtists.collectAsState()
+    val activeAvatar = PrismAvatarOption.fromId(avatarId)
 
-    // Settings States
-    val streamingQuality by SettingsManager.streamingQuality.collectAsState()
-    val downloadQuality by SettingsManager.downloadQuality.collectAsState()
-    val autoAdjustQuality by SettingsManager.autoAdjustQuality.collectAsState()
-    val downloadOverCellular by SettingsManager.downloadOverCellular.collectAsState()
-    val audioNormalization by SettingsManager.audioNormalization.collectAsState()
-    val crossfadeSeconds by SettingsManager.crossfadeSeconds.collectAsState()
-    val automixEnabled by SettingsManager.automixEnabled.collectAsState()
-    val gaplessEnabled by SettingsManager.gaplessEnabled.collectAsState()
-    val monoAudio by SettingsManager.monoAudio.collectAsState()
-    val autoplayEnabled by SettingsManager.autoplayEnabled.collectAsState()
+    val normalization by SettingsManager.audioNormalization.collectAsState()
+    val smartRadio by SettingsManager.smartRadioEnabled.collectAsState()
     val playbackSpeed by SettingsManager.playbackSpeed.collectAsState()
-    val allowExplicit by SettingsManager.allowExplicit.collectAsState()
-    val showUnplayable by SettingsManager.showUnplayable.collectAsState()
-    val canvasEnabled by SettingsManager.canvasEnabled.collectAsState()
-    val privateSession by SettingsManager.privateSession.collectAsState()
-    val listeningActivity by SettingsManager.listeningActivity.collectAsState()
-    val showTopArtists by SettingsManager.showTopArtists.collectAsState()
+    val crossfadeSeconds by SettingsManager.crossfadeSeconds.collectAsState()
+    val autoMatchGenre by SettingsManager.autoMatchGenre.collectAsState()
     val cachedSizeBytes by SettingsManager.cachedSizeBytes.collectAsState()
 
-    val coroutineScope = rememberCoroutineScope()
-    var isCheckingUpdate by remember { mutableStateOf(false) }
-    var availableUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
-    var showUpdateDialog by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableFloatStateOf(0f) }
-    var isDownloadingUpdate by remember { mutableStateOf(false) }
+    val musicController = remember { MusicController.getInstance(context) }
+    val repository = remember { AudioRepository(context) }
+    val recentlyPlayed by repository.getRecentlyPlayedTracks().collectAsState(initial = emptyList())
+    val favorites by repository.getFavoriteTracks().collectAsState(initial = emptyList())
+    var tasteSignalRevision by remember { mutableStateOf(0) }
+    val topGenre = remember(recentlyPlayed, favorites, tasteSignalRevision) {
+        EchoRecommendationEngine.getTopPreferredGenre(recentlyPlayed, favorites)
+    }
+    val topArtists = remember(recentlyPlayed, favorites, tasteSignalRevision) {
+        EchoRecommendationEngine.getTopLearnedArtists(recentlyPlayed, favorites, limit = 3)
+    }
 
+    val downloadManager = remember { TrackDownloadManager.getInstance(context) }
+    val downloadedIds by downloadManager.downloadedTrackIds.collectAsState()
+
+    var showEditNameDialog by remember { mutableStateOf(false) }
+    var nameDraft by remember(userName) { mutableStateOf(userName) }
     var showEqualizerSheet by remember { mutableStateOf(false) }
-    var showStreamingQualityDialog by remember { mutableStateOf(false) }
-    var showDownloadQualityDialog by remember { mutableStateOf(false) }
-    var showPlaybackSpeedDialog by remember { mutableStateOf(false) }
+    var showSpeedSheet by remember { mutableStateOf(false) }
     var showClearCacheConfirm by remember { mutableStateOf(false) }
-    var showLicensesDialog by remember { mutableStateOf(false) }
 
-    val qualityOptions = remember {
-        listOf(
-            "Automatic (Recommended)",
-            "Normal (96 kbps - Data Saver)",
-            "High (160 kbps)",
-            "Very High (320 kbps Studio Master AAC)",
-            "Lossless Master (ALAC 24-bit / 48kHz)"
-        )
-    }
-
-    val speedOptions = remember {
-        listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
-    }
+    val screenBg = activeTheme.resolvedBackground(isDarkMode)
+    val cardBg = activeTheme.resolvedCard(isDarkMode)
+    val textPrimary = MaterialTheme.colorScheme.onBackground
+    val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
+    val dividerColor = activeTheme.resolvedBorder(isDarkMode)
 
     val cacheFormatted = remember(cachedSizeBytes) {
         val mb = cachedSizeBytes / (1024.0 * 1024.0)
-        if (mb < 0.1) "14.2 MB" else "%.1f MB".format(mb)
+        when {
+            cachedSizeBytes <= 0L -> "0 MB"
+            mb < 0.1 -> "%.0f KB".format(Locale.US, (cachedSizeBytes / 1024.0).coerceAtLeast(1.0))
+            else -> "%.1f MB".format(Locale.US, mb)
+        }
     }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(bottom = 120.dp)
+            .background(screenBg)
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(bottom = 140.dp)
     ) {
-        // 1. Top Bar
+        // Top Bar
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-
-                Text(
-                    text = "Settings",
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-
-        // 2. Profile & Appearance Card
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f), RoundedCornerShape(14.dp))
-                    .echoPressable(scaleOnPress = 0.98f, onClick = onProfileClick)
-                    .padding(14.dp),
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
-                        .background(currentTheme.primaryColor),
+                        .background(cardBg)
+                        .echoSpecularBorder(isDarkMode, CircleShape, dividerColor)
+                        .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true, onClick = onBack),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "E",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(14.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Music Lover",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Appearance • Sound Colorways",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp
-                    )
-                }
-
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                    contentDescription = "View Profile",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-
-        // Section: Appearance & Theming
-        item {
-            Spacer(modifier = Modifier.height(18.dp))
-            SectionHeader("Theme & Visual Identity")
-
-            SettingsToggleItem(
-                title = "Dark Appearance",
-                subtitle = if (isDarkMode) "#101016 Obsidian surface" else "#F5F2EE Organic linen surface",
-                checked = isDarkMode,
-                activeColor = currentTheme.primaryColor,
-                onCheckedChange = { ThemeManager.setDarkMode(it) }
-            )
-
-            SettingsRowItem(
-                title = "Sound Colorway",
-                subtitle = "${currentTheme.displayName} • ${currentTheme.subtitle}",
-                onClick = onProfileClick,
-                trailing = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(22.dp)
-                                .clip(CircleShape)
-                                .background(currentTheme.primaryColor)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                            contentDescription = "Change Theme",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                }
-            )
-        }
-
-        // Section: Dedicated Motion Architecture & Accessibility
-        item {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader("Motion & Accessibility")
-
-            SettingsToggleItem(
-                title = "Reduced Motion",
-                subtitle = "Substitutes spring physics and sound sculpture drawing with instant transitions",
-                checked = isReducedMotion,
-                activeColor = currentTheme.primaryColor,
-                onCheckedChange = { ThemeManager.setReducedMotion(it) }
-            )
-        }
-
-        // Section: Audio Quality & Streaming
-        item {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader("Audio Quality")
-
-            SettingsRowItem(
-                title = "Streaming Quality",
-                subtitle = streamingQuality,
-                onClick = { showStreamingQualityDialog = true }
-            )
-
-            SettingsRowItem(
-                title = "Download Quality",
-                subtitle = downloadQuality,
-                onClick = { showDownloadQualityDialog = true }
-            )
-
-            SettingsToggleItem(
-                title = "Auto-adjust Quality",
-                subtitle = "Dynamically adapts stream bitrate during network fluctuations",
-                checked = autoAdjustQuality,
-                activeColor = currentTheme.primaryColor,
-                onCheckedChange = { SettingsManager.setAutoAdjustQuality(it) }
-            )
-
-            SettingsToggleItem(
-                title = "Download Over Cellular",
-                subtitle = "Allow high-bandwidth downloads on mobile data networks",
-                checked = downloadOverCellular,
-                activeColor = currentTheme.primaryColor,
-                onCheckedChange = { SettingsManager.setDownloadOverCellular(it) }
-            )
-        }
-
-        // Section: Playback & Sound Architecture
-        item {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader("Playback & Sound Effects")
-
-            SettingsRowItem(
-                title = "Equalizer & Acoustic Sculpting",
-                subtitle = "Adjust frequency response, Bass Boost & 3D Spatial Virtualizer",
-                onClick = { showEqualizerSheet = true },
-                trailing = {
                     Icon(
-                        imageVector = Icons.Filled.GraphicEq,
-                        contentDescription = "Equalizer",
-                        tint = currentTheme.primaryColor,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = activeTheme.primaryColor,
                         modifier = Modifier.size(20.dp)
                     )
                 }
-            )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Settings",
+                    color = textPrimary,
+                    style = MaterialTheme.typography.headlineLarge
+                )
+            }
+        }
 
-            SettingsRowItem(
-                title = "Default Playback Speed",
-                subtitle = "${playbackSpeed}x",
-                onClick = { showPlaybackSpeedDialog = true }
-            )
-
-            // Crossfade Slider
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
+        // Profile Section
+        item {
+            SettingsGroupTitle("PROFILE", textSecondary)
+            EchoInsetCard(modifier = Modifier.padding(horizontal = 16.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .echoPressable(scaleOnPress = 0.985f) {
+                            nameDraft = userName
+                            showEditNameDialog = true
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Crossfade",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = if (crossfadeSeconds <= 0f) "Off" else "${crossfadeSeconds.roundToInt()}s",
-                        color = currentTheme.primaryColor,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Text(
-                    text = "Seamless harmonic transition between consecutive tracks",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-
-                Slider(
-                    value = crossfadeSeconds,
-                    onValueChange = { SettingsManager.setCrossfadeSeconds(it) },
-                    valueRange = 0f..12f,
-                    steps = 11,
-                    colors = SliderDefaults.colors(
-                        thumbColor = currentTheme.primaryColor,
-                        activeTrackColor = currentTheme.primaryColor,
-                        inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            SettingsToggleItem(
-                title = "Automix",
-                subtitle = "Allows intelligent tempo and key matching between tracks",
-                checked = automixEnabled,
-                activeColor = currentTheme.primaryColor,
-                onCheckedChange = { SettingsManager.setAutomixEnabled(it) }
-            )
-
-            SettingsToggleItem(
-                title = "Gapless Playback",
-                subtitle = "Play live albums and suites with continuous uninterrupted sound",
-                checked = gaplessEnabled,
-                activeColor = currentTheme.primaryColor,
-                onCheckedChange = { SettingsManager.setGaplessEnabled(it) }
-            )
-
-            SettingsToggleItem(
-                title = "Normalize Volume",
-                subtitle = "Balanced LUFS loudness normalization across all sources",
-                checked = audioNormalization,
-                activeColor = currentTheme.primaryColor,
-                onCheckedChange = { SettingsManager.setAudioNormalization(it) }
-            )
-
-            SettingsToggleItem(
-                title = "Mono Audio",
-                subtitle = "Combines stereo channels into single channel for single-earpiece listening",
-                checked = monoAudio,
-                activeColor = currentTheme.primaryColor,
-                onCheckedChange = { SettingsManager.setMonoAudio(it) }
-            )
-
-            SettingsToggleItem(
-                title = "Autoplay Similar Sound",
-                subtitle = "Continuously plays related tracks when queue concludes",
-                checked = autoplayEnabled,
-                activeColor = currentTheme.primaryColor,
-                onCheckedChange = { SettingsManager.setAutoplayEnabled(it) }
-            )
-        }
-
-        // Section: Storage & LRU Chunk Cache
-        item {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader("Storage & Audio Cache")
-
-            SettingsRowItem(
-                title = "Cached Audio Data",
-                subtitle = "$cacheFormatted used • 250 MB high-speed LRU chunk cache",
-                trailing = {
-                    Button(
-                        onClick = { showClearCacheConfirm = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(activeAvatar.startColor, activeAvatar.endColor))),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.DeleteOutline,
-                            contentDescription = "Clear Cache",
-                            modifier = Modifier.size(16.dp)
+                        Text(
+                            text = userName.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "E",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Clear", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = userName,
+                            color = textPrimary,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        val prefSummary = buildList {
+                            if (preferredLanguages.isNotEmpty()) add(preferredLanguages.take(2).joinToString(", "))
+                            if (favoriteArtists.isNotEmpty()) add("${favoriteArtists.size} favorite artists")
+                        }.joinToString(" • ").ifBlank { "Tap to edit display name" }
+                        Text(
+                            text = prefSummary,
+                            color = textSecondary,
+                            fontSize = 12.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        contentDescription = null,
+                        tint = textSecondary.copy(alpha = 0.6f),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
-            )
+                HorizontalDivider(color = dividerColor, thickness = 0.6.dp, modifier = Modifier.padding(start = 54.dp))
+                SettingsRow(
+                    icon = Icons.Outlined.AutoAwesome,
+                    title = "Tune Your Taste & Setup",
+                    subtitle = "Re-run languages, genres & artist setup",
+                    onClick = onRestartOnboarding
+                )
+            }
         }
 
-        // Section: About & Architecture
+        // Listener Taste & Algorithm Profile
         item {
-            Spacer(modifier = Modifier.height(20.dp))
-            SectionHeader("About & Architecture")
-
-            SettingsRowItem(
-                title = "Brand & Edition",
-                subtitle = "ECHO — Feel the sound. (Production Motion Edition)"
-            )
-
-            SettingsRowItem(
-                title = "Playback Pipeline",
-                subtitle = "AndroidX Media3 ExoPlayer 1.5.0 • Studio Master 320 kbps"
-            )
-
-            SettingsRowItem(
-                title = "Design Philosophy",
-                subtitle = "Organic Sound Architecture • Jetpack Compose Native"
-            )
-
-            val installedVersion = remember { AppUpdateManager.getInstalledVersionName(context) }
-
-            SettingsRowItem(
-                title = "Check for Updates",
-                subtitle = if (isCheckingUpdate) "Checking GitHub releases..." else "Version $installedVersion • Tap to check for live updates",
-                onClick = {
-                    if (!isCheckingUpdate) {
-                        coroutineScope.launch {
-                            isCheckingUpdate = true
-                            val result = AppUpdateManager.checkForUpdates(installedVersion)
-                            isCheckingUpdate = false
-                            result.onSuccess { update ->
-                                if (update != null) {
-                                    availableUpdate = update
-                                    showUpdateDialog = true
-                                } else {
-                                    Toast.makeText(context, "ECHO is up to date (v$installedVersion)", Toast.LENGTH_SHORT).show()
-                                }
-                            }.onFailure {
-                                Toast.makeText(context, "Update check: ${it.message ?: "No new release"}", Toast.LENGTH_SHORT).show()
-                            }
+            SettingsGroupTitle("LISTENER TASTE & ALGORITHMS", textSecondary)
+            EchoInsetCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    activeTheme.primaryColor.copy(alpha = if (isDarkMode) 0.14f else 0.08f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                        .padding(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Outlined.AutoAwesome,
+                            contentDescription = null,
+                            tint = activeTheme.primaryColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Taste Engine Profile",
+                            color = textPrimary,
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(activeTheme.primaryColor.copy(alpha = 0.16f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = topGenre.shortLabel,
+                                color = activeTheme.primaryColor,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = if (topArtists.isNotEmpty()) {
+                            "Top learned artists: ${topArtists.joinToString(" • ")}"
+                        } else {
+                            "Play or favorite tracks to calibrate Daily Mix & Same-Genre Radio."
+                        },
+                        color = textSecondary,
+                        fontSize = 13.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
-            )
+                HorizontalDivider(color = dividerColor, thickness = 0.6.dp, modifier = Modifier.padding(start = 54.dp))
+                SettingsRow(
+                    icon = Icons.Outlined.RestartAlt,
+                    title = "Reset Taste Signals",
+                    subtitle = "Clear session affinity weights & re-seed Daily Mixes",
+                    onClick = {
+                        EchoRecommendationEngine.clearTasteSignals()
+                        tasteSignalRevision++
+                        Toast.makeText(context, "Taste profile recalibrated", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+        }
 
-            SettingsRowItem(
-                title = "Open Source Licenses & Attributions",
-                subtitle = "ExoPlayer, Compose BOM, Room, Coil, Coroutines",
-                onClick = { showLicensesDialog = true }
-            )
+        // Appearance Section
+        item {
+            SettingsGroupTitle("APPEARANCE", textSecondary)
+            EchoInsetCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                SettingsToggleRow(
+                    icon = Icons.Outlined.DarkMode,
+                    title = "Dark Appearance",
+                    subtitle = if (isDarkMode) "Obsidian dark canvas" else "Airy pastel daylight canvas",
+                    checked = isDarkMode,
+                    onCheckedChange = { ThemeManager.setDarkMode(it) }
+                )
+                HorizontalDivider(color = dividerColor, thickness = 0.6.dp, modifier = Modifier.padding(start = 54.dp))
+                SettingsToggleRow(
+                    icon = Icons.Outlined.RestartAlt,
+                    title = "Reduce Motion",
+                    subtitle = "Minimize animations across screens",
+                    checked = isReducedMotion,
+                    onCheckedChange = { ThemeManager.setReducedMotion(it) }
+                )
+            }
+        }
 
-            Spacer(modifier = Modifier.height(24.dp))
+        // Audio & Playback Section
+        item {
+            SettingsGroupTitle("AUDIO & PLAYBACK", textSecondary)
+            EchoInsetCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                SettingsRow(
+                    icon = Icons.Outlined.Equalizer,
+                    title = "Equalizer",
+                    subtitle = "5-band EQ & sound presets",
+                    onClick = { showEqualizerSheet = true }
+                )
+                HorizontalDivider(color = dividerColor, thickness = 0.6.dp, modifier = Modifier.padding(start = 54.dp))
+                SettingsRow(
+                    icon = Icons.Outlined.Speed,
+                    title = "Playback Speed",
+                    subtitle = if (playbackSpeed == 1.0f) "1.0x (Normal)" else "${playbackSpeed}x",
+                    onClick = { showSpeedSheet = true }
+                )
+                HorizontalDivider(color = dividerColor, thickness = 0.6.dp, modifier = Modifier.padding(start = 54.dp))
+                SettingsToggleRow(
+                    icon = Icons.Outlined.GraphicEq,
+                    title = "Loudness Normalization",
+                    subtitle = "Balance volume levels across tracks",
+                    checked = normalization,
+                    onCheckedChange = { SettingsManager.setAudioNormalization(it) }
+                )
+                HorizontalDivider(color = dividerColor, thickness = 0.6.dp, modifier = Modifier.padding(start = 54.dp))
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Outlined.Tune,
+                            contentDescription = null,
+                            tint = activeTheme.primaryColor,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Automix Crossfade",
+                                color = textPrimary,
+                                fontSize = 15.5.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = if (crossfadeSeconds == 0) "Off (Gapless cut)" else "Smooth fade transition • ${crossfadeSeconds}s",
+                                color = textSecondary,
+                                style = MaterialTheme.typography.bodySmall.tabularFigures().copy(fontSize = 13.sp)
+                            )
+                        }
+                        Text(
+                            text = "${crossfadeSeconds}s",
+                            color = activeTheme.primaryColor,
+                            style = MaterialTheme.typography.labelLarge.tabularFigures().copy(
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        )
+                    }
+                    Slider(
+                        value = crossfadeSeconds.toFloat(),
+                        onValueChange = { SettingsManager.setCrossfadeSeconds(it.roundToInt()) },
+                        valueRange = 0f..12f,
+                        steps = 11,
+                        colors = SliderDefaults.colors(
+                            thumbColor = activeTheme.primaryColor,
+                            activeTrackColor = activeTheme.primaryColor,
+                            inactiveTrackColor = dividerColor
+                        )
+                    )
+                }
+                HorizontalDivider(color = dividerColor, thickness = 0.6.dp, modifier = Modifier.padding(start = 54.dp))
+                SettingsToggleRow(
+                    icon = Icons.Outlined.MusicNote,
+                    title = "Auto-Match Same-Genre Queue",
+                    subtitle = "Automatically queue matching genre songs when playing tracks",
+                    checked = autoMatchGenre,
+                    onCheckedChange = { SettingsManager.setAutoMatchGenre(it) }
+                )
+                HorizontalDivider(color = dividerColor, thickness = 0.6.dp, modifier = Modifier.padding(start = 54.dp))
+                SettingsToggleRow(
+                    icon = Icons.Outlined.Radio,
+                    title = "Auto-Continue Queue",
+                    subtitle = "Queue similar tracks when your list ends",
+                    checked = smartRadio,
+                    onCheckedChange = { musicController.setSmartRadioEnabled(it) }
+                )
+            }
+        }
+
+        // Storage Section
+        item {
+            SettingsGroupTitle("STORAGE", textSecondary)
+            EchoInsetCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                SettingsRow(
+                    icon = Icons.Outlined.DeleteOutline,
+                    title = "Clear Audio Cache",
+                    subtitle = "Cached: $cacheFormatted • Offline songs: ${downloadedIds.size}",
+                    onClick = { showClearCacheConfirm = true }
+                )
+            }
+        }
+
+        // About Section
+        item {
+            SettingsGroupTitle("ABOUT", textSecondary)
+            EchoInsetCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                SettingsRow(
+                    icon = Icons.Outlined.Info,
+                    title = "ECHO Music",
+                    subtitle = "Version ${BuildConfig.VERSION_NAME} • Simple, clean audio player",
+                    onClick = {}
+                )
+            }
         }
     }
 
-    // Streaming Quality Dialog
-    if (showStreamingQualityDialog) {
+    if (showEditNameDialog) {
         AlertDialog(
-            onDismissRequest = { showStreamingQualityDialog = false },
+            onDismissRequest = { showEditNameDialog = false },
             containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Streaming Quality", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
+            title = { Text("Edit Display Name", fontWeight = FontWeight.Bold) },
             text = {
-                Column {
-                    qualityOptions.forEach { option ->
-                        val selected = streamingQuality == option
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    SettingsManager.setStreamingQuality(option)
-                                    showStreamingQualityDialog = false
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selected,
-                                onClick = {
-                                    SettingsManager.setStreamingQuality(option)
-                                    showStreamingQualityDialog = false
-                                },
-                                colors = RadioButtonDefaults.colors(selectedColor = currentTheme.primaryColor)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = option,
-                                color = if (selected) currentTheme.primaryColor else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 14.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showStreamingQualityDialog = false }) {
-                    Text("Close", color = currentTheme.primaryColor)
-                }
-            }
-        )
-    }
-
-    // Download Quality Dialog
-    if (showDownloadQualityDialog) {
-        AlertDialog(
-            onDismissRequest = { showDownloadQualityDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Download Quality", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    qualityOptions.forEach { option ->
-                        val selected = downloadQuality == option
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    SettingsManager.setDownloadQuality(option)
-                                    showDownloadQualityDialog = false
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selected,
-                                onClick = {
-                                    SettingsManager.setDownloadQuality(option)
-                                    showDownloadQualityDialog = false
-                                },
-                                colors = RadioButtonDefaults.colors(selectedColor = currentTheme.primaryColor)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = option,
-                                color = if (selected) currentTheme.primaryColor else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 14.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showDownloadQualityDialog = false }) {
-                    Text("Close", color = currentTheme.primaryColor)
-                }
-            }
-        )
-    }
-
-    // Playback Speed Dialog
-    if (showPlaybackSpeedDialog) {
-        AlertDialog(
-            onDismissRequest = { showPlaybackSpeedDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Default Playback Speed", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    speedOptions.forEach { speed ->
-                        val selected = playbackSpeed == speed
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    SettingsManager.setPlaybackSpeed(speed)
-                                    showPlaybackSpeedDialog = false
-                                }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selected,
-                                onClick = {
-                                    SettingsManager.setPlaybackSpeed(speed)
-                                    showPlaybackSpeedDialog = false
-                                },
-                                colors = RadioButtonDefaults.colors(selectedColor = currentTheme.primaryColor)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "${speed}x" + if (speed == 1.0f) " (Normal)" else "",
-                                color = if (selected) currentTheme.primaryColor else MaterialTheme.colorScheme.onSurface,
-                                fontSize = 14.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showPlaybackSpeedDialog = false }) {
-                    Text("Close", color = currentTheme.primaryColor)
-                }
-            }
-        )
-    }
-
-    // Clear Cache Confirm Dialog
-    if (showClearCacheConfirm) {
-        AlertDialog(
-            onDismissRequest = { showClearCacheConfirm = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Clear Audio Cache?", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    text = "This will free up local storage by clearing cached studio audio frames. Tracks will stream freshly upon replay.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 14.sp
+                OutlinedTextField(
+                    value = nameDraft,
+                    onValueChange = { nameDraft = it },
+                    label = { Text("Your Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        SettingsManager.clearCache(context)
-                        showClearCacheConfirm = false
-                        Toast.makeText(context, "Audio cache cleared successfully", Toast.LENGTH_SHORT).show()
+                        UserProfileManager.setUserName(nameDraft)
+                        showEditNameDialog = false
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = currentTheme.primaryColor)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = activeTheme.primaryColor,
+                        contentColor = echoContrastOn(activeTheme.primaryColor)
+                    )
                 ) {
-                    Text("Clear Cache", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    Text("Save")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showClearCacheConfirm = false }) {
-                    Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                TextButton(onClick = { showEditNameDialog = false }) { Text("Cancel") }
             }
         )
     }
 
-    // Equalizer Sheet
+    if (showClearCacheConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearCacheConfirm = false },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Clear Audio Cache?", fontWeight = FontWeight.Bold) },
+            text = { Text("This clears temporary streamed cache ($cacheFormatted). Your downloaded offline songs are kept.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        SettingsManager.clearCache(context)
+                        Toast.makeText(context, "Cache cleared", Toast.LENGTH_SHORT).show()
+                        showClearCacheConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = activeTheme.primaryColor,
+                        contentColor = echoContrastOn(activeTheme.primaryColor)
+                    )
+                ) {
+                    Text("Clear")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearCacheConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     if (showEqualizerSheet) {
         EqualizerBottomSheet(onDismiss = { showEqualizerSheet = false })
     }
 
-    // Licenses Dialog
-    if (showLicensesDialog) {
-        AlertDialog(
-            onDismissRequest = { showLicensesDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Third-Party Software & Licenses", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("• AndroidX Media3 ExoPlayer (Apache 2.0)", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
-                    Text("• Jetpack Compose & Material 3 (Apache 2.0)", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
-                    Text("• Coil Image Loading Library (Apache 2.0)", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
-                    Text("• Kotlin Coroutines & Serialization (Apache 2.0)", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
-                    Text("• AndroidX Room Persistence Library (Apache 2.0)", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showLicensesDialog = false }) {
-                    Text("Done", color = currentTheme.primaryColor)
-                }
-            }
-        )
-    }
-
-    // Live App Update Dialog
-    if (showUpdateDialog && availableUpdate != null) {
-        val update = availableUpdate!!
-        AlertDialog(
-            onDismissRequest = { if (!isDownloadingUpdate) showUpdateDialog = false },
-            containerColor = MaterialTheme.colorScheme.surface,
-            title = {
-                Text(
-                    text = "Update Available: v${update.versionName}",
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = update.releaseTitle,
-                        color = currentTheme.primaryColor,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 14.sp
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = update.releaseNotes,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        maxLines = 6,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (isDownloadingUpdate) {
-                        Spacer(modifier = Modifier.height(16.dp))
-                        LinearProgressIndicator(
-                            progress = { downloadProgress },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp),
-                            color = currentTheme.primaryColor,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Downloading update... ${(downloadProgress * 100).toInt()}%",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    enabled = !isDownloadingUpdate,
-                    onClick = {
-                        if (!AppUpdateManager.canRequestPackageInstalls(context)) {
-                            Toast.makeText(context, "Please allow ECHO to install updates", Toast.LENGTH_LONG).show()
-                            AppUpdateManager.openInstallPermissionSettings(context)
-                        } else {
-                            coroutineScope.launch {
-                                isDownloadingUpdate = true
-                                downloadProgress = 0.05f
-                                val apkFile = AppUpdateManager.downloadApk(context, update.downloadUrl) { progress ->
-                                    downloadProgress = progress
-                                }
-                                isDownloadingUpdate = false
-                                if (apkFile != null) {
-                                    AppUpdateManager.installApk(context, apkFile)
-                                    showUpdateDialog = false
-                                } else {
-                                    Toast.makeText(context, "Download failed. Opening release page...", Toast.LENGTH_SHORT).show()
-                                    val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(update.downloadUrl)).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                                    }
-                                    context.startActivity(browserIntent)
-                                    showUpdateDialog = false
-                                }
-                            }
-                        }
-                    }
-                ) {
-                    Text(
-                        if (isDownloadingUpdate) "Downloading..." else "Update Now",
-                        color = currentTheme.primaryColor,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            dismissButton = {
-                if (!isDownloadingUpdate) {
-                    TextButton(onClick = { showUpdateDialog = false }) {
-                        Text("Later", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
+    if (showSpeedSheet) {
+        PlaybackSpeedBottomSheet(
+            musicController = musicController,
+            onDismiss = { showSpeedSheet = false }
         )
     }
 }
 
 @Composable
-private fun SectionHeader(title: String) {
+private fun SettingsGroupTitle(title: String, color: Color) {
     Text(
         text = title,
-        color = MaterialTheme.colorScheme.primary,
+        color = color,
         fontSize = 12.sp,
-        fontWeight = FontWeight.Black,
-        letterSpacing = 1.sp,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 0.6.sp,
+        modifier = Modifier.padding(start = 28.dp, top = 20.dp, bottom = 8.dp)
     )
 }
 
 @Composable
-private fun SettingsRowItem(
+private fun SettingsRow(
+    icon: ImageVector,
     title: String,
-    subtitle: String? = null,
-    onClick: (() -> Unit)? = null,
-    trailing: (@Composable () -> Unit)? = null
+    subtitle: String,
+    onClick: () -> Unit
 ) {
+    val accent = LocalAppTheme.current.primaryColor
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .echoPressable(scaleOnPress = 0.985f, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 15.sp,
+                fontSize = 15.5.sp,
                 fontWeight = FontWeight.Medium
             )
-            if (subtitle != null) {
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = subtitle,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-            }
-        }
-
-        if (trailing != null) {
-            trailing()
-        } else if (onClick != null) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(14.dp)
+            Text(
+                text = subtitle,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
 @Composable
-private fun SettingsToggleItem(
+private fun SettingsToggleRow(
+    icon: ImageVector,
     title: String,
     subtitle: String,
     checked: Boolean,
-    activeColor: Color,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val accent = LocalAppTheme.current.primaryColor
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 15.sp,
+                fontSize = 15.5.sp,
                 fontWeight = FontWeight.Medium
             )
-            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = subtitle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp
+                fontSize = 13.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
         }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
+        Spacer(modifier = Modifier.width(8.dp))
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = activeColor,
-                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
+                checkedThumbColor = echoContrastOn(accent),
+                checkedTrackColor = accent
             )
         )
     }

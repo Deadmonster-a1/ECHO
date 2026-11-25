@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.FormatSize
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MusicNote
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,23 +61,32 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import com.spotify.clone.core.settings.SettingsManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.spotify.clone.core.designsystem.ArtworkColors
 import com.spotify.clone.core.designsystem.EchoMotion
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.echoPressable
+import com.spotify.clone.core.designsystem.rememberAnimatedArtworkColors
 import com.spotify.clone.core.lyrics.LyricsRepository
 import com.spotify.clone.core.model.LyricsSyncType
 import com.spotify.clone.core.model.Track
@@ -86,24 +97,26 @@ import kotlin.math.abs
 
 /**
  * Spotify-Grade Fullscreen Synchronized Lyrics Experience for ECHO.
+ * Architectural synthesis of Spotify Color-Lyrics & LastWave-Native:
  *
- * Upgraded Features:
- * 1. Multi-script typography engine: Instant toggle between English (Romanized) and Native Telugu scripts.
- * 2. Simultaneous dual-line singing: The active vocal line renders English phonetics with native script subtitles.
- * 3. 100% Fully Automated Synchronization: Silently pauses when the user browses, automatically
- *    glides back to the vocal line after 2 seconds without requiring any manual "Sync" buttons.
- * 4. High-Fidelity Studio UI/UX: Ambient dynamic glowing background, top/bottom gradient fade masks,
- *    spring line scaling, frosted controls, and integrated transport player dock with favorites.
+ * 1. Multi-script typography engine: Instant toggle between English (Romanized) and Native scripts.
+ * 2. Simultaneous dual-line singing: The active vocal line renders English phonetics with native subtitles.
+ * 3. Live Progressive Karaoke Sweep: Smooth linear sweep highlight across the active singing line.
+ * 4. Timing Offset Calibration: Dedicated +/- ms offset calibration dialog to correct sync lags.
+ * 5. 4-Tier Typography Sizing: Compact, Standard, Large, Extra Large stage monitor karaoke typography.
+ * 6. Social Lyrics Quote Card Generator: Export and share styled lyrics cards with album art backdrop.
+ * 7. 100% Fully Automated Synchronization: Silently pauses when browsing, automatically glides back.
+ * 8. Dynamic Album Art Aura Backdrop & Integrated Playback Transport Dock.
  */
 @Composable
 fun FullscreenLyricsSheet(
     track: Track,
     musicController: MusicController,
     onClose: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    artworkColors: ArtworkColors? = null
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     BackHandler(onBack = onClose)
 
     val activeTheme = LocalAppTheme.current
@@ -111,15 +124,26 @@ fun FullscreenLyricsSheet(
     val playbackState by musicController.playbackState.collectAsState()
     val currentPos = playbackState.currentPositionMs
 
+    val resolvedArtworkColors = artworkColors ?: rememberAnimatedArtworkColors(track)
+
+    // User settings & dialog states (synced with SettingsManager)
+    val sizeTierName by SettingsManager.lyricsSizeTier.collectAsState()
+    val sizeTier = remember(sizeTierName) {
+        LyricsSizeTier.entries.find { it.name == sizeTierName } ?: LyricsSizeTier.STANDARD
+    }
+    val lyricsOffsetMs by SettingsManager.lyricsOffsetMs.collectAsState()
+    val useEnglishScript by SettingsManager.lyricsUseRomanized.collectAsState()
+
+    var showOffsetDialog by remember { mutableStateOf(false) }
+    var showSizeDialog by remember { mutableStateOf(false) }
+    var showShareLyricsDialog by remember { mutableStateOf(false) }
+
     var lyricsResult by remember(track.id) {
         mutableStateOf(LyricsRepository.getCachedLyrics(track))
     }
     var isLoadingLyrics by remember(track.id) {
         mutableStateOf(lyricsResult.lines.isEmpty() && lyricsResult.syncType == LyricsSyncType.NONE)
     }
-
-    // Default to English Romanized transliteration for effortless sing-along
-    var useEnglishScript by remember { mutableStateOf(true) }
 
     LaunchedEffect(track.id) {
         if (lyricsResult.lines.isEmpty() || lyricsResult.syncType == LyricsSyncType.NONE) {
@@ -135,22 +159,25 @@ fun FullscreenLyricsSheet(
     val isSynced = lyricsResult.syncType == LyricsSyncType.LINE_SYNCED && hasLyrics && lines.first().timestampMs >= 0L
     val hasRomanized = lyricsResult.hasRomanized
 
-    val activeIndex = remember(currentPos, lines, isSynced) {
+    // Modulated effective position incorporating timing calibration offset
+    val effectivePos = remember(currentPos, lyricsOffsetMs) {
+        (currentPos + lyricsOffsetMs).coerceAtLeast(0L)
+    }
+
+    val activeIndex = remember(effectivePos, lines, isSynced) {
         if (!isSynced || lines.isEmpty()) {
             0
-        } else if (currentPos < lines.first().timestampMs) {
+        } else if (effectivePos < lines.first().timestampMs) {
             -1 // Song is in musical prelude before vocals begin
         } else {
-            lines.indexOfLast { it.timestampMs <= currentPos }
+            lines.indexOfLast { it.timestampMs <= effectivePos }
         }
     }
 
     val listState = rememberLazyListState()
     var isUserScrolling by remember { mutableStateOf(false) }
 
-    // Completely automated smooth sync:
-    // When user scrolls to read ahead/behind, auto-scroll pauses.
-    // As soon as the user stops touching the screen for 2.2 seconds, it glides back automatically!
+    // Automated smooth sync glide back after user scrolling
     LaunchedEffect(listState.isScrollInProgress) {
         if (listState.isScrollInProgress) {
             isUserScrolling = true
@@ -172,13 +199,8 @@ fun FullscreenLyricsSheet(
         }
     }
 
-    val dominantTopColor = remember(activeTheme.primaryColor) {
-        Color(
-            red = (activeTheme.primaryColor.red * 0.38f + 0.04f).coerceIn(0f, 1f),
-            green = (activeTheme.primaryColor.green * 0.38f + 0.04f).coerceIn(0f, 1f),
-            blue = (activeTheme.primaryColor.blue * 0.38f + 0.04f).coerceIn(0f, 1f),
-            alpha = 1.0f
-        )
+    val dominantTopColor = remember(resolvedArtworkColors.backgroundTop) {
+        resolvedArtworkColors.backgroundTop
     }
 
     Box(
@@ -188,7 +210,7 @@ fun FullscreenLyricsSheet(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        dominantTopColor,
+                        dominantTopColor.copy(alpha = 0.90f),
                         Color(0xFF161420),
                         Color(0xFF0E0D14),
                         Color(0xFF09080D)
@@ -202,11 +224,11 @@ fun FullscreenLyricsSheet(
                 .statusBarsPadding()
                 .navigationBarsPadding()
         ) {
-            // Enhanced Header Bar
+            // Enhanced Header Bar with Action Controls
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -233,13 +255,13 @@ fun FullscreenLyricsSheet(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = track.title,
                         color = Color.White,
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -254,13 +276,16 @@ fun FullscreenLyricsSheet(
                             track.artistName
                         },
                         color = Color.White.copy(alpha = 0.65f),
-                        fontSize = 12.sp,
+                        fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     // English / Native Script Language Switcher Pill
                     if (hasRomanized) {
                         Surface(
@@ -272,10 +297,10 @@ fun FullscreenLyricsSheet(
                             ),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
-                                .clickable { useEnglishScript = !useEnglishScript }
+                                .clickable { SettingsManager.setLyricsUseRomanized(!useEnglishScript) }
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
@@ -286,39 +311,72 @@ fun FullscreenLyricsSheet(
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
                     }
 
-                    if (hasLyrics) {
+                    // Timing Offset Calibration Button
+                    if (isSynced) {
                         IconButton(
-                            onClick = {
-                                val activeLine = if (activeIndex in lines.indices) {
-                                    val line = lines[activeIndex]
-                                    if (useEnglishScript && !line.romanized.isNullOrBlank()) line.romanized else line.words
-                                } else {
-                                    track.title
-                                }
-                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_SUBJECT, "ECHO Lyrics - ${track.title}")
-                                    putExtra(Intent.EXTRA_TEXT, "\"$activeLine\"\n\n— ${track.title} by ${track.artistName} on ECHO")
-                                }
-                                context.startActivity(Intent.createChooser(shareIntent, "Share lyrics"))
-                            },
-                            modifier = Modifier.size(40.dp)
+                            onClick = { showOffsetDialog = true },
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(38.dp)
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (lyricsOffsetMs != 0L) activeTheme.primaryColor else Color.White.copy(alpha = 0.08f)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Timer,
+                                    contentDescription = "Sync Offset Calibration",
+                                    tint = if (lyricsOffsetMs != 0L) Color.Black else Color.White,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    // Typography Sizing Button
+                    IconButton(
+                        onClick = { showSizeDialog = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.08f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.FormatSize,
+                                contentDescription = "Typography Scale",
+                                tint = Color.White,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                    }
+
+                    // Social Lyrics Quote Card Share Button
+                    if (hasLyrics) {
+                        IconButton(
+                            onClick = { showShareLyricsDialog = true },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
                                     .clip(CircleShape)
                                     .background(Color.White.copy(alpha = 0.08f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Share,
-                                    contentDescription = "Share",
+                                    contentDescription = "Share Quote Card",
                                     tint = Color.White,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
                             }
                         }
@@ -409,6 +467,17 @@ fun FullscreenLyricsSheet(
                                 null
                             }
 
+                            // Dynamic typography sizing from user size tier
+                            val baseFontSize = sizeTier.fontSizeSp
+                            val activeFontSize = (baseFontSize * 1.15f).sp
+                            val inactiveFontSize = (baseFontSize * 0.88f).sp
+
+                            // Progressive karaoke sweep progress calculation
+                            val lineDuration = if (line.durationMs > 0L) line.durationMs else 3200L
+                            val lineProgress = if (isActive && isSynced) {
+                                ((effectivePos - line.timestampMs).toFloat() / lineDuration.toFloat()).coerceIn(0f, 1f)
+                            } else 0f
+
                             val lyricBoxModifier = if (isActive) {
                                 Modifier
                                     .fillMaxWidth()
@@ -450,13 +519,31 @@ fun FullscreenLyricsSheet(
                                     }
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth().alpha(lineAlpha)) {
-                                    Text(
-                                        text = primaryText,
-                                        color = if (isActive) Color.White else Color.White.copy(alpha = 0.9f),
-                                        fontSize = if (isActive) 24.sp else 18.sp,
-                                        fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                        lineHeight = if (isActive) 34.sp else 26.sp
-                                    )
+                                    Box {
+                                        // Main Vocal Line with progressive karaoke sweep highlight
+                                        Text(
+                                            text = primaryText,
+                                            color = if (isActive) Color.White else Color.White.copy(alpha = 0.9f),
+                                            fontSize = if (isActive) activeFontSize else inactiveFontSize,
+                                            fontWeight = if (isActive) FontWeight.ExtraBold else FontWeight.SemiBold,
+                                            lineHeight = if (isActive) (activeFontSize.value * 1.45f).sp else (inactiveFontSize.value * 1.35f).sp,
+                                            modifier = if (isActive && isSynced && lineProgress > 0f) {
+                                                Modifier
+                                                    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                                                    .drawWithContent {
+                                                        drawContent()
+                                                        val sweepWidth = size.width * lineProgress
+                                                        drawRect(
+                                                            color = activeTheme.primaryColor.copy(alpha = 0.48f),
+                                                            size = Size(sweepWidth, size.height),
+                                                            blendMode = BlendMode.SrcAtop
+                                                        )
+                                                    }
+                                            } else {
+                                                Modifier
+                                            }
+                                        )
+                                    }
 
                                     // Display complimentary pronunciation / native script for active line
                                     if (isActive && !secondaryText.isNullOrBlank()) {
@@ -464,9 +551,9 @@ fun FullscreenLyricsSheet(
                                         Text(
                                             text = secondaryText,
                                             color = activeTheme.primaryColor.copy(alpha = 0.95f),
-                                            fontSize = 14.sp,
+                                            fontSize = (baseFontSize * 0.65f).sp,
                                             fontWeight = FontWeight.Medium,
-                                            lineHeight = 20.sp
+                                            lineHeight = (baseFontSize * 0.95f).sp
                                         )
                                     }
                                 }
@@ -506,7 +593,7 @@ fun FullscreenLyricsSheet(
                             )
                     )
                 } else if (!isLoadingLyrics) {
-                    // Honest Unavailable State
+                    // Respectful Honest Unavailable State
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -667,11 +754,38 @@ fun FullscreenLyricsSheet(
             }
         }
     }
+
+    // Modal Dialogs
+    if (showOffsetDialog) {
+        LyricsOffsetDialog(
+            currentOffsetMs = lyricsOffsetMs,
+            onOffsetChanged = { SettingsManager.setLyricsOffsetMs(it) },
+            onDismiss = { showOffsetDialog = false }
+        )
+    }
+
+    if (showSizeDialog) {
+        LyricsSizeDialog(
+            currentSizeTier = sizeTier,
+            onSizeSelected = { SettingsManager.setLyricsSizeTier(it.name) },
+            onDismiss = { showSizeDialog = false }
+        )
+    }
+
+    if (showShareLyricsDialog) {
+        ShareLyricsDialog(
+            track = track,
+            lines = lines,
+            activeLineIndex = activeIndex,
+            artworkColors = resolvedArtworkColors,
+            onDismiss = { showShareLyricsDialog = false }
+        )
+    }
 }
 
 private fun formatTime(millis: Long): String {
     val totalSeconds = (millis / 1000).coerceAtLeast(0)
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    return String.format("%d:%02d", minutes, seconds)
+    return String.format(java.util.Locale.US, "%d:%02d", minutes, seconds)
 }

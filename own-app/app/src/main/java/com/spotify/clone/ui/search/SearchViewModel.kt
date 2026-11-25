@@ -5,12 +5,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.spotify.clone.core.data.AudioRepository
+import com.spotify.clone.core.data.SampleCatalog
+import com.spotify.clone.core.data.SearchHistoryRepository
+import com.spotify.clone.core.data.SearchRankingEngine
+import com.spotify.clone.core.data.SearchSuggestionService
 import com.spotify.clone.core.designsystem.CategoryDance
-import com.spotify.clone.core.designsystem.CategoryDiscover
 import com.spotify.clone.core.designsystem.CategoryHipHop
 import com.spotify.clone.core.designsystem.CategoryIndie
 import com.spotify.clone.core.designsystem.CategoryMood
-import com.spotify.clone.core.designsystem.CategoryPodcasts
 import com.spotify.clone.core.designsystem.CategoryPop
 import com.spotify.clone.core.designsystem.CategoryRock
 import com.spotify.clone.core.model.Playlist
@@ -28,190 +30,225 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+enum class SearchTab(val title: String) {
+    ALL("All"),
+    TRACKS("Songs"),
+    ARTISTS("Artists"),
+    ALBUMS("Albums"),
+    LOCAL("Local")
+}
+
+data class SearchResultsBundle(
+    val tracks: List<Track> = emptyList(),
+    val albums: List<Playlist> = emptyList(),
+    val artists: List<String> = emptyList(),
+    val localTracks: List<Track> = emptyList()
+)
+
 data class SearchState(
     val query: String = "",
     val isSearching: Boolean = false,
-    val selectedFilter: String = "All",
+    val selectedTab: SearchTab = SearchTab.ALL,
     val searchResults: List<Track> = emptyList(),
     val searchAlbums: List<Playlist> = emptyList(),
-    val trendingSuggestions: List<String> = listOf(
-        "Chuttamalle",
-        "Sid Sriram",
-        "Pushpa 2",
-        "Devara",
-        "Anirudh",
-        "Arijit Singh",
-        "Coldplay",
-        "Taylor Swift"
-    ),
+    val searchArtists: List<String> = emptyList(),
+    val localAudioTracks: List<Track> = emptyList(),
+    val liveSuggestions: List<String> = emptyList(),
+    val songRecommendations: List<Track> = emptyList(),
+    val recentSearches: List<String> = emptyList(),
+    val isShowingSuggestions: Boolean = false,
     val categories: List<CategoryItem> = listOf(
-        CategoryItem(
-            id = "telugu",
-            title = "Telugu Hits",
-            backgroundColor = Color(0xFFD64040),
-            imageUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-            searchQuery = "Telugu"
-        ),
-        CategoryItem(
-            id = "pop",
-            title = "Pop",
-            backgroundColor = CategoryPop,
-            imageUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/49/3d/ab/493dab54-f920-9043-6181-80993b8116c9/19UMGIM53909.rgb.jpg/600x600bb.jpg",
-            searchQuery = "Pop"
-        ),
-        CategoryItem(
-            id = "hiphop",
-            title = "Hip-Hop",
-            backgroundColor = CategoryHipHop,
-            imageUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music118/v4/dd/5c/e6/dd5ce621-f7d2-f767-7a08-e7a7eaa7870b/00602537526994.rgb.jpg/600x600bb.jpg",
-            searchQuery = "Hip-Hop"
-        ),
-        CategoryItem(
-            id = "bollywood",
-            title = "Bollywood",
-            backgroundColor = Color(0xFFE55B3C),
-            imageUrl = "https://c.saavncdn.com/871/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155213-500x500.jpg",
-            searchQuery = "Bollywood"
-        ),
-        CategoryItem(
-            id = "punjabi",
-            title = "Punjabi",
-            backgroundColor = Color(0xFFE67E22),
-            imageUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/79/d2/01/79d201d2-e54d-5604-81fb-313f30db7219/198588533581.jpg/600x600bb.jpg",
-            searchQuery = "Punjabi"
-        ),
-        CategoryItem(
-            id = "rock",
-            title = "Rock",
-            backgroundColor = CategoryRock,
-            imageUrl = "https://c.saavncdn.com/683/RRR-Telugu-Telugu-2022-20250828171313-500x500.jpg",
-            searchQuery = "Rock"
-        ),
-        CategoryItem(
-            id = "indie",
-            title = "Indie",
-            backgroundColor = CategoryIndie,
-            imageUrl = "https://c.saavncdn.com/000/Balagam-Telugu-2023-20230304184334-500x500.jpg",
-            searchQuery = "Indie"
-        ),
-        CategoryItem(
-            id = "dance",
-            title = "Dance / EDM",
-            backgroundColor = CategoryDance,
-            imageUrl = "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=500&q=80",
-            searchQuery = "Dance"
-        ),
-        CategoryItem(
-            id = "romance",
-            title = "Romance",
-            backgroundColor = Color(0xFFE84393),
-            imageUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg",
-            searchQuery = "Romance"
-        ),
-        CategoryItem(
-            id = "mood",
-            title = "Mood & Chill",
-            backgroundColor = CategoryMood,
-            imageUrl = "https://c.saavncdn.com/307/Samayama-From-Hi-Nanna-Telugu-2023-20230918164922-500x500.jpg",
-            searchQuery = "Mood"
-        ),
-        CategoryItem(
-            id = "podcasts",
-            title = "Podcasts",
-            backgroundColor = CategoryPodcasts,
-            imageUrl = "https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=500&q=80",
-            searchQuery = "Podcast"
-        ),
-        CategoryItem(
-            id = "charts",
-            title = "Charts",
-            backgroundColor = Color(0xFF5B69A8),
-            imageUrl = "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=500&q=80",
-            searchQuery = "Top Hits"
-        ),
-        CategoryItem(
-            id = "discover",
-            title = "Discover",
-            backgroundColor = CategoryDiscover,
-            imageUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
-            searchQuery = "Discover"
-        ),
-        CategoryItem(
-            id = "party",
-            title = "Party & Mass",
-            backgroundColor = Color(0xFFE17055),
-            imageUrl = "https://c.saavncdn.com/000/Guntur-Kaaram-Telugu-2023-20240126145901-500x500.jpg",
-            searchQuery = "Mass"
-        ),
-        CategoryItem(
-            id = "devotional",
-            title = "Devotional",
-            backgroundColor = Color(0xFFF39C12),
-            imageUrl = "https://images.unsplash.com/photo-1606293926075-69a00dbfde81?w=500&q=80",
-            searchQuery = "Devotional"
-        ),
-        CategoryItem(
-            id = "lofi",
-            title = "Late Night Lo-Fi",
-            backgroundColor = Color(0xFF6C5CE7),
-            imageUrl = "https://c.saavncdn.com/237/Geetha-Govindam-Telugu-2018-20180921-500x500.jpg",
-            searchQuery = "Lo-Fi"
-        )
+        CategoryItem("pop", "Pop", CategoryPop, "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80", "Pop Hits"),
+        CategoryItem("hiphop", "Hip-Hop", CategoryHipHop, "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80", "Hip-Hop"),
+        CategoryItem("indian", "Indian Hits", Color(0xFFE55B3C), "https://c.saavncdn.com/871/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155213-500x500.jpg", "Indian Top Hits"),
+        CategoryItem("telugu", "Telugu", Color(0xFFD64040), "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg", "Telugu Hits"),
+        CategoryItem("rock", "Rock", CategoryRock, "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=400&q=80", "Rock"),
+        CategoryItem("indie", "Indie", CategoryIndie, "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80", "Indie"),
+        CategoryItem("dance", "Dance / EDM", CategoryDance, "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80", "Dance"),
+        CategoryItem("chill", "Chill & Lo-Fi", CategoryMood, "https://c.saavncdn.com/307/Samayama-From-Hi-Nanna-Telugu-2023-20230918164922-500x500.jpg", "Chill Lo-Fi"),
+        CategoryItem("romance", "Romance", Color(0xFFE84393), "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg", "Romance"),
+        CategoryItem("jazz", "Jazz & Soul", Color(0xFFD35400), "https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=400&q=80", "Jazz"),
+        CategoryItem("classical", "Classical", Color(0xFF8E44AD), "https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=400&q=80", "Classical"),
+        CategoryItem("acoustic", "Acoustic", Color(0xFF16A085), "https://images.unsplash.com/photo-1448375240586-882707db888b?w=400&q=80", "Acoustic")
     )
 ) : UiState
 
 sealed interface SearchEvent : UiEvent {
     data class QueryChanged(val query: String) : SearchEvent
-    data class FilterSelected(val filter: String) : SearchEvent
+    data class ExecuteSearch(val query: String) : SearchEvent
+    data class SelectSuggestion(val suggestion: String) : SearchEvent
+    data class TabSelected(val tab: SearchTab) : SearchEvent
     data class PlayTrack(val track: Track, val queue: List<Track>) : SearchEvent
-    object ClearQuery : SearchEvent
+    data class RemoveRecentSearch(val query: String) : SearchEvent
+    data object ClearRecentSearches : SearchEvent
+    data object ClearQuery : SearchEvent
 }
 
 class SearchViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = AudioRepository(application)
+    private val historyRepository = SearchHistoryRepository.getInstance(application)
     private val musicController = MusicController.getInstance(application)
 
     private val _uiState = MutableStateFlow(SearchState())
     val uiState: StateFlow<SearchState> = _uiState.asStateFlow()
 
+    private var suggestionsJob: Job? = null
     private var searchJob: Job? = null
+
+    private val searchCacheLock = Any()
+    private val searchCache = object : LinkedHashMap<String, SearchResultsBundle>(40, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, SearchResultsBundle>?): Boolean = size > 40
+    }
+
+    init {
+        viewModelScope.launch {
+            historyRepository.history.collect { history ->
+                _uiState.update { it.copy(recentSearches = history) }
+            }
+        }
+    }
 
     fun dispatch(event: SearchEvent) {
         when (event) {
-            is SearchEvent.QueryChanged -> {
-                _uiState.update { it.copy(query = event.query) }
+            is SearchEvent.QueryChanged -> handleQueryChanged(event.query)
+            is SearchEvent.ExecuteSearch -> executeDirectSearch(event.query)
+            is SearchEvent.SelectSuggestion -> executeDirectSearch(event.suggestion)
+            is SearchEvent.TabSelected -> _uiState.update { it.copy(selectedTab = event.tab) }
+            is SearchEvent.PlayTrack -> musicController.playTrack(event.track, event.queue)
+            is SearchEvent.RemoveRecentSearch -> historyRepository.remove(event.query)
+            is SearchEvent.ClearRecentSearches -> historyRepository.clear()
+            is SearchEvent.ClearQuery -> {
+                suggestionsJob?.cancel()
                 searchJob?.cancel()
-                if (event.query.isNotBlank()) {
-                    searchJob = viewModelScope.launch {
-                        delay(250) // debounce typing
-                        _uiState.update { it.copy(isSearching = true) }
-                        val tracksDeferred = async { try { repository.search(event.query) } catch (e: Exception) { emptyList() } }
-                        val albumsDeferred = async { try { repository.searchAlbums(event.query) } catch (e: Exception) { emptyList() } }
-                        val tracks = tracksDeferred.await()
-                        val albums = albumsDeferred.await()
-                        _uiState.update {
-                            it.copy(
-                                isSearching = false,
-                                searchResults = tracks,
-                                searchAlbums = albums
-                            )
-                        }
-                    }
-                } else {
-                    _uiState.update { it.copy(isSearching = false, searchResults = emptyList(), searchAlbums = emptyList()) }
+                _uiState.update {
+                    it.copy(
+                        query = "",
+                        isSearching = false,
+                        isShowingSuggestions = false,
+                        liveSuggestions = emptyList(),
+                        songRecommendations = emptyList(),
+                        searchResults = emptyList(),
+                        searchAlbums = emptyList(),
+                        searchArtists = emptyList(),
+                        localAudioTracks = emptyList()
+                    )
                 }
             }
-            is SearchEvent.FilterSelected -> {
-                _uiState.update { it.copy(selectedFilter = event.filter) }
+        }
+    }
+
+    private fun handleQueryChanged(newQuery: String) {
+        _uiState.update {
+            it.copy(query = newQuery, isShowingSuggestions = newQuery.isNotBlank())
+        }
+        suggestionsJob?.cancel()
+        searchJob?.cancel()
+
+        if (newQuery.isBlank()) {
+            dispatch(SearchEvent.ClearQuery)
+            return
+        }
+
+        suggestionsJob = viewModelScope.launch {
+            delay(120)
+            val suggestions = SearchSuggestionService.getSuggestions(newQuery)
+            val q = newQuery.trim().lowercase()
+            val instantSongs = SearchRankingEngine.rankTracks(
+                newQuery,
+                (SampleCatalog.sampleTracks + repository.scanLocalAudioFiles())
+                    .filter {
+                        it.title.lowercase().contains(q) ||
+                            it.artistName.lowercase().contains(q) ||
+                            SearchRankingEngine.normalizedSimilarity(q, it.title) >= 0.45
+                    }
+                    .distinctBy { "${it.title.lowercase()}_${it.artistName.lowercase()}" }
+            ).take(4)
+
+            if (_uiState.value.query == newQuery) {
+                _uiState.update {
+                    it.copy(
+                        liveSuggestions = suggestions,
+                        songRecommendations = instantSongs,
+                        isShowingSuggestions = true
+                    )
+                }
             }
-            is SearchEvent.ClearQuery -> {
-                searchJob?.cancel()
-                _uiState.update { it.copy(query = "", isSearching = false, searchResults = emptyList(), searchAlbums = emptyList()) }
+        }
+
+        searchJob = viewModelScope.launch {
+            delay(350)
+            performSearch(newQuery, saveToHistory = false)
+        }
+    }
+
+    private fun executeDirectSearch(query: String) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return
+        suggestionsJob?.cancel()
+        searchJob?.cancel()
+        historyRepository.add(trimmed)
+        _uiState.update { it.copy(query = trimmed, isShowingSuggestions = false) }
+        searchJob = viewModelScope.launch {
+            performSearch(trimmed, saveToHistory = true)
+        }
+    }
+
+    private suspend fun performSearch(query: String, saveToHistory: Boolean) {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return
+        if (saveToHistory) historyRepository.add(trimmed)
+
+        val cacheKey = trimmed.lowercase()
+        synchronized(searchCacheLock) { searchCache[cacheKey] }?.let { cached ->
+            _uiState.update {
+                it.copy(
+                    isSearching = false,
+                    searchResults = cached.tracks,
+                    searchAlbums = cached.albums,
+                    searchArtists = cached.artists,
+                    localAudioTracks = cached.localTracks
+                )
             }
-            is SearchEvent.PlayTrack -> {
-                musicController.playTrack(event.track, event.queue)
-            }
+            return
+        }
+
+        _uiState.update { it.copy(isSearching = true) }
+
+        val tracksDeferred = viewModelScope.async {
+            runCatching { repository.search(trimmed) }.getOrDefault(emptyList())
+        }
+        val albumsDeferred = viewModelScope.async {
+            runCatching { repository.searchAlbums(trimmed) }.getOrDefault(emptyList())
+        }
+        val localDeferred = viewModelScope.async {
+            runCatching {
+                val q = trimmed.lowercase()
+                repository.scanLocalAudioFiles().filter {
+                    it.title.lowercase().contains(q) ||
+                        it.artistName.lowercase().contains(q) ||
+                        it.albumName.lowercase().contains(q)
+                }
+            }.getOrDefault(emptyList())
+        }
+
+        val tracks = SearchRankingEngine.rankTracks(trimmed, tracksDeferred.await())
+        val albums = albumsDeferred.await()
+        val local = SearchRankingEngine.rankTracks(trimmed, localDeferred.await())
+        val artists = tracks.map { it.artistName }.filter { it.isNotBlank() }.distinct()
+
+        synchronized(searchCacheLock) {
+            searchCache[cacheKey] = SearchResultsBundle(tracks, albums, artists, local)
+        }
+
+        _uiState.update {
+            it.copy(
+                isSearching = false,
+                searchResults = tracks,
+                searchAlbums = albums,
+                searchArtists = artists,
+                localAudioTracks = local
+            )
         }
     }
 }

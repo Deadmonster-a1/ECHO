@@ -1,9 +1,18 @@
 package com.spotify.clone.ui.artist
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,22 +27,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,25 +60,37 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.spotify.clone.core.data.AudioRepository
-import com.spotify.clone.core.designsystem.EchoPlayFab
+import com.spotify.clone.core.data.SampleCatalog
+import com.spotify.clone.core.designsystem.EchoInsetCard
+import com.spotify.clone.core.designsystem.EchoMotion
+import com.spotify.clone.core.designsystem.EchoSectionHeader
+import com.spotify.clone.core.designsystem.LivingEqualizer
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
+import com.spotify.clone.core.designsystem.SwipeableTrackRow
+import com.spotify.clone.core.designsystem.ThemeManager
+import com.spotify.clone.core.designsystem.echoContrastOn
 import com.spotify.clone.core.designsystem.echoPressable
+import com.spotify.clone.core.designsystem.echoSpecularBorder
+import com.spotify.clone.core.designsystem.rememberAnimatedArtworkColors
+import com.spotify.clone.core.designsystem.resolvedBackground
+import com.spotify.clone.core.designsystem.resolvedBorder
+import com.spotify.clone.core.designsystem.resolvedCard
+import com.spotify.clone.core.designsystem.tabularFigures
 import com.spotify.clone.core.model.Artist
 import com.spotify.clone.core.model.Track
 import com.spotify.clone.core.player.MusicController
 import com.spotify.clone.ui.components.TrackOptionsBottomSheet
 
 /**
- * Signature Animation B: Cinematic Collapsing Header for Artists
- * - Hero photo parallax & smooth scale settling driven by LazyListState
- * - Sticky compact header reveal
- * - Real playback state on Play FAB
+ * Apple Music-inspired Artist Detail Screen with parallax hero banner,
+ * smooth sticky top bar reveal, tabular track numbers, and tactile pill actions.
  */
 @Composable
 fun ArtistDetailScreen(
@@ -82,38 +102,45 @@ fun ArtistDetailScreen(
 ) {
     val context = LocalContext.current
     val activeTheme = LocalAppTheme.current
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val isReducedMotion = LocalReducedMotion.current
     val playbackState by musicController.playbackState.collectAsState()
 
+    val screenBg = activeTheme.resolvedBackground(isDarkMode)
+    val cardBg = activeTheme.resolvedCard(isDarkMode)
+    val borderColor = activeTheme.resolvedBorder(isDarkMode)
+    val textPrimary = MaterialTheme.colorScheme.onBackground
+    val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
+
+    var activeArtistName by remember(artistName) { mutableStateOf(artistName) }
     var isLoading by remember { mutableStateOf(true) }
     var artist by remember { mutableStateOf<Artist?>(null) }
     var topTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
-    var isFollowing by remember { mutableStateOf(false) }
     var selectedTrackForOptions by remember { mutableStateOf<Track?>(null) }
 
-    LaunchedEffect(artistName) {
+    LaunchedEffect(activeArtistName) {
         isLoading = true
-        val homeArtists = repository.getHomeArtists()
-        val matchedArtist = homeArtists.find { it.name.equals(artistName, ignoreCase = true) || it.name.contains(artistName, ignoreCase = true) }
-            ?: com.spotify.clone.core.data.SampleCatalog.sampleArtists.find { it.name.contains(artistName, ignoreCase = true) || artistName.contains(it.name, ignoreCase = true) }
-            ?: Artist(
-                id = "art_${artistName.lowercase().replace(" ", "_")}",
-                name = artistName,
-                avatarUrl = "https://c.saavncdn.com/artists/Anirudh_Ravichander_003_20260121134149_500x500.jpg",
-                monthlyListeners = 14500000
-            )
-        artist = matchedArtist
-
-        val tracks = repository.search(artistName).take(12)
+        val homeArtists = runCatching { repository.getHomeArtists() }.getOrDefault(emptyList())
+        val tracks = runCatching { repository.search(activeArtistName).take(15) }.getOrDefault(emptyList())
+        val matched = homeArtists.find {
+            it.name.equals(activeArtistName, ignoreCase = true) ||
+                it.name.contains(activeArtistName, ignoreCase = true)
+        } ?: SampleCatalog.sampleArtists.find {
+            it.name.contains(activeArtistName, ignoreCase = true)
+        } ?: Artist(
+            id = "art_${activeArtistName.lowercase().replace(" ", "_")}",
+            name = activeArtistName,
+            avatarUrl = tracks.firstOrNull()?.coverArtUrl.orEmpty(),
+            monthlyListeners = 12_000_000L
+        )
+        artist = matched
         topTracks = tracks
         isLoading = false
     }
 
     if (isLoading || artist == null) {
         Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
+            modifier = modifier.fillMaxSize().background(screenBg),
             contentAlignment = Alignment.Center
         ) {
             CircularProgressIndicator(color = activeTheme.primaryColor)
@@ -122,52 +149,66 @@ fun ArtistDetailScreen(
     }
 
     val currentArtist = artist!!
+    val artistSeed = remember(currentArtist.id, currentArtist.avatarUrl) {
+        Track(
+            id = currentArtist.id,
+            title = currentArtist.name,
+            artistName = currentArtist.name,
+            albumName = currentArtist.name,
+            coverArtUrl = currentArtist.avatarUrl,
+            durationMs = 0L,
+            mediaUri = ""
+        )
+    }
+    val artworkPalette = rememberAnimatedArtworkColors(artistSeed)
+
     val listState = rememberLazyListState()
-
-    val headerScrollOffset by remember {
+    val showStickyTitle by remember {
+        derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 360 }
+    }
+    val heroScrollProgress by remember {
         derivedStateOf {
-            if (listState.firstVisibleItemIndex == 0) {
-                listState.firstVisibleItemScrollOffset.toFloat()
-            } else 600f
+            if (listState.firstVisibleItemIndex > 0) 1f
+            else (listState.firstVisibleItemScrollOffset / 500f).coerceIn(0f, 1f)
         }
     }
-
-    val photoParallaxY by remember {
-        derivedStateOf {
-            if (isReducedMotion) 0f
-            else headerScrollOffset * 0.45f
-        }
-    }
-
-    val photoScale by remember {
-        derivedStateOf {
-            if (isReducedMotion) 1f
-            else (1f + (headerScrollOffset / 1200f)).coerceIn(1f, 1.25f)
-        }
-    }
-
-    val compactHeaderAlpha by remember {
-        derivedStateOf {
-            ((headerScrollOffset - 240f) / 100f).coerceIn(0f, 1f)
-        }
-    }
+    val topBarBg by animateColorAsState(
+        targetValue = if (showStickyTitle) screenBg else Color.Transparent,
+        animationSpec = tween(EchoMotion.DurationMicro, easing = EchoMotion.EncoreButtonEase),
+        label = "art_topbar_bg"
+    )
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(screenBg)
     ) {
+        // Dynamic atmospheric tint from artist portrait
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(360.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            artworkPalette.vibrantAccent.copy(alpha = if (isDarkMode) 0.24f else 0.12f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(bottom = 140.dp),
+            contentPadding = PaddingValues(bottom = 176.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            // 1. Cinematic Hero Artwork Header with Parallax
+            // 1. Parallax Artist Hero Header
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(350.dp)
+                        .height(310.dp)
                 ) {
                     AsyncImage(
                         model = currentArtist.avatarUrl,
@@ -176,13 +217,15 @@ fun ArtistDetailScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
-                                translationY = photoParallaxY
-                                scaleX = photoScale
-                                scaleY = photoScale
+                                if (!isReducedMotion) {
+                                    val s = 1f + heroScrollProgress * 0.08f
+                                    scaleX = s
+                                    scaleY = s
+                                    translationY = heroScrollProgress * 60f
+                                    alpha = 1f - heroScrollProgress * 0.65f
+                                }
                             }
                     )
-
-                    // Ambient gradient scrim
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -190,192 +233,330 @@ fun ArtistDetailScreen(
                                 Brush.verticalGradient(
                                     colors = listOf(
                                         Color.Transparent,
-                                        Color.Black.copy(alpha = 0.5f),
-                                        Color(0xFF101016)
-                                    ),
-                                    startY = 140f
+                                        screenBg.copy(alpha = 0.65f),
+                                        screenBg
+                                    )
                                 )
                             )
                     )
-
-                    // Artist Title & Verification
                     Column(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
-                            .padding(horizontal = 20.dp, vertical = 16.dp)
+                            .padding(horizontal = 20.dp, vertical = 14.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Filled.Verified,
-                                contentDescription = "Verified Artist",
-                                tint = activeTheme.primaryColor,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Verified Artist",
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
                         Text(
                             text = currentArtist.name,
-                            color = Color.White,
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-0.5).sp,
+                            color = textPrimary,
+                            style = MaterialTheme.typography.displayLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
                         Text(
-                            text = "${formatNumber(currentArtist.monthlyListeners)} monthly listeners",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
+                            text = "${topTracks.size} top songs",
+                            color = textSecondary,
+                            style = MaterialTheme.typography.bodyMedium.tabularFigures().copy(fontSize = 13.5.sp)
                         )
                     }
                 }
             }
 
-            // 2. Action Bar: Follow, Notifications & Play FAB
+            // 2. Tactile Play & Shuffle Buttons
             item {
+                val hasTracks = topTracks.isNotEmpty()
+                val actionShape = RoundedCornerShape(14.dp)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 20.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = {
-                            isFollowing = !isFollowing
-                            val msg = if (isFollowing) "Following ${currentArtist.name}" else "Unfollowed ${currentArtist.name}"
-                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                        },
-                        border = ButtonDefaults.outlinedButtonBorder.copy(
-                            brush = Brush.linearGradient(
-                                listOf(
-                                    if (isFollowing) activeTheme.primaryColor else MaterialTheme.colorScheme.outline,
-                                    if (isFollowing) activeTheme.primaryColor else MaterialTheme.colorScheme.outline
-                                )
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(actionShape)
+                            .background(
+                                if (hasTracks) activeTheme.primaryColor
+                                else activeTheme.primaryColor.copy(alpha = 0.4f)
                             )
-                        ),
-                        shape = RoundedCornerShape(20.dp)
-                    ) {
-                        Text(
-                            text = if (isFollowing) "Following" else "Follow",
-                            color = if (isFollowing) activeTheme.primaryColor else MaterialTheme.colorScheme.onBackground,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    IconButton(onClick = {
-                        Toast.makeText(context, "Notifications enabled for ${currentArtist.name}", Toast.LENGTH_SHORT).show()
-                    }) {
-                        Icon(
-                            imageVector = Icons.Outlined.Notifications,
-                            contentDescription = "Notifications",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    val isPlayingThisArtist = playbackState.isPlaying && playbackState.currentTrack?.artistName == currentArtist.name
-                    EchoPlayFab(
-                        isPlaying = isPlayingThisArtist,
-                        onToggle = {
-                            if (topTracks.isNotEmpty()) {
-                                if (isPlayingThisArtist) {
-                                    musicController.togglePlayPause()
-                                } else {
+                            .echoPressable(
+                                scaleOnPress = 0.96f,
+                                enabled = hasTracks,
+                                hapticOnClick = true
+                            ) {
+                                if (topTracks.isNotEmpty()) {
                                     musicController.playTrack(topTracks.first(), topTracks)
+                                } else {
+                                    Toast.makeText(context, "No tracks available", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            tint = echoContrastOn(activeTheme.primaryColor),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Play",
+                            color = echoContrastOn(activeTheme.primaryColor),
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(actionShape)
+                            .background(cardBg)
+                            .echoSpecularBorder(isDarkMode, actionShape, borderColor)
+                            .echoPressable(
+                                scaleOnPress = 0.96f,
+                                enabled = hasTracks,
+                                hapticOnClick = true
+                            ) {
+                                val shuffled = topTracks.shuffled()
+                                musicController.playTrack(shuffled.first(), shuffled)
+                            },
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Filled.Shuffle,
+                            contentDescription = null,
+                            tint = activeTheme.primaryColor,
+                            modifier = Modifier.size(19.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            "Shuffle",
+                            color = activeTheme.primaryColor,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            // 3. Top Songs
+            if (topTracks.isNotEmpty()) {
+                item { EchoSectionHeader(title = "Top Songs") }
+                item(key = "artist_top_songs_card") {
+                    EchoInsetCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                        topTracks.forEachIndexed { index, track ->
+                            val isPlaying = playbackState.currentTrack?.id == track.id && playbackState.isPlaying
+                            SwipeableTrackRow(
+                                isFavorite = track.isFavorite,
+                                onSwipeQueue = {
+                                    musicController.playNext(track)
+                                    Toast.makeText(context, "Playing next: ${track.title}", Toast.LENGTH_SHORT).show()
+                                },
+                                onSwipeFavorite = {
+                                    musicController.toggleFavorite(track)
+                                    Toast.makeText(
+                                        context,
+                                        if (track.isFavorite) "Removed from Liked Songs" else "Added to Liked Songs",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(if (isPlaying) activeTheme.primaryColor.copy(alpha = 0.08f) else Color.Transparent)
+                                    .echoPressable(scaleOnPress = 0.985f) {
+                                        musicController.playTrack(track, topTracks)
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier.width(26.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    AnimatedContent(
+                                        targetState = isPlaying,
+                                        transitionSpec = {
+                                            (fadeIn(tween(150)) + scaleIn(initialScale = 0.85f, animationSpec = tween(150))) togetherWith
+                                                (fadeOut(tween(110)) + scaleOut(targetScale = 0.85f, animationSpec = tween(110)))
+                                        },
+                                        label = "artist_track_idx_$index"
+                                    ) { playing ->
+                                        if (playing) {
+                                            LivingEqualizer(
+                                                isPlaying = true,
+                                                barCount = 3,
+                                                barColor = activeTheme.primaryColor,
+                                                maxHeight = 14.dp
+                                            )
+                                        } else {
+                                            Text(
+                                                text = "${index + 1}",
+                                                color = textSecondary,
+                                                style = MaterialTheme.typography.bodyMedium.tabularFigures().copy(
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                AsyncImage(
+                                    model = track.coverArtUrl,
+                                    contentDescription = track.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = track.title,
+                                        color = if (isPlaying) activeTheme.primaryColor else textPrimary,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = track.albumName,
+                                        color = textSecondary,
+                                        fontSize = 12.5.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .echoPressable(scaleOnPress = 0.86f) { selectedTrackForOptions = track },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.MoreHoriz,
+                                        contentDescription = "More",
+                                        tint = textSecondary
+                                    )
                                 }
                             }
-                        },
-                        size = 54.dp
+                            }
+                            if (index < topTracks.lastIndex) {
+                                HorizontalDivider(
+                                    color = borderColor,
+                                    thickness = 0.5.dp,
+                                    modifier = Modifier.padding(start = 94.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                item {
+                    Text(
+                        text = "No tracks found for ${currentArtist.name}.",
+                        color = textSecondary,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)
                     )
                 }
             }
 
-            // 3. Popular Section Header
+            // 4. Similar Artists
             item {
-                Text(
-                    text = "Popular Songs",
-                    color = MaterialTheme.colorScheme.onBackground,
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp)
-                )
-            }
-
-            // 4. Track List
-            itemsIndexed(topTracks) { index, track ->
-                val isCurrentlyPlaying = playbackState.currentTrack?.id == track.id
-                ArtistTrackRow(
-                    index = index + 1,
-                    track = track,
-                    isPlaying = isCurrentlyPlaying,
-                    onClick = {
-                        musicController.playTrack(track, topTracks)
-                    },
-                    onMoreClick = {
-                        selectedTrackForOptions = track
+                Spacer(modifier = Modifier.height(16.dp))
+                EchoSectionHeader(title = "Similar Artists")
+                val related = SampleCatalog.sampleArtists.filter { !it.name.equals(currentArtist.name, ignoreCase = true) }
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(related, key = { "rel_${it.id}" }) { rel ->
+                        Column(
+                            modifier = Modifier
+                                .width(92.dp)
+                                .echoPressable(scaleOnPress = 0.95f) {
+                                    activeArtistName = rel.name
+                                },
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            AsyncImage(
+                                model = rel.avatarUrl,
+                                contentDescription = rel.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(84.dp)
+                                    .clip(CircleShape)
+                                    .background(cardBg)
+                                    .echoSpecularBorder(isDarkMode, CircleShape, borderColor)
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = rel.name,
+                                color = textPrimary,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
-                )
+                }
             }
         }
 
-        // Sticky Compact Top Header Bar
-        Box(
+        // Translucent Sticky Top Bar
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp)
-                .graphicsLayer { alpha = compactHeaderAlpha }
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
-                .border(0.5.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                .padding(top = 18.dp, start = 60.dp, end = 20.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Text(
-                text = currentArtist.name,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        // Top Back Button
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier
+                .background(topBarBg)
                 .statusBarsPadding()
-                .padding(top = 8.dp, start = 8.dp)
-                .size(48.dp)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(38.dp)
                     .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.45f)),
+                    .background(cardBg.copy(alpha = 0.88f))
+                    .echoSpecularBorder(isDarkMode, CircleShape, borderColor)
+                    .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true, onClick = onBack),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = Color.White
+                    tint = textPrimary,
+                    modifier = Modifier.size(20.dp)
                 )
+            }
+            AnimatedVisibility(
+                visible = showStickyTitle,
+                enter = fadeIn(tween(180, easing = EchoMotion.EaseOutStrong)) +
+                    slideInVertically(tween(180, easing = EchoMotion.EaseOutStrong)) { 8 },
+                exit = fadeOut(tween(140)) + slideOutVertically(tween(140)) { 8 }
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = currentArtist.name,
+                        color = textPrimary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
@@ -386,89 +567,5 @@ fun ArtistDetailScreen(
             musicController = musicController,
             onDismiss = { selectedTrackForOptions = null }
         )
-    }
-}
-
-@Composable
-private fun ArtistTrackRow(
-    index: Int,
-    track: Track,
-    isPlaying: Boolean,
-    onClick: () -> Unit,
-    onMoreClick: () -> Unit
-) {
-    val activeTheme = LocalAppTheme.current
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .echoPressable(scaleOnPress = 0.98f, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (isPlaying) {
-            Icon(
-                imageVector = Icons.Filled.GraphicEq,
-                contentDescription = "Playing",
-                tint = activeTheme.primaryColor,
-                modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-        } else {
-            Text(
-                text = "$index",
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.width(24.dp)
-            )
-        }
-
-        AsyncImage(
-            model = track.coverArtUrl,
-            contentDescription = track.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .size(46.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-        )
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = track.title,
-                color = if (isPlaying) activeTheme.primaryColor else MaterialTheme.colorScheme.onSurface,
-                fontSize = 14.5.sp,
-                fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = track.albumName,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-
-        IconButton(onClick = onMoreClick) {
-            Icon(
-                imageVector = Icons.Filled.MoreVert,
-                contentDescription = "More",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
-}
-
-private fun formatNumber(number: Long): String {
-    return when {
-        number >= 1_000_000 -> String.format("%.1fM", number / 1_000_000.0)
-        number >= 1_000 -> String.format("%.1fK", number / 1_000.0)
-        else -> number.toString()
     }
 }

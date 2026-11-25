@@ -34,10 +34,11 @@ class OpenMusicApiService(
      */
     suspend fun getTrendingTracks(limit: Int = 25): List<Track> = withContext(Dispatchers.IO) {
         val tracks = mutableListOf<Track>()
+        var conn: HttpURLConnection? = null
         try {
-            val conn = openConnection("/v1/tracks/trending?app_name=$appName&limit=$limit")
+            conn = openConnection("/v1/tracks/trending?app_name=$appName&limit=$limit")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val data = json.optJSONArray("data") ?: return@withContext emptyList()
                 for (i in 0 until data.length()) {
                     val obj = data.optJSONObject(i) ?: continue
@@ -46,6 +47,8 @@ class OpenMusicApiService(
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            conn?.disconnect()
         }
         tracks
     }
@@ -55,11 +58,12 @@ class OpenMusicApiService(
      */
     suspend fun searchTracks(query: String, limit: Int = 20): List<Track> = withContext(Dispatchers.IO) {
         val tracks = mutableListOf<Track>()
+        var conn: HttpURLConnection? = null
         try {
             val encodedQuery = URLEncoder.encode(query.trim(), "UTF-8")
-            val conn = openConnection("/v1/tracks/search?query=$encodedQuery&app_name=$appName&limit=$limit")
+            conn = openConnection("/v1/tracks/search?query=$encodedQuery&app_name=$appName&limit=$limit")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val data = json.optJSONArray("data") ?: return@withContext emptyList()
                 for (i in 0 until data.length()) {
                     val obj = data.optJSONObject(i) ?: continue
@@ -68,6 +72,8 @@ class OpenMusicApiService(
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            conn?.disconnect()
         }
         tracks
     }
@@ -77,10 +83,11 @@ class OpenMusicApiService(
      */
     suspend fun getTrendingPlaylists(limit: Int = 10): List<Playlist> = withContext(Dispatchers.IO) {
         val playlists = mutableListOf<Playlist>()
+        var conn: HttpURLConnection? = null
         try {
-            val conn = openConnection("/v1/playlists/trending?app_name=$appName&limit=$limit")
+            conn = openConnection("/v1/playlists/trending?app_name=$appName&limit=$limit")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val data = json.optJSONArray("data") ?: return@withContext emptyList()
                 for (i in 0 until data.length()) {
                     val obj = data.optJSONObject(i) ?: continue
@@ -117,6 +124,8 @@ class OpenMusicApiService(
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            conn?.disconnect()
         }
         playlists
     }
@@ -127,10 +136,11 @@ class OpenMusicApiService(
     suspend fun getPlaylistTracks(playlistId: String): List<Track> = withContext(Dispatchers.IO) {
         val cleanId = playlistId.removePrefix("audius_pl_")
         val tracks = mutableListOf<Track>()
+        var conn: HttpURLConnection? = null
         try {
-            val conn = openConnection("/v1/playlists/$cleanId/tracks?app_name=$appName")
+            conn = openConnection("/v1/playlists/$cleanId/tracks?app_name=$appName")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val data = json.optJSONArray("data") ?: return@withContext emptyList()
                 for (i in 0 until data.length()) {
                     val obj = data.optJSONObject(i) ?: continue
@@ -139,6 +149,8 @@ class OpenMusicApiService(
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            conn?.disconnect()
         }
         tracks
     }

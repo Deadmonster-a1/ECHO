@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -17,6 +19,21 @@ android {
         versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val localPropsFile = rootProject.file("local.properties")
+        val localProps = Properties().apply {
+            if (localPropsFile.isFile) {
+                localPropsFile.inputStream().use { load(it) }
+            }
+        }
+        val spotifyClientId = (System.getenv("SPOTIFY_CLIENT_ID")
+            ?: localProps.getProperty("SPOTIFY_CLIENT_ID", ""))
+            .replace("\"", "")
+        val spotifyClientSecret = (System.getenv("SPOTIFY_CLIENT_SECRET")
+            ?: localProps.getProperty("SPOTIFY_CLIENT_SECRET", ""))
+            .replace("\"", "")
+        buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
+        buildConfigField("String", "SPOTIFY_CLIENT_SECRET", "\"$spotifyClientSecret\"")
     }
 
     signingConfigs {

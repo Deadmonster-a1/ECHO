@@ -1,13 +1,8 @@
 package com.spotify.clone.ui.player
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -22,15 +17,21 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Radio
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,8 +42,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.spotify.clone.core.designsystem.EchoMotion
+import com.spotify.clone.core.designsystem.LivingEqualizer
+import com.spotify.clone.core.designsystem.LocalAppTheme
+import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoPressable
+import com.spotify.clone.core.designsystem.resolvedBorder
+import com.spotify.clone.core.designsystem.resolvedCard
+import com.spotify.clone.core.model.MusicGenre
 import com.spotify.clone.core.model.PlaybackState
 import com.spotify.clone.core.model.Track
 import com.spotify.clone.core.player.MusicController
@@ -54,15 +60,35 @@ fun QueueSheetContent(
     onTrackClick: (Track) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val activeTheme = LocalAppTheme.current
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+    val textPrimary = MaterialTheme.colorScheme.onSurface
+    val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
+    val borderColor = activeTheme.resolvedBorder(isDarkMode)
+    val cardBg = activeTheme.resolvedCard(isDarkMode)
+    val activeGenreLock by musicController.activeGenreLock.collectAsState()
+    val autoMatchGenre by musicController.autoMatchGenre.collectAsState()
+    var showGenreSheet by remember { mutableStateOf(false) }
+
     val currentTrack = playbackState.currentTrack
     val queue = playbackState.queue
     val currentQueueIndex = playbackState.queueIndex
+    val effectiveGenre = musicController.getEffectiveGenre(currentTrack)
+    val orderSummary = buildString {
+        if (activeGenreLock != MusicGenre.ALL) {
+            append("Locked: ${activeGenreLock.shortLabel}")
+        } else if (autoMatchGenre && currentTrack != null) {
+            append("Auto-Genre: ${effectiveGenre.shortLabel}")
+        } else {
+            append("Smart Radio")
+        }
+        append(if (playbackState.shuffleMode) " • Unplayed-First Shuffle" else " • Artist-Balanced")
+    }
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(top = 16.dp)
+            .padding(top = 8.dp)
     ) {
         Row(
             modifier = Modifier
@@ -71,44 +97,127 @@ fun QueueSheetContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Authoritative Queue",
-                    color = MaterialTheme.colorScheme.onSurface,
+                    text = "Playing Next",
+                    color = textPrimary,
                     fontWeight = FontWeight.Bold,
                     fontSize = 20.sp
                 )
                 Text(
-                    text = "${queue.size} tracks • Tap to jump or reorder",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
+                    text = "${queue.size} tracks • $orderSummary",
+                    color = textSecondary,
+                    fontSize = 12.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(activeTheme.primaryColor.copy(alpha = 0.14f))
+                    .echoPressable(scaleOnPress = 0.94f, hapticOnClick = true) { showGenreSheet = true }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Radio,
+                    contentDescription = "Genre Radio",
+                    tint = activeTheme.primaryColor,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = effectiveGenre.shortLabel,
+                    color = activeTheme.primaryColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        // Session modifier controls (inspired by Spotify layout_queue_controls SessionModifierContainerView)
+        if (queue.size > currentQueueIndex + 1) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(cardBg)
+                        .border(0.75.dp, borderColor, RoundedCornerShape(50))
+                        .echoPressable(scaleOnPress = 0.94f, hapticOnClick = true) {
+                            musicController.shuffleUpcomingQueue()
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Shuffle,
+                        contentDescription = null,
+                        tint = activeTheme.primaryColor,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Shuffle Up Next",
+                        color = textPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(cardBg)
+                        .border(0.75.dp, borderColor, RoundedCornerShape(50))
+                        .echoPressable(scaleOnPress = 0.94f, hapticOnClick = true) {
+                            musicController.clearUpcomingQueue()
+                        }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.DeleteSweep,
+                        contentDescription = null,
+                        tint = textSecondary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Clear Up Next",
+                        color = textSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
 
         LazyColumn(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Now Playing Section
             if (currentTrack != null) {
-                item {
+                item(key = "now_playing_header") {
                     Text(
                         text = "NOW PLAYING",
-                        color = MaterialTheme.colorScheme.primary,
+                        color = activeTheme.primaryColor,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.sp,
-                        modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.8.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
                     )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(activeTheme.primaryColor.copy(alpha = 0.1f))
+                            .border(0.75.dp, activeTheme.primaryColor.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -118,46 +227,45 @@ fun QueueSheetContent(
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .size(44.dp)
-                                .clip(RoundedCornerShape(6.dp))
+                                .clip(RoundedCornerShape(8.dp))
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = currentTrack.title,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
+                                color = activeTheme.primaryColor,
+                                fontSize = 14.5.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = currentTrack.artistName,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 12.sp,
+                                color = textSecondary,
+                                fontSize = 12.5.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Icon(
-                            imageVector = Icons.Filled.GraphicEq,
-                            contentDescription = "Playing",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
+                        LivingEqualizer(
+                            isPlaying = playbackState.isPlaying,
+                            barCount = 3,
+                            barColor = activeTheme.primaryColor,
+                            maxHeight = 15.dp
                         )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
             }
 
-            // Up Next In Queue
-            item {
+            item(key = "up_next_header") {
                 Text(
-                    text = "UP NEXT (${queue.size.coerceAtLeast(1) - 1})",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = "QUEUE",
+                    color = textSecondary,
                     fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
                 )
             }
 
@@ -166,52 +274,46 @@ fun QueueSheetContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (isCurrent) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else Color.Transparent)
-                        .echoPressable(scaleOnPress = 0.98f) {
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isCurrent) cardBg else Color.Transparent)
+                        .then(
+                            if (isCurrent) Modifier.border(0.75.dp, borderColor, RoundedCornerShape(12.dp))
+                            else Modifier
+                        )
+                        .echoPressable(scaleOnPress = 0.985f) {
                             musicController.playQueueIndex(index)
                         }
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${index + 1}",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.width(24.dp)
-                    )
-
                     AsyncImage(
                         model = track.coverArtUrl,
                         contentDescription = track.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     )
-
                     Spacer(modifier = Modifier.width(12.dp))
-
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = track.title,
-                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            fontSize = 13.sp,
-                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isCurrent) activeTheme.primaryColor else textPrimary,
+                            fontSize = 14.sp,
+                            fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = track.artistName,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            color = textSecondary,
+                            fontSize = 12.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
 
-                    // Move Up Action
                     if (index > 0) {
                         IconButton(
                             onClick = { musicController.moveQueueItem(index, index - 1) },
@@ -220,13 +322,11 @@ fun QueueSheetContent(
                             Icon(
                                 imageVector = Icons.Filled.KeyboardArrowUp,
                                 contentDescription = "Move Up",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = textSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
                     }
-
-                    // Move Down Action
                     if (index < queue.size - 1) {
                         IconButton(
                             onClick = { musicController.moveQueueItem(index, index + 1) },
@@ -235,13 +335,11 @@ fun QueueSheetContent(
                             Icon(
                                 imageVector = Icons.Filled.KeyboardArrowDown,
                                 contentDescription = "Move Down",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = textSecondary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
                     }
-
-                    // Remove from queue Action
                     IconButton(
                         onClick = { musicController.removeFromQueue(index) },
                         modifier = Modifier.size(32.dp)
@@ -249,16 +347,21 @@ fun QueueSheetContent(
                         Icon(
                             imageVector = Icons.Filled.Close,
                             contentDescription = "Remove",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            tint = textSecondary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
                 }
             }
 
-            item {
-                Spacer(modifier = Modifier.height(32.dp))
-            }
+            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
+    }
+
+    if (showGenreSheet) {
+        GenrePickerBottomSheet(
+            musicController = musicController,
+            onDismiss = { showGenreSheet = false }
+        )
     }
 }

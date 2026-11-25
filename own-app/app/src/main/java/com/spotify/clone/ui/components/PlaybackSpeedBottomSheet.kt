@@ -22,13 +22,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.spotify.clone.core.designsystem.SpotifyDarkGray
-import com.spotify.clone.core.designsystem.SpotifyGreen
-import com.spotify.clone.core.designsystem.SpotifyTextSecondary
-import com.spotify.clone.core.designsystem.SpotifyWhite
+import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.player.MusicController
 
 private val SPEEDS = listOf(0.5f, 0.8f, 1.0f, 1.2f, 1.5f, 1.8f, 2.0f)
@@ -39,13 +37,20 @@ fun PlaybackSpeedBottomSheet(
     musicController: MusicController,
     onDismiss: () -> Unit
 ) {
+    val currentTheme by ThemeManager.currentTheme.collectAsState()
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+
+    val screenBg = if (isDarkMode) Color(0xFF1E1D1B) else Color(0xFFFFFFFF)
+    val textPrimary = if (isDarkMode) Color(0xFFFAF8F5) else Color(0xFF171717)
+    val textSecondary = if (isDarkMode) Color(0xFFA6A2B3) else Color(0xFF777777)
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val currentSpeed by musicController.playbackSpeed.collectAsState()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SpotifyDarkGray
+        containerColor = screenBg
     ) {
         Column(
             modifier = Modifier
@@ -60,12 +65,12 @@ fun PlaybackSpeedBottomSheet(
                 Icon(
                     imageVector = Icons.Filled.Speed,
                     contentDescription = "Playback Speed",
-                    tint = SpotifyWhite,
+                    tint = currentTheme.primaryColor,
                     modifier = Modifier.size(24.dp)
                 )
                 Text(
                     text = "Playback Speed",
-                    color = SpotifyWhite,
+                    color = textPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 12.dp)
@@ -89,7 +94,7 @@ fun PlaybackSpeedBottomSheet(
                 ) {
                     Text(
                         text = label,
-                        color = if (isSelected) SpotifyGreen else SpotifyWhite,
+                        color = if (isSelected) currentTheme.primaryColor else textPrimary,
                         fontSize = 16.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                     )
@@ -98,7 +103,7 @@ fun PlaybackSpeedBottomSheet(
                         Icon(
                             imageVector = Icons.Filled.Check,
                             contentDescription = "Selected",
-                            tint = SpotifyGreen,
+                            tint = currentTheme.primaryColor,
                             modifier = Modifier.size(22.dp)
                         )
                     }

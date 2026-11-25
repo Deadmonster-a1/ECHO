@@ -2,24 +2,35 @@ package com.spotify.clone.core.data
 
 import android.content.ContentUris
 import android.content.Context
+import android.graphics.Bitmap
+import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
+import android.util.Size
 import com.spotify.clone.core.database.AppDatabase
 import com.spotify.clone.core.database.PlaylistEntity
+import com.spotify.clone.core.database.PlaylistTrackCrossRef
 import com.spotify.clone.core.database.TrackEntity
 import com.spotify.clone.core.model.Artist
 import com.spotify.clone.core.model.EditorialBanner
+import com.spotify.clone.core.model.MusicGenre
 import com.spotify.clone.core.model.Playlist
 import com.spotify.clone.core.model.Track
+import com.spotify.clone.core.recommendation.SongUpgradeEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
+import java.io.FileOutputStream
+import java.util.concurrent.ConcurrentHashMap
 
 class AudioRepository(
     private val context: Context,
@@ -37,124 +48,87 @@ class AudioRepository(
             return@withContext inMemory
         }
 
-        // 1. Fetch Tollywood Telugu Top Hits (Devara, Pushpa 2, Kalki, RRR, Guntur Kaaram)
-        val teluguTopHitsDeferred = async {
-            try { withTimeoutOrNull(2500) { globalCatalog.getTeluguTopHitsPlaylist() } } catch (e: Exception) { null }
+        coroutineScope {
+            val topHitsDeferred = async {
+                runCatching {
+                    withTimeoutOrNull(3000) {
+                        globalCatalog.getCuratedPlaylist(
+                            term = "top hits 2026",
+                            playlistName = "Today's Top Hits",
+                            coverUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80",
+                            country = "US"
+                        )
+                    }
+                }.getOrNull()
+            }
+
+            val bollywoodHitsDeferred = async {
+                runCatching {
+                    withTimeoutOrNull(3000) {
+                        globalCatalog.getCuratedPlaylist(
+                            term = "hindi top hits",
+                            playlistName = "Indian Chartbusters",
+                            coverUrl = "https://c.saavncdn.com/871/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155213-500x500.jpg"
+                        )
+                    }
+                }.getOrNull()
+            }
+
+            val teluguHitsDeferred = async {
+                runCatching {
+                    withTimeoutOrNull(3000) { globalCatalog.getTeluguTopHitsPlaylist() }
+                }.getOrNull()
+            }
+
+            val chillMixDeferred = async {
+                runCatching {
+                    withTimeoutOrNull(3000) {
+                        globalCatalog.getCuratedPlaylist(
+                            term = "chill acoustic hits",
+                            playlistName = "Midnight Chill",
+                            coverUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg"
+                        )
+                    }
+                }.getOrNull()
+            }
+
+            val melodiesDeferred = async {
+                runCatching {
+                    withTimeoutOrNull(3000) { globalCatalog.getSidSriramMelodiesPlaylist() }
+                }.getOrNull()
+            }
+
+            val popMixDeferred = async {
+                runCatching {
+                    withTimeoutOrNull(3000) {
+                        globalCatalog.getCuratedPlaylist(
+                            term = "the weeknd taylor swift",
+                            playlistName = "Global Pop Mix",
+                            coverUrl = "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600&q=80",
+                            country = "US"
+                        )
+                    }
+                }.getOrNull()
+            }
+
+            val combined = listOfNotNull(
+                topHitsDeferred.await(),
+                bollywoodHitsDeferred.await(),
+                teluguHitsDeferred.await(),
+                popMixDeferred.await(),
+                chillMixDeferred.await(),
+                melodiesDeferred.await()
+            ).filter { it.tracks.isNotEmpty() }.toMutableList()
+
+            if (combined.size < 2) {
+                combined.addAll(SampleCatalog.samplePlaylists.filter { it.id != "pl_liked_songs" })
+            }
+
+            val finalPlaylists = combined.distinctBy { it.id }
+            finalPlaylists.forEach { playlistCache[it.id] = it }
+            cachedHomePlaylists = finalPlaylists
+            finalPlaylists
         }
-
-        // 2. Fetch Sid Sriram Telugu Melodies
-        val sidSriramHitsDeferred = async {
-            try { withTimeoutOrNull(2500) { globalCatalog.getSidSriramMelodiesPlaylist() } } catch (e: Exception) { null }
-        }
-
-        // 3. Fetch curated global top hits playlist
-        val topHitsDeferred = async {
-            try {
-                withTimeoutOrNull(2500) {
-                    globalCatalog.getCuratedPlaylist(
-                        term = "top hits 2026",
-                        playlistName = "Today's Top Hits",
-                        coverUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-                        country = "IN"
-                    )
-                }
-            } catch (e: Exception) { null }
-        }
-
-        // 4. Fetch Devara Part 1
-        val devaraDeferred = async {
-            try {
-                withTimeoutOrNull(2500) {
-                    globalCatalog.getCuratedPlaylist(
-                        term = "Devara Part 1",
-                        playlistName = "Devara: Part 1",
-                        coverUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg"
-                    )
-                }
-            } catch (e: Exception) { null }
-        }
-
-        // 5. Fetch Pushpa 2: The Rule
-        val pushpa2Deferred = async {
-            try {
-                withTimeoutOrNull(2500) {
-                    globalCatalog.getCuratedPlaylist(
-                        term = "Pushpa 2 The Rule",
-                        playlistName = "Pushpa 2: The Rule",
-                        coverUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg"
-                    )
-                }
-            } catch (e: Exception) { null }
-        }
-
-        // 6. Fetch Sita Ramam
-        val sitaRamamDeferred = async {
-            try {
-                withTimeoutOrNull(2500) {
-                    globalCatalog.getCuratedPlaylist(
-                        term = "Sita Ramam",
-                        playlistName = "Sita Ramam",
-                        coverUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg"
-                    )
-                }
-            } catch (e: Exception) { null }
-        }
-
-        // 7. Fetch Kalki 2898 AD
-        val kalkiDeferred = async {
-            try {
-                withTimeoutOrNull(2500) {
-                    globalCatalog.getCuratedPlaylist(
-                        term = "Kalki 2898 AD",
-                        playlistName = "Kalki 2898 AD",
-                        coverUrl = "https://c.saavncdn.com/264/Kalki-2898-AD-Telugu-2024-20240710180801-500x500.jpg"
-                    )
-                }
-            } catch (e: Exception) { null }
-        }
-
-        // 8. Fetch Daily Telugu Mix
-        val dailyMixDeferred = async {
-            try {
-                withTimeoutOrNull(2500) {
-                    globalCatalog.getCuratedPlaylist(
-                        term = "Telugu 2026",
-                        playlistName = "Daily Telugu Mix",
-                        coverUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg"
-                    )
-                }
-            } catch (e: Exception) { null }
-        }
-
-        val teluguTopHits = teluguTopHitsDeferred.await()
-        val sidSriramHits = sidSriramHitsDeferred.await()
-        val topHitsPlaylist = topHitsDeferred.await()
-        val devara = devaraDeferred.await()
-        val pushpa2 = pushpa2Deferred.await()
-        val sitaRamam = sitaRamamDeferred.await()
-        val kalki = kalkiDeferred.await()
-        val dailyMix = dailyMixDeferred.await()
-
-        val combined = mutableListOf<Playlist>()
-        val likedSongs = getPlaylistById("pl_liked_songs")
-        if (likedSongs != null) combined.add(likedSongs)
-        if (teluguTopHits != null && teluguTopHits.tracks.isNotEmpty()) combined.add(teluguTopHits)
-        if (sidSriramHits != null && sidSriramHits.tracks.isNotEmpty()) combined.add(sidSriramHits)
-        if (topHitsPlaylist != null && topHitsPlaylist.tracks.isNotEmpty()) combined.add(topHitsPlaylist)
-        if (devara != null && devara.tracks.isNotEmpty()) combined.add(devara)
-        if (pushpa2 != null && pushpa2.tracks.isNotEmpty()) combined.add(pushpa2)
-        if (sitaRamam != null && sitaRamam.tracks.isNotEmpty()) combined.add(sitaRamam)
-        if (kalki != null && kalki.tracks.isNotEmpty()) combined.add(kalki)
-        if (dailyMix != null && dailyMix.tracks.isNotEmpty()) combined.add(dailyMix)
-
-        val distinct = combined.distinctBy { it.id }.toMutableList()
-        if (distinct.size <= 1) {
-            distinct.addAll(SampleCatalog.samplePlaylists)
-        }
-        val finalPlaylists = distinct.distinctBy { it.id }
-        finalPlaylists.forEach { playlistCache[it.id] = it }
-        cachedHomePlaylists = finalPlaylists
-        finalPlaylists
     }
 
     fun getUserPlaylists(): Flow<List<Playlist>> {
@@ -165,7 +139,7 @@ class AudioRepository(
                     id = entity.id,
                     name = entity.name,
                     description = entity.description,
-                    coverArtUrl = entity.coverArtUrl.ifBlank { "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg" },
+                    coverArtUrl = entity.coverArtUrl,
                     ownerName = entity.ownerName,
                     tracks = tracks
                 )
@@ -174,68 +148,93 @@ class AudioRepository(
     }
 
     suspend fun getHomeArtists(): List<Artist> = withContext(Dispatchers.IO) {
-        SampleCatalog.sampleArtists
+        val saavnRadios = runCatching {
+            withTimeoutOrNull(2500) { globalCatalog.getJioSaavnArtistRadios() }
+        }.getOrNull().orEmpty()
+
+        val globalFeatured = listOf(
+            Artist(
+                id = "art_weeknd",
+                name = "The Weeknd",
+                avatarUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/49/3d/ab/493dab54-f920-9043-6181-80993b8116c9/19UMGIM53909.rgb.jpg/600x600bb.jpg",
+                monthlyListeners = 112000000L
+            ),
+            Artist(
+                id = "art_taylor",
+                name = "Taylor Swift",
+                avatarUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
+                monthlyListeners = 98000000L
+            ),
+            Artist(
+                id = "art_arijit",
+                name = "Arijit Singh",
+                avatarUrl = "https://c.saavncdn.com/871/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155213-500x500.jpg",
+                monthlyListeners = 42000000L
+            )
+        )
+
+        (saavnRadios + globalFeatured + SampleCatalog.sampleArtists)
+            .distinctBy { it.name.lowercase().trim() }
+            .take(12)
     }
 
-    fun getFavoriteTracks(): Flow<List<Track>> {
-        return trackDao.getFavoriteTracks().map { list -> list.map { it.toDomainModel() } }
+    fun getFavoriteTracks(): Flow<List<Track>> =
+        trackDao.getFavoriteTracks().map { list -> list.map { it.toDomainModel() } }
+
+    fun getRecentlyPlayedTracks(): Flow<List<Track>> =
+        trackDao.getRecentlyPlayedTracks().map { list -> list.map { it.toDomainModel() } }
+
+    suspend fun recordTrackPlayed(track: Track) = withContext(Dispatchers.IO) {
+        val existing = trackDao.getTrackById(track.id)
+        val isFav = existing?.isFavorite ?: track.isFavorite
+        val now = System.currentTimeMillis()
+        val entity = TrackEntity.fromDomainModel(track.copy(isFavorite = isFav), lastPlayed = now)
+        trackDao.insertTrack(entity)
+        trackDao.updateLastPlayed(track.id, now)
     }
 
     suspend fun toggleFavorite(track: Track): Boolean = withContext(Dispatchers.IO) {
-        val newStatus = !track.isFavorite
-        trackDao.insertTrack(TrackEntity.fromDomainModel(track.copy(isFavorite = newStatus)))
+        val existing = trackDao.getTrackById(track.id)
+        val currentFav = existing?.isFavorite ?: track.isFavorite
+        val newStatus = !currentFav
+        trackDao.insertTrack(
+            TrackEntity.fromDomainModel(
+                track.copy(isFavorite = newStatus),
+                lastPlayed = existing?.lastPlayedTimestamp ?: 0L
+            )
+        )
         trackDao.setFavorite(track.id, newStatus)
         newStatus
     }
 
     suspend fun search(query: String): List<Track> = withContext(Dispatchers.IO) {
         if (query.isBlank()) {
-            val globalTop = try {
-                globalCatalog.searchTracks("top hits", limit = 15)
-            } catch (e: Exception) {
-                emptyList()
-            }
+            val globalTop = runCatching { globalCatalog.searchTracks("top hits", limit = 15) }.getOrDefault(emptyList())
             val localTracks = scanLocalAudioFiles()
-            val allTracks = if (globalTop.isNotEmpty()) globalTop + localTracks else localTracks
-            return@withContext allTracks.distinctBy { it.id }
+            return@withContext (globalTop + localTracks).distinctBy { it.id }
         }
 
         val q = query.trim().lowercase()
         val localMatches = scanLocalAudioFiles().filter {
             it.title.lowercase().contains(q) ||
-            it.artistName.lowercase().contains(q) ||
-            it.albumName.lowercase().contains(q)
+                it.artistName.lowercase().contains(q) ||
+                it.albumName.lowercase().contains(q)
         }
 
-        // 1. Live Global 100M+ catalog search (Coldplay, Taylor Swift, Drake, Eminem, etc.)
-        val globalResults = try {
-            globalCatalog.searchTracks(query, limit = 25)
-        } catch (e: Exception) {
-            emptyList()
-        }
+        coroutineScope {
+            val globalDef = async { runCatching { globalCatalog.searchTracks(query, limit = 25) }.getOrDefault(emptyList()) }
+            val cloudDef = async { runCatching { openMusicApi.searchTracks(query, limit = 15) }.getOrDefault(emptyList()) }
+            val spotifyDef = async { runCatching { spotifyApi.searchTracks(query) }.getOrDefault(emptyList()) }
 
-        // 2. Live Cloud search across open decentralized network
-        val cloudResults = try {
-            openMusicApi.searchTracks(query, limit = 15)
-        } catch (e: Exception) {
-            emptyList()
-        }
-
-        // 3. Live Spotify Catalog search (if Premium developer credentials active)
-        val spotifyResults = try {
-            spotifyApi.searchTracks(query)
-        } catch (e: Exception) {
-            emptyList()
-        }
-
-        (globalResults + cloudResults + spotifyResults + localMatches).distinctBy {
-            "${it.title.lowercase().trim()}_${it.artistName.lowercase().trim()}"
+            (globalDef.await() + cloudDef.await() + spotifyDef.await() + localMatches).distinctBy {
+                "${it.title.lowercase().trim()}_${it.artistName.lowercase().trim()}"
+            }
         }
     }
 
     suspend fun searchAlbums(query: String): List<Playlist> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
-        val albums = globalCatalog.searchAlbums(query, limit = 6)
+        val albums = runCatching { globalCatalog.searchAlbums(query, limit = 8) }.getOrDefault(emptyList())
         albums.forEach { playlistCache[it.id] = it }
         albums
     }
@@ -246,19 +245,24 @@ class AudioRepository(
             return@withContext Playlist(
                 id = "pl_liked_songs",
                 name = "Liked Songs",
-                description = "Your favorite tracks and personal collection in one place.",
-                coverArtUrl = "",
+                description = "Your favorite tracks in one place",
+                coverArtUrl = favorites.firstOrNull()?.coverArtUrl ?: "",
                 ownerName = "You",
                 tracks = favorites
             )
         }
 
-        if (id.startsWith("podcast_")) {
-            val podcast = SampleCatalog.samplePodcasts.find { it.id == id }
-            if (podcast != null) {
-                playlistCache[id] = podcast
-                return@withContext podcast
-            }
+        val userEntity = playlistDao.getPlaylistById(id)
+        if (userEntity != null) {
+            val tracks = playlistDao.getTracksForPlaylist(id).first().map { it.toDomainModel() }
+            return@withContext Playlist(
+                id = userEntity.id,
+                name = userEntity.name,
+                description = userEntity.description,
+                coverArtUrl = userEntity.coverArtUrl.ifBlank { tracks.firstOrNull()?.coverArtUrl ?: "" },
+                ownerName = userEntity.ownerName,
+                tracks = tracks
+            )
         }
 
         val cached = playlistCache[id]
@@ -267,101 +271,100 @@ class AudioRepository(
         }
 
         if (id.startsWith("album_saavn_")) {
-            val albumId = id.removePrefix("album_saavn_")
-            val albumPlaylist = globalCatalog.getAlbumPlaylist(albumId)
-            if (albumPlaylist != null) {
-                playlistCache[id] = albumPlaylist
-                return@withContext albumPlaylist
+            globalCatalog.getAlbumPlaylist(id.removePrefix("album_saavn_"))?.let {
+                playlistCache[id] = it
+                return@withContext it
             }
         }
 
         if (id.startsWith("saavn_chart_")) {
-            val listId = id.removePrefix("saavn_chart_")
-            val chartPlaylist = globalCatalog.getJioSaavnPlaylist(listId)
-            if (chartPlaylist != null) {
-                playlistCache[id] = chartPlaylist
-                return@withContext chartPlaylist
+            globalCatalog.getJioSaavnPlaylist(id.removePrefix("saavn_chart_"))?.let {
+                playlistCache[id] = it
+                return@withContext it
             }
         }
 
         if (id.startsWith("saavn_pl_")) {
-            val listId = id.removePrefix("saavn_pl_")
-            val jioPlaylist = globalCatalog.getJioSaavnPlaylist(listId)
-            if (jioPlaylist != null) {
-                playlistCache[id] = jioPlaylist
-                return@withContext jioPlaylist
+            globalCatalog.getJioSaavnPlaylist(id.removePrefix("saavn_pl_"))?.let {
+                playlistCache[id] = it
+                return@withContext it
             }
         }
 
-        val basePlaylist = cached
+        if (id.startsWith("audius_pl_")) {
+            val tracks = runCatching { openMusicApi.getPlaylistTracks(id) }.getOrDefault(emptyList())
+            if (cached != null) {
+                val updated = cached.copy(tracks = tracks)
+                playlistCache[id] = updated
+                return@withContext updated
+            }
+        }
+
+        val base = cached
             ?: getHomePlaylists().find { it.id == id }
             ?: SampleCatalog.samplePlaylists.find { it.id == id }
-            ?: Playlist(
-                id = id,
-                name = "ECHO Curated Selection",
-                description = "Hand-picked listening experience in Studio Fidelity",
-                coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
-                ownerName = "ECHO Editorial",
-                tracks = SampleCatalog.sampleTracks
-            )
 
-        if (basePlaylist.tracks.isEmpty()) {
-            if (id.startsWith("audius_pl_")) {
-                val tracks = try { openMusicApi.getPlaylistTracks(id) } catch (e: Exception) { emptyList() }
-                if (tracks.isNotEmpty()) {
-                    val updated = basePlaylist.copy(tracks = tracks)
-                    playlistCache[id] = updated
-                    return@withContext updated
-                }
-            }
-            val fallbackTracks = SampleCatalog.sampleTracks
-            val updated = basePlaylist.copy(tracks = fallbackTracks)
-            playlistCache[id] = updated
-            return@withContext updated
+        if (base != null && base.tracks.isEmpty() && base.ownerName.isNotBlank()) {
+            val searched = search(base.name).take(15)
+            val resolved = base.copy(tracks = searched.ifEmpty { SampleCatalog.sampleTracks })
+            playlistCache[id] = resolved
+            return@withContext resolved
         }
-        playlistCache[id] = basePlaylist
-        basePlaylist
-    }
 
-    suspend fun isFavorite(trackId: String): Boolean = withContext(Dispatchers.IO) {
-        trackDao.getTrackById(trackId)?.isFavorite ?: false
+        base
     }
 
     suspend fun addTrackToPlaylist(track: Track, playlistId: String) = withContext(Dispatchers.IO) {
-        trackDao.insertTrack(TrackEntity.fromDomainModel(track))
-        val crossRef = com.spotify.clone.core.database.PlaylistTrackCrossRef(
-            playlistId = playlistId,
-            trackId = track.id,
-            position = System.currentTimeMillis().toInt()
+        val existing = trackDao.getTrackById(track.id)
+        trackDao.insertTrack(
+            TrackEntity.fromDomainModel(
+                track.copy(isFavorite = existing?.isFavorite ?: track.isFavorite),
+                lastPlayed = existing?.lastPlayedTimestamp ?: 0L
+            )
         )
-        playlistDao.addTrackToPlaylist(crossRef)
+        val existingCount = playlistDao.getTracksForPlaylist(playlistId).first().size
+        playlistDao.addTrackToPlaylist(
+            PlaylistTrackCrossRef(
+                playlistId = playlistId,
+                trackId = track.id,
+                position = existingCount
+            )
+        )
     }
 
-    companion object {
-        private val playlistCache = java.util.concurrent.ConcurrentHashMap<String, Playlist>()
-        @Volatile
-        private var cachedHomePlaylists: List<Playlist>? = null
+    suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String) = withContext(Dispatchers.IO) {
+        playlistDao.removeTrackFromPlaylist(playlistId, trackId)
     }
 
     suspend fun createPlaylist(name: String, description: String = ""): Playlist = withContext(Dispatchers.IO) {
         val newId = "pl_custom_${System.currentTimeMillis()}"
         val entity = PlaylistEntity(
             id = newId,
-            name = name,
-            description = description,
-            coverArtUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg"
+            name = name.trim(),
+            description = description.trim(),
+            coverArtUrl = ""
         )
         playlistDao.insertPlaylist(entity)
         Playlist(
             id = newId,
-            name = name,
-            description = description,
-            coverArtUrl = entity.coverArtUrl,
+            name = entity.name,
+            description = entity.description,
+            coverArtUrl = "",
             ownerName = "You"
         )
     }
 
-    suspend fun scanLocalAudioFiles(): List<Track> = withContext(Dispatchers.IO) {
+    suspend fun deletePlaylist(playlistId: String) = withContext(Dispatchers.IO) {
+        playlistDao.clearPlaylistTracks(playlistId)
+        playlistDao.deletePlaylist(playlistId)
+    }
+
+    suspend fun scanLocalAudioFiles(forceRefresh: Boolean = false): List<Track> = withContext(Dispatchers.IO) {
+        val cached = cachedLocalTracks
+        val now = System.currentTimeMillis()
+        if (!forceRefresh && cached != null && (now - lastLocalScanMs) < 60_000L) {
+            return@withContext cached
+        }
         val localTracks = mutableListOf<Track>()
         try {
             val projection = arrayOf(
@@ -373,35 +376,30 @@ class AudioRepository(
                 MediaStore.Audio.Media.ALBUM_ID
             )
             val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND ${MediaStore.Audio.Media.DURATION} > 15000"
-            val cursor = context.contentResolver.query(
+            context.contentResolver.query(
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                 projection,
                 selection,
                 null,
                 "${MediaStore.Audio.Media.TITLE} ASC"
-            )
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+                val artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+                val albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+                val durationCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
+                val albumIdCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
 
-            cursor?.use {
-                val idCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-                val titleCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-                val artistCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-                val albumCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-                val durationCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-                val albumIdCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-
-                while (it.moveToNext()) {
-                    val id = it.getLong(idCol)
-                    val title = it.getString(titleCol) ?: "Unknown Track"
-                    val artist = it.getString(artistCol) ?: "Unknown Artist"
-                    val album = it.getString(albumCol) ?: "Unknown Album"
-                    val duration = it.getLong(durationCol)
-                    val albumId = it.getLong(albumIdCol)
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idCol)
+                    val title = cursor.getString(titleCol) ?: "Unknown Track"
+                    val artist = cursor.getString(artistCol) ?: "Unknown Artist"
+                    val album = cursor.getString(albumCol) ?: "Unknown Album"
+                    val duration = cursor.getLong(durationCol)
+                    val albumId = cursor.getLong(albumIdCol)
 
                     val contentUri = ContentUris.withAppendedId(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, id)
-                    val artUri = ContentUris.withAppendedId(
-                        android.net.Uri.parse("content://media/external/audio/albumart"),
-                        albumId
-                    )
+                    val artUri = resolveLocalAlbumArtUri(contentUri, albumId)
 
                     localTracks.add(
                         Track(
@@ -409,56 +407,129 @@ class AudioRepository(
                             title = title,
                             artistName = artist,
                             albumName = album,
-                            coverArtUrl = artUri.toString(),
+                            coverArtUrl = artUri,
                             durationMs = duration,
                             mediaUri = contentUri.toString()
                         )
                     )
                 }
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (_: Exception) {
         }
+        cachedLocalTracks = localTracks
+        lastLocalScanMs = System.currentTimeMillis()
         localTracks
     }
 
-    fun getEditorialBanners(): List<EditorialBanner> {
-        return globalCatalog.getEditorialBanners()
+    private fun resolveLocalAlbumArtUri(contentUri: Uri, albumId: Long): String {
+        val legacyUri = if (albumId > 0L) {
+            ContentUris.withAppendedId(Uri.parse("content://media/external/audio/albumart"), albumId).toString()
+        } else {
+            ""
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && albumId > 0L) {
+            val cacheDir = File(context.cacheDir, "local_album_art").apply { if (!exists()) mkdirs() }
+            val cachedFile = File(cacheDir, "album_$albumId.jpg")
+            if (cachedFile.exists() && cachedFile.length() > 0L) {
+                return Uri.fromFile(cachedFile).toString()
+            }
+            val loaded = runCatching {
+                val bmp = context.contentResolver.loadThumbnail(contentUri, Size(320, 320), null)
+                FileOutputStream(cachedFile).use { out ->
+                    bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                }
+                bmp.recycle()
+                Uri.fromFile(cachedFile).toString()
+            }.getOrNull()
+            if (!loaded.isNullOrBlank()) return loaded
+        }
+        return legacyUri
     }
 
-    suspend fun getBestNewSongs(): List<Track> {
-        return globalCatalog.getAppleNewSongs(20)
+    fun getEditorialBanners(): List<EditorialBanner> = globalCatalog.getEditorialBanners()
+
+    suspend fun getBestNewSongs(): List<Track> = SongUpgradeEngine.upgradeCatalogFast(globalCatalog.getAppleNewSongs(20))
+
+    suspend fun getNewAlbums(): List<Playlist> = globalCatalog.getAppleNewAlbums(15)
+
+    suspend fun getDailyTop100(): List<Track> = SongUpgradeEngine.upgradeCatalogFast(globalCatalog.getDailyTop100(20))
+
+    /**
+     * Fetches a fresh daily pool of new releases across global and regional storefronts,
+     * tailored to the user's preferred languages and genres, and upgrades metadata immediately.
+     */
+    suspend fun getDailyNewSongsFeed(
+        preferredLanguages: Set<String> = emptySet(),
+        preferredGenres: List<MusicGenre> = emptyList()
+    ): List<Track> = withContext(Dispatchers.IO) {
+        coroutineScope {
+            val appleGlobalDef = async { runCatching { globalCatalog.getAppleNewSongs(20) }.getOrDefault(emptyList()) }
+            val saavnLatestInDef = async { runCatching { globalCatalog.fetchSaavnTracks("latest indian songs 2026", limit = 15) }.getOrDefault(emptyList()) }
+            val regionalQuery = when {
+                "Telugu" in preferredLanguages -> "new telugu songs 2026"
+                "Hindi" in preferredLanguages -> "latest hindi songs 2026"
+                "Tamil" in preferredLanguages -> "new tamil songs 2026"
+                "Punjabi" in preferredLanguages -> "new punjabi songs 2026"
+                else -> "new trending songs 2026"
+            }
+            val regionalDef = async { runCatching { globalCatalog.fetchSaavnTracks(regionalQuery, limit = 15) }.getOrDefault(emptyList()) }
+            val genreQuery = preferredGenres.firstOrNull { it != MusicGenre.ALL }?.searchQueries?.firstOrNull()
+            val genreDef = async {
+                if (genreQuery != null) runCatching { globalCatalog.fetchSaavnTracks(genreQuery, limit = 12) }.getOrDefault(emptyList())
+                else emptyList()
+            }
+
+            val merged = appleGlobalDef.await() + regionalDef.await() + saavnLatestInDef.await() + genreDef.await()
+            SongUpgradeEngine.upgradeCatalogFast(merged)
+        }
     }
 
-    suspend fun getNewAlbums(): List<Playlist> {
-        return globalCatalog.getAppleNewAlbums(15)
+    suspend fun getAllPersistedTracks(): List<Track> = withContext(Dispatchers.IO) {
+        trackDao.getAllTracks().map { it.toDomainModel() }
     }
 
-    suspend fun getDailyTop100(): List<Track> {
-        return globalCatalog.getDailyTop100(20)
+    suspend fun persistUpgradedTrack(track: Track) = withContext(Dispatchers.IO) {
+        val existing = trackDao.getTrackById(track.id)
+        trackDao.insertTrack(
+            TrackEntity.fromDomainModel(
+                track = track.copy(isFavorite = existing?.isFavorite ?: track.isFavorite),
+                lastPlayed = existing?.lastPlayedTimestamp ?: 0L
+            )
+        )
     }
 
-    suspend fun getJioSaavnCharts(): List<Playlist> {
-        return globalCatalog.getJioSaavnCharts()
-    }
+    suspend fun getJioSaavnCharts(): List<Playlist> = globalCatalog.getJioSaavnCharts()
 
-    suspend fun getJioSaavnTrending(): List<Playlist> {
-        return globalCatalog.getJioSaavnTrending()
-    }
+    suspend fun getJioSaavnTrending(): List<Playlist> = globalCatalog.getJioSaavnTrending()
 
-    suspend fun getJioSaavnArtistRadios(): List<Artist> {
-        return globalCatalog.getJioSaavnArtistRadios()
-    }
+    companion object {
+        private val playlistCache = ConcurrentHashMap<String, Playlist>()
+        @Volatile private var cachedHomePlaylists: List<Playlist>? = null
+        @Volatile private var cachedHomeDateKey: String? = null
+        @Volatile private var cachedLocalTracks: List<Track>? = null
+        @Volatile private var lastLocalScanMs: Long = 0L
+        private val _localScanRevision = MutableStateFlow(0L)
+        val localScanRevision: StateFlow<Long> = _localScanRevision.asStateFlow()
 
-    fun getPodcasts(): List<Playlist> {
-        return SampleCatalog.samplePodcasts
-    }
+        fun invalidateDailyCacheIfNewDay(dateKey: String) {
+            if (cachedHomeDateKey != dateKey) {
+                cachedHomePlaylists = null
+                cachedHomeDateKey = dateKey
+            }
+        }
 
-    fun getPodcastEpisodes(): List<Track> {
-        return SampleCatalog.samplePodcastEpisodes
-    }
+        fun forceInvalidateHomeCache() {
+            cachedHomePlaylists = null
+        }
 
-    suspend fun getSongsForLanguage(lang: String): List<Track> {
-        return globalCatalog.getSongsForLanguage(lang)
+        fun registerGeneratedPlaylists(playlists: List<Playlist>) {
+            playlists.forEach { playlistCache[it.id] = it }
+        }
+
+        fun notifyAudioPermissionGranted() {
+            cachedLocalTracks = null
+            lastLocalScanMs = 0L
+            _localScanRevision.value = System.currentTimeMillis().coerceAtLeast(_localScanRevision.value + 1L)
+        }
     }
 }

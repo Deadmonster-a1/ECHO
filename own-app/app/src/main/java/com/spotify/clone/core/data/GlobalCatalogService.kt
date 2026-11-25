@@ -51,12 +51,13 @@ class GlobalCatalogService {
         }
 
         val tracks = mutableListOf<Track>()
+        var conn: HttpURLConnection? = null
         try {
             val encoded = URLEncoder.encode(query.trim(), "UTF-8")
             val url = "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=$limit&p=1&q=$encoded"
-            val conn = openConnection(url, referer = "https://www.jiosaavn.com/")
+            conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val results = json.optJSONArray("results") ?: return@withContext emptyList()
 
                 for (i in 0 until results.length()) {
@@ -97,6 +98,8 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error in fetchSaavnTracks for query '$query'", e)
+        } finally {
+            conn?.disconnect()
         }
         val compilationKeywords = listOf("superhits", "waves", "collection", "mashup", "top 10", "top 20", "top 50", "romantic songs", "dance dhamaka")
         val sortedTracks = tracks.sortedBy { t ->
@@ -142,10 +145,11 @@ class GlobalCatalogService {
 
     private fun fetchAppleTracks(urlStr: String): List<Track> {
         val tracks = mutableListOf<Track>()
+        var conn: HttpURLConnection? = null
         try {
-            val conn = openConnection(urlStr)
+            conn = openConnection(urlStr)
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val results = json.optJSONArray("results") ?: return emptyList()
 
                 for (i in 0 until results.length()) {
@@ -178,6 +182,8 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed fetching tracks from Apple endpoint: $urlStr", e)
+        } finally {
+            conn?.disconnect()
         }
         return tracks
     }
@@ -301,12 +307,13 @@ class GlobalCatalogService {
      */
     suspend fun searchAlbums(query: String, limit: Int = 6): List<Playlist> = withContext(Dispatchers.IO) {
         val albums = mutableListOf<Playlist>()
+        var conn: HttpURLConnection? = null
         try {
             val encoded = URLEncoder.encode(query.trim(), "UTF-8")
             val url = "https://www.jiosaavn.com/api.php?__call=search.getAlbumResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=$limit&p=1&q=$encoded"
-            val conn = openConnection(url, referer = "https://www.jiosaavn.com/")
+            conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val results = json.optJSONArray("results") ?: return@withContext emptyList()
                 for (i in 0 until results.length()) {
                     val item = results.optJSONObject(i) ?: continue
@@ -334,6 +341,8 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error in searchAlbums for query '$query'", e)
+        } finally {
+            conn?.disconnect()
         }
         albums
     }
@@ -342,11 +351,12 @@ class GlobalCatalogService {
      * Fetches complete movie album soundtrack playlist with all full-length studio tracks.
      */
     suspend fun getAlbumPlaylist(albumId: String): Playlist? = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
         try {
             val url = "https://www.jiosaavn.com/api.php?__call=content.getAlbumDetails&_format=json&_marker=0&api_version=4&ctx=web6dot0&albumid=$albumId"
-            val conn = openConnection(url, referer = "https://www.jiosaavn.com/")
+            conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val rawTitle = json.optString("title", "")
                 if (rawTitle.isBlank()) return@withContext null
                 val title = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString().trim()
@@ -392,59 +402,44 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch album details for albumId $albumId", e)
+        } finally {
+            conn?.disconnect()
         }
         null
     }
 
     /**
-     * Editorial hero banners inspired by Apple Music's "New" showcase.
+     * Editorial hero banners inspired by Apple Music's "Listen Now" showcase.
+     * Balanced mix of Global and Indian music.
      */
     fun getEditorialBanners(): List<EditorialBanner> {
         return listOf(
             EditorialBanner(
-                id = "hero_devara",
-                eyebrow = "",
-                title = "Devara: Part 1 Hits",
-                subtitle = "Chuttamalle, Fear Song & Daavudi by Anirudh Ravichander",
+                id = "hero_top_hits",
+                eyebrow = "FEATURED MIX",
+                title = "Today's Top Hits",
+                subtitle = "The biggest global chart-toppers and viral favorites right now",
+                coverArtUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80",
+                targetPlaylistId = "global_pl_top_hits_2026",
+                targetQuery = "top hits 2026"
+            ),
+            EditorialBanner(
+                id = "hero_indian_hits",
+                eyebrow = "NEW & TRENDING",
+                title = "Indian Chartbusters",
+                subtitle = "Arijit Singh, Anirudh, Sid Sriram & chart-topping film hits",
                 coverArtUrl = "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg",
-                targetPlaylistId = "pl_devara",
-                targetQuery = "Chuttamalle Devara"
+                targetPlaylistId = "pl_telugu_top_hits",
+                targetQuery = "indian top hits"
             ),
             EditorialBanner(
-                id = "hero_pushpa2",
-                eyebrow = "✦ NEW RELEASE",
-                title = "Pushpa 2: The Rule",
-                subtitle = "Allu Arjun & Devi Sri Prasad chartbusters in studio quality",
-                coverArtUrl = "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg",
-                targetPlaylistId = "pl_pushpa2",
-                targetQuery = "Pushpa 2 Pushpa Pushpa"
-            ),
-            EditorialBanner(
-                id = "hero_sita_ramam",
-                eyebrow = "✦ TELUGU MELODY MAGIC",
-                title = "Sita Ramam: Soulful Romance",
-                subtitle = "Inthandham, Oh Sita Hey Rama & Vishal Chandrashekhar's timeless strings",
+                id = "hero_chill_vibes",
+                eyebrow = "LATE NIGHT",
+                title = "Midnight Acoustic & Lo-Fi",
+                subtitle = "Mellow melodies, soulful vocals, and late-night calm",
                 coverArtUrl = "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg",
-                targetPlaylistId = "pl_sita_ramam",
-                targetQuery = "Sita Ramam Inthandham"
-            ),
-            EditorialBanner(
-                id = "hero_kalki",
-                eyebrow = "✦ SCI-FI SPECTACLE",
-                title = "Kalki 2898 AD",
-                subtitle = "Bhairava Anthem, Ta Takkara & Santhosh Narayanan's futuristic score",
-                coverArtUrl = "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg",
-                targetPlaylistId = "pl_kalki_2898",
-                targetQuery = "Bhairava Anthem Kalki"
-            ),
-            EditorialBanner(
-                id = "hero_ala_vaikunthapurramuloo",
-                eyebrow = "✦ ALL-TIME CHARTBUSTER",
-                title = "Ala Vaikunthapurramuloo",
-                subtitle = "Samajavaragamana, Butta Bomma & Ramuloo Ramulaa by Thaman S",
-                coverArtUrl = "https://c.saavncdn.com/517/Ala-Vaikunthapurramuloo-Telugu-2019-20200116144338-500x500.jpg",
-                targetPlaylistId = "pl_ala_vaikunthapurramuloo",
-                targetQuery = "Samajavaragamana"
+                targetPlaylistId = "global_pl_chill_acoustic_hits",
+                targetQuery = "chill acoustic hits"
             )
         )
     }
@@ -454,11 +449,12 @@ class GlobalCatalogService {
      */
     suspend fun getAppleNewSongs(limit: Int = 20): List<Track> = withContext(Dispatchers.IO) {
         val tracks = mutableListOf<Track>()
+        var conn: HttpURLConnection? = null
         try {
             val url = "https://rss.applemarketingtools.com/api/v2/us/music/most-played/$limit/songs.json"
-            val conn = openConnection(url)
+            conn = openConnection(url)
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val results = json.optJSONObject("feed")?.optJSONArray("results")
                 if (results != null) {
                     for (i in 0 until results.length()) {
@@ -486,6 +482,8 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch Apple New Songs", e)
+        } finally {
+            conn?.disconnect()
         }
         if (tracks.isEmpty()) {
             searchTracks("top hits 2026", limit = limit)
@@ -499,11 +497,12 @@ class GlobalCatalogService {
      */
     suspend fun getAppleNewAlbums(limit: Int = 15): List<Playlist> = withContext(Dispatchers.IO) {
         val albums = mutableListOf<Playlist>()
+        var conn: HttpURLConnection? = null
         try {
             val url = "https://rss.applemarketingtools.com/api/v2/us/music/most-played/$limit/albums.json"
-            val conn = openConnection(url)
+            conn = openConnection(url)
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val results = json.optJSONObject("feed")?.optJSONArray("results")
                 if (results != null) {
                     for (i in 0 until results.length()) {
@@ -531,6 +530,8 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch Apple New Albums", e)
+        } finally {
+            conn?.disconnect()
         }
         albums
     }
@@ -549,11 +550,12 @@ class GlobalCatalogService {
      */
     suspend fun getJioSaavnCharts(): List<Playlist> = withContext(Dispatchers.IO) {
         val charts = mutableListOf<Playlist>()
+        var conn: HttpURLConnection? = null
         try {
             val url = "https://www.jiosaavn.com/api.php?__call=content.getCharts&api_version=4&_format=json&_marker=0&ctx=web6dot0"
-            val conn = openConnection(url, referer = "https://www.jiosaavn.com/")
+            conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val array = org.json.JSONArray(conn.inputStream.bufferedReader().readText())
+                val array = org.json.JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
                 for (i in 0 until array.length()) {
                     val obj = array.optJSONObject(i) ?: continue
                     val id = obj.optString("id", "")
@@ -575,6 +577,8 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch JioSaavn charts", e)
+        } finally {
+            conn?.disconnect()
         }
         charts
     }
@@ -584,11 +588,12 @@ class GlobalCatalogService {
      */
     suspend fun getJioSaavnTrending(): List<Playlist> = withContext(Dispatchers.IO) {
         val trending = mutableListOf<Playlist>()
+        var conn: HttpURLConnection? = null
         try {
             val url = "https://www.jiosaavn.com/api.php?__call=webapi.getLaunchData&api_version=4&_format=json&_marker=0&ctx=web6dot0"
-            val conn = openConnection(url, referer = "https://www.jiosaavn.com/")
+            conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val newTrending = json.optJSONArray("new_trending")
                 if (newTrending != null) {
                     for (i in 0 until newTrending.length()) {
@@ -617,6 +622,8 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch JioSaavn trending", e)
+        } finally {
+            conn?.disconnect()
         }
         trending
     }
@@ -626,11 +633,12 @@ class GlobalCatalogService {
      */
     suspend fun getJioSaavnArtistRadios(): List<Artist> = withContext(Dispatchers.IO) {
         val radios = mutableListOf<Artist>()
+        var conn: HttpURLConnection? = null
         try {
             val url = "https://www.jiosaavn.com/api.php?__call=webapi.getLaunchData&api_version=4&_format=json&_marker=0&ctx=web6dot0"
-            val conn = openConnection(url, referer = "https://www.jiosaavn.com/")
+            conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val artistRecos = json.optJSONArray("artist_recos")
                 if (artistRecos != null) {
                     for (i in 0 until artistRecos.length()) {
@@ -654,6 +662,8 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch JioSaavn artist radios", e)
+        } finally {
+            conn?.disconnect()
         }
         radios
     }
@@ -662,11 +672,12 @@ class GlobalCatalogService {
      * Fetches full 50-song playlist or chart from JioSaavn.
      */
     suspend fun getJioSaavnPlaylist(listId: String): Playlist? = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
         try {
             val url = "https://www.jiosaavn.com/api.php?__call=playlist.getDetails&listid=$listId&api_version=4&_format=json&_marker=0&ctx=web6dot0"
-            val conn = openConnection(url, referer = "https://www.jiosaavn.com/")
+            conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val rawTitle = json.optString("title", "")
                 if (rawTitle.isBlank()) return@withContext null
                 val title = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString().trim()
@@ -711,6 +722,8 @@ class GlobalCatalogService {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch JioSaavn playlist details for listId $listId", e)
+        } finally {
+            conn?.disconnect()
         }
         null
     }

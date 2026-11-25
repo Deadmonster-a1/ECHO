@@ -1,16 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brand ECHO Palette -->
-    <color name="echo_ivory">#F5F2EE</color>
-    <color name="echo_charcoal">#101016</color>
-    <color name="echo_lavender">#A79BFF</color>
-    <color name="echo_coral">#FF9C88</color>
-    <color name="echo_blue">#A8C9FF</color>
-    <color name="echo_gray">#777680</color>
+    <!-- Apple-Inspired ECHO Brand Palette -->
+    <color name="echo_ivory">#F6F6FA</color>
+    <color name="echo_charcoal">#09090C</color>
+    <color name="echo_blue">#0A84FF</color>
+    <color name="echo_indigo">#5856D6</color>
+    <color name="echo_cyan">#38BDF8</color>
+    <color name="echo_rose">#FA2D48</color>
+    <color name="echo_coral">#FF5E3A</color>
+    <color name="echo_gray">#7D7D88</color>
 
-    <color name="spotify_black">#101016</color>
-    <color name="spotify_dark_gray">#181822</color>
-    <color name="spotify_light_gray">#282836</color>
-    <color name="spotify_green">#A79BFF</color>
+    <color name="spotify_black">#09090C</color>
+    <color name="spotify_dark_gray">#121217</color>
+    <color name="spotify_light_gray">#1C1C23</color>
+    <color name="spotify_green">#5856D6</color>
     <color name="spotify_white">#FFFFFF</color>
-    <color name="spotify_text_secondary">#777680</color>
+    <color name="spotify_text_secondary">#A8A8B3</color>
 </resources>

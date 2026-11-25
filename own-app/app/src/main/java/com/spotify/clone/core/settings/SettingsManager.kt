@@ -2,87 +2,72 @@ package com.spotify.clone.core.settings
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.spotify.clone.core.model.MusicGenre
 import com.spotify.clone.core.player.AudioCacheManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
+/**
+ * Persisted audio, playback, and same-genre radio preferences for ECHO.
+ */
 object SettingsManager {
-    private const val PREFS_NAME = "spotify_app_settings"
+    private const val PREFS_NAME = "echo_app_settings"
 
-    private const val KEY_STREAMING_QUALITY = "streaming_quality"
-    private const val KEY_DOWNLOAD_QUALITY = "download_quality"
-    private const val KEY_AUTO_ADJUST_QUALITY = "auto_adjust_quality"
-    private const val KEY_DOWNLOAD_OVER_CELLULAR = "download_over_cellular"
     private const val KEY_AUDIO_NORMALIZATION = "audio_normalization"
-    private const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
-    private const val KEY_AUTOMIX = "automix_enabled"
-    private const val KEY_GAPLESS = "gapless_enabled"
-    private const val KEY_MONO_AUDIO = "mono_audio"
-    private const val KEY_AUTOPLAY = "autoplay_enabled"
     private const val KEY_PLAYBACK_SPEED = "playback_speed"
-    private const val KEY_ALLOW_EXPLICIT = "allow_explicit"
-    private const val KEY_SHOW_UNPLAYABLE = "show_unplayable"
-    private const val KEY_CANVAS = "canvas_enabled"
-    private const val KEY_PRIVATE_SESSION = "private_session"
-    private const val KEY_LISTENING_ACTIVITY = "listening_activity"
-    private const val KEY_SHOW_TOP_ARTISTS = "show_top_artists"
+    private const val KEY_SMART_RADIO = "smart_radio_enabled"
+    private const val KEY_GENRE_LOCK = "genre_lock_id"
+    private const val KEY_AUTO_MATCH_GENRE = "auto_match_genre"
+    private const val KEY_CROSSFADE_SECONDS = "crossfade_seconds"
+    private const val KEY_AUTO_GENRE_EQ = "auto_genre_eq"
+    private const val KEY_LYRICS_SIZE_TIER = "lyrics_size_tier"
+    private const val KEY_LYRICS_OFFSET_MS = "lyrics_offset_ms"
+    private const val KEY_LYRICS_USE_ROMANIZED = "lyrics_use_romanized"
 
     private var prefs: SharedPreferences? = null
-
-    private val _streamingQuality = MutableStateFlow("Very High (320 kbps)")
-    val streamingQuality: StateFlow<String> = _streamingQuality.asStateFlow()
-
-    private val _downloadQuality = MutableStateFlow("Very High (320 kbps)")
-    val downloadQuality: StateFlow<String> = _downloadQuality.asStateFlow()
-
-    private val _autoAdjustQuality = MutableStateFlow(true)
-    val autoAdjustQuality: StateFlow<Boolean> = _autoAdjustQuality.asStateFlow()
-
-    private val _downloadOverCellular = MutableStateFlow(false)
-    val downloadOverCellular: StateFlow<Boolean> = _downloadOverCellular.asStateFlow()
 
     private val _audioNormalization = MutableStateFlow(true)
     val audioNormalization: StateFlow<Boolean> = _audioNormalization.asStateFlow()
 
-    private val _crossfadeSeconds = MutableStateFlow(3.0f)
-    val crossfadeSeconds: StateFlow<Float> = _crossfadeSeconds.asStateFlow()
-
-    private val _automixEnabled = MutableStateFlow(true)
-    val automixEnabled: StateFlow<Boolean> = _automixEnabled.asStateFlow()
-
-    private val _gaplessEnabled = MutableStateFlow(true)
-    val gaplessEnabled: StateFlow<Boolean> = _gaplessEnabled.asStateFlow()
-
-    private val _monoAudio = MutableStateFlow(false)
-    val monoAudio: StateFlow<Boolean> = _monoAudio.asStateFlow()
-
-    private val _autoplayEnabled = MutableStateFlow(true)
-    val autoplayEnabled: StateFlow<Boolean> = _autoplayEnabled.asStateFlow()
-
     private val _playbackSpeed = MutableStateFlow(1.0f)
     val playbackSpeed: StateFlow<Float> = _playbackSpeed.asStateFlow()
 
-    private val _allowExplicit = MutableStateFlow(true)
-    val allowExplicit: StateFlow<Boolean> = _allowExplicit.asStateFlow()
+    private val _smartRadioEnabled = MutableStateFlow(true)
+    val smartRadioEnabled: StateFlow<Boolean> = _smartRadioEnabled.asStateFlow()
 
-    private val _showUnplayable = MutableStateFlow(false)
-    val showUnplayable: StateFlow<Boolean> = _showUnplayable.asStateFlow()
+    private val _selectedGenreLock = MutableStateFlow(MusicGenre.ALL)
+    val selectedGenreLock: StateFlow<MusicGenre> = _selectedGenreLock.asStateFlow()
 
-    private val _canvasEnabled = MutableStateFlow(true)
-    val canvasEnabled: StateFlow<Boolean> = _canvasEnabled.asStateFlow()
+    private val _autoMatchGenre = MutableStateFlow(true)
+    val autoMatchGenre: StateFlow<Boolean> = _autoMatchGenre.asStateFlow()
 
-    private val _privateSession = MutableStateFlow(false)
-    val privateSession: StateFlow<Boolean> = _privateSession.asStateFlow()
+    private val _crossfadeSeconds = MutableStateFlow(4)
+    val crossfadeSeconds: StateFlow<Int> = _crossfadeSeconds.asStateFlow()
 
-    private val _listeningActivity = MutableStateFlow(true)
-    val listeningActivity: StateFlow<Boolean> = _listeningActivity.asStateFlow()
-
-    private val _showTopArtists = MutableStateFlow(true)
-    val showTopArtists: StateFlow<Boolean> = _showTopArtists.asStateFlow()
+    private val _autoGenreEq = MutableStateFlow(false)
+    val autoGenreEq: StateFlow<Boolean> = _autoGenreEq.asStateFlow()
 
     private val _cachedSizeBytes = MutableStateFlow(0L)
     val cachedSizeBytes: StateFlow<Long> = _cachedSizeBytes.asStateFlow()
+
+    private val _eqUpdateSignal = MutableStateFlow(0L)
+    val eqUpdateSignal: StateFlow<Long> = _eqUpdateSignal.asStateFlow()
+
+    private val _lyricsSizeTier = MutableStateFlow("STANDARD")
+    val lyricsSizeTier: StateFlow<String> = _lyricsSizeTier.asStateFlow()
+
+    private val _lyricsOffsetMs = MutableStateFlow(0L)
+    val lyricsOffsetMs: StateFlow<Long> = _lyricsOffsetMs.asStateFlow()
+
+    private val _lyricsUseRomanized = MutableStateFlow(true)
+    val lyricsUseRomanized: StateFlow<Boolean> = _lyricsUseRomanized.asStateFlow()
+
+    private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     fun init(context: Context) {
         if (prefs == null) {
@@ -94,44 +79,17 @@ object SettingsManager {
 
     private fun loadPreferences() {
         prefs?.let { p ->
-            _streamingQuality.value = p.getString(KEY_STREAMING_QUALITY, "Very High (320 kbps)") ?: "Very High (320 kbps)"
-            _downloadQuality.value = p.getString(KEY_DOWNLOAD_QUALITY, "Very High (320 kbps)") ?: "Very High (320 kbps)"
-            _autoAdjustQuality.value = p.getBoolean(KEY_AUTO_ADJUST_QUALITY, true)
-            _downloadOverCellular.value = p.getBoolean(KEY_DOWNLOAD_OVER_CELLULAR, false)
             _audioNormalization.value = p.getBoolean(KEY_AUDIO_NORMALIZATION, true)
-            _crossfadeSeconds.value = p.getFloat(KEY_CROSSFADE_SECONDS, 3.0f)
-            _automixEnabled.value = p.getBoolean(KEY_AUTOMIX, true)
-            _gaplessEnabled.value = p.getBoolean(KEY_GAPLESS, true)
-            _monoAudio.value = p.getBoolean(KEY_MONO_AUDIO, false)
-            _autoplayEnabled.value = p.getBoolean(KEY_AUTOPLAY, true)
-            _playbackSpeed.value = p.getFloat(KEY_PLAYBACK_SPEED, 1.0f)
-            _allowExplicit.value = p.getBoolean(KEY_ALLOW_EXPLICIT, true)
-            _showUnplayable.value = p.getBoolean(KEY_SHOW_UNPLAYABLE, false)
-            _canvasEnabled.value = p.getBoolean(KEY_CANVAS, true)
-            _privateSession.value = p.getBoolean(KEY_PRIVATE_SESSION, false)
-            _listeningActivity.value = p.getBoolean(KEY_LISTENING_ACTIVITY, true)
-            _showTopArtists.value = p.getBoolean(KEY_SHOW_TOP_ARTISTS, true)
+            _playbackSpeed.value = p.getFloat(KEY_PLAYBACK_SPEED, 1.0f).coerceIn(0.5f, 2.0f)
+            _smartRadioEnabled.value = p.getBoolean(KEY_SMART_RADIO, true)
+            _selectedGenreLock.value = MusicGenre.fromId(p.getString(KEY_GENRE_LOCK, MusicGenre.ALL.id))
+            _autoMatchGenre.value = p.getBoolean(KEY_AUTO_MATCH_GENRE, true)
+            _crossfadeSeconds.value = p.getInt(KEY_CROSSFADE_SECONDS, 4).coerceIn(0, 12)
+            _autoGenreEq.value = p.getBoolean(KEY_AUTO_GENRE_EQ, false)
+            _lyricsSizeTier.value = p.getString(KEY_LYRICS_SIZE_TIER, "STANDARD") ?: "STANDARD"
+            _lyricsOffsetMs.value = p.getLong(KEY_LYRICS_OFFSET_MS, 0L).coerceIn(-10_000L, 10_000L)
+            _lyricsUseRomanized.value = p.getBoolean(KEY_LYRICS_USE_ROMANIZED, true)
         }
-    }
-
-    fun setStreamingQuality(value: String) {
-        _streamingQuality.value = value
-        prefs?.edit()?.putString(KEY_STREAMING_QUALITY, value)?.apply()
-    }
-
-    fun setDownloadQuality(value: String) {
-        _downloadQuality.value = value
-        prefs?.edit()?.putString(KEY_DOWNLOAD_QUALITY, value)?.apply()
-    }
-
-    fun setAutoAdjustQuality(value: Boolean) {
-        _autoAdjustQuality.value = value
-        prefs?.edit()?.putBoolean(KEY_AUTO_ADJUST_QUALITY, value)?.apply()
-    }
-
-    fun setDownloadOverCellular(value: Boolean) {
-        _downloadOverCellular.value = value
-        prefs?.edit()?.putBoolean(KEY_DOWNLOAD_OVER_CELLULAR, value)?.apply()
     }
 
     fun setAudioNormalization(value: Boolean) {
@@ -139,73 +97,83 @@ object SettingsManager {
         prefs?.edit()?.putBoolean(KEY_AUDIO_NORMALIZATION, value)?.apply()
     }
 
-    fun setCrossfadeSeconds(value: Float) {
-        _crossfadeSeconds.value = value
-        prefs?.edit()?.putFloat(KEY_CROSSFADE_SECONDS, value)?.apply()
-    }
-
-    fun setAutomixEnabled(value: Boolean) {
-        _automixEnabled.value = value
-        prefs?.edit()?.putBoolean(KEY_AUTOMIX, value)?.apply()
-    }
-
-    fun setGaplessEnabled(value: Boolean) {
-        _gaplessEnabled.value = value
-        prefs?.edit()?.putBoolean(KEY_GAPLESS, value)?.apply()
-    }
-
-    fun setMonoAudio(value: Boolean) {
-        _monoAudio.value = value
-        prefs?.edit()?.putBoolean(KEY_MONO_AUDIO, value)?.apply()
-    }
-
-    fun setAutoplayEnabled(value: Boolean) {
-        _autoplayEnabled.value = value
-        prefs?.edit()?.putBoolean(KEY_AUTOPLAY, value)?.apply()
-    }
-
     fun setPlaybackSpeed(value: Float) {
-        _playbackSpeed.value = value
-        prefs?.edit()?.putFloat(KEY_PLAYBACK_SPEED, value)?.apply()
+        val clamped = value.coerceIn(0.5f, 2.0f)
+        _playbackSpeed.value = clamped
+        prefs?.edit()?.putFloat(KEY_PLAYBACK_SPEED, clamped)?.apply()
     }
 
-    fun setAllowExplicit(value: Boolean) {
-        _allowExplicit.value = value
-        prefs?.edit()?.putBoolean(KEY_ALLOW_EXPLICIT, value)?.apply()
+    fun setSmartRadioEnabled(value: Boolean) {
+        _smartRadioEnabled.value = value
+        prefs?.edit()?.putBoolean(KEY_SMART_RADIO, value)?.apply()
     }
 
-    fun setShowUnplayable(value: Boolean) {
-        _showUnplayable.value = value
-        prefs?.edit()?.putBoolean(KEY_SHOW_UNPLAYABLE, value)?.apply()
+    fun setGenreLock(genre: MusicGenre) {
+        _selectedGenreLock.value = genre
+        prefs?.edit()?.putString(KEY_GENRE_LOCK, genre.id)?.apply()
     }
 
-    fun setCanvasEnabled(value: Boolean) {
-        _canvasEnabled.value = value
-        prefs?.edit()?.putBoolean(KEY_CANVAS, value)?.apply()
+    fun setAutoMatchGenre(enabled: Boolean) {
+        _autoMatchGenre.value = enabled
+        prefs?.edit()?.putBoolean(KEY_AUTO_MATCH_GENRE, enabled)?.apply()
     }
 
-    fun setPrivateSession(value: Boolean) {
-        _privateSession.value = value
-        prefs?.edit()?.putBoolean(KEY_PRIVATE_SESSION, value)?.apply()
+    fun setCrossfadeSeconds(seconds: Int) {
+        val clamped = seconds.coerceIn(0, 12)
+        _crossfadeSeconds.value = clamped
+        prefs?.edit()?.putInt(KEY_CROSSFADE_SECONDS, clamped)?.apply()
     }
 
-    fun setListeningActivity(value: Boolean) {
-        _listeningActivity.value = value
-        prefs?.edit()?.putBoolean(KEY_LISTENING_ACTIVITY, value)?.apply()
+    fun setAutoGenreEq(enabled: Boolean) {
+        _autoGenreEq.value = enabled
+        prefs?.edit()?.putBoolean(KEY_AUTO_GENRE_EQ, enabled)?.apply()
     }
 
-    fun setShowTopArtists(value: Boolean) {
-        _showTopArtists.value = value
-        prefs?.edit()?.putBoolean(KEY_SHOW_TOP_ARTISTS, value)?.apply()
+    fun setLyricsSizeTier(tierName: String) {
+        _lyricsSizeTier.value = tierName
+        prefs?.edit()?.putString(KEY_LYRICS_SIZE_TIER, tierName)?.apply()
+    }
+
+    fun setLyricsOffsetMs(offsetMs: Long) {
+        val clamped = offsetMs.coerceIn(-10_000L, 10_000L)
+        _lyricsOffsetMs.value = clamped
+        prefs?.edit()?.putLong(KEY_LYRICS_OFFSET_MS, clamped)?.apply()
+    }
+
+    fun setLyricsUseRomanized(useRomanized: Boolean) {
+        _lyricsUseRomanized.value = useRomanized
+        prefs?.edit()?.putBoolean(KEY_LYRICS_USE_ROMANIZED, useRomanized)?.apply()
+    }
+
+    fun notifyEqualizerChanged() {
+        _eqUpdateSignal.value = System.currentTimeMillis()
     }
 
     fun refreshCacheSize(context: Context) {
-        val size = AudioCacheManager.getCacheSizeBytes(context)
-        _cachedSizeBytes.value = size
+        val appContext = context.applicationContext
+        ioScope.launch {
+            _cachedSizeBytes.value = AudioCacheManager.getCacheSizeBytes(appContext)
+        }
     }
 
     fun clearCache(context: Context) {
-        AudioCacheManager.clearCache(context)
-        _cachedSizeBytes.value = 0L
+        val appContext = context.applicationContext
+        ioScope.launch {
+            AudioCacheManager.clearCache(appContext)
+            _cachedSizeBytes.value = 0L
+        }
+    }
+
+    fun resetDefaults() {
+        setAudioNormalization(true)
+        setPlaybackSpeed(1.0f)
+        setSmartRadioEnabled(true)
+        setGenreLock(MusicGenre.ALL)
+        setAutoMatchGenre(true)
+        setCrossfadeSeconds(4)
+        setAutoGenreEq(false)
+        setLyricsSizeTier("STANDARD")
+        setLyricsOffsetMs(0L)
+        setLyricsUseRomanized(true)
     }
 }

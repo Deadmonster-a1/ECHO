@@ -3,11 +3,12 @@ package com.spotify.clone.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,22 +41,45 @@ fun CategoryCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val cardShape = RoundedCornerShape(18.dp)
     Box(
         modifier = modifier
-            .height(105.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .fillMaxWidth()
+            .height(102.dp)
+            .shadow(
+                elevation = 10.dp,
+                shape = cardShape,
+                ambientColor = category.backgroundColor.copy(alpha = 0.28f),
+                spotColor = category.backgroundColor.copy(alpha = 0.38f)
+            )
+            .clip(cardShape)
             .background(
                 Brush.linearGradient(
                     listOf(
                         category.backgroundColor,
-                        category.backgroundColor.copy(alpha = 0.82f)
+                        category.backgroundColor.copy(alpha = 0.72f)
                     )
                 )
             )
-            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(14.dp))
-            .echoPressable(scaleOnPress = 0.95f, onClick = onClick)
+            .border(
+                width = 0.75.dp,
+                brush = Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.06f))
+                ),
+                shape = cardShape
+            )
+            .echoPressable(scaleOnPress = 0.96f, hapticOnClick = true, onClick = onClick)
     ) {
-        // Rotated Genre/Cover Art Image on bottom-right corner (Spotify signature style)
+        // Subtle ambient highlight orb for depth
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 24.dp, y = (-24).dp)
+                .size(84.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.12f))
+        )
+
         if (category.imageUrl.isNotBlank()) {
             AsyncImage(
                 model = category.imageUrl,
@@ -63,27 +87,27 @@ fun CategoryCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = 16.dp, y = 8.dp)
-                    .rotate(25f)
-                    .size(68.dp)
-                    .shadow(elevation = 8.dp, shape = RoundedCornerShape(6.dp))
-                    .clip(RoundedCornerShape(6.dp))
-                    .border(0.5.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
-                    .background(Color.Black.copy(alpha = 0.25f))
+                    .offset(x = 10.dp, y = 10.dp)
+                    .rotate(16f)
+                    .size(66.dp)
+                    .shadow(10.dp, RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(0.75.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                    .background(Color.Black.copy(alpha = 0.2f))
             )
         }
 
-        // Category Title on top-start
         Text(
             text = category.title,
             color = Color.White,
             fontWeight = FontWeight.Bold,
             fontSize = 15.5.sp,
+            letterSpacing = (-0.2).sp,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 14.dp, top = 14.dp, end = 50.dp)
+                .padding(start = 15.dp, top = 14.dp, end = 54.dp)
         )
     }
 }

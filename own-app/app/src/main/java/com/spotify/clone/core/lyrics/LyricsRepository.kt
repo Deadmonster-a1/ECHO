@@ -31,7 +31,7 @@ object LyricsRepository {
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
     private val memoryCache = ConcurrentHashMap<String, LyricsResult>()
-    private val lrcPattern = Pattern.compile("\\[(\\d{2}):(\\d{2}(?:\\.\\d{1,3})?)\\](.*)")
+    private val lrcTagPattern = Pattern.compile("\\[(\\d{1,3}):(\\d{2}(?:\\.\\d{1,3})?)]")
 
     /**
      * Instantly retrieves cached or curated lyrics if available (synchronous).
@@ -42,14 +42,16 @@ object LyricsRepository {
 
         // Check curated catalog
         LyricsCatalog.findCuratedLyrics(track.id, track.title)?.let { lines ->
-            val result = LyricsResult(LyricsSyncType.LINE_SYNCED, lines, "Echo Verified Studio Sync")
+            val enriched = enrichDurations(lines)
+            val result = LyricsResult(LyricsSyncType.LINE_SYNCED, enriched, "Echo Verified Studio Sync")
             memoryCache[cacheKey] = result
             return result
         }
 
         // Check if track object already has rich lyrics
         if (track.lyrics.isNotEmpty()) {
-            val result = LyricsResult(track.lyricsSyncType, track.lyrics, "Embedded Metadata")
+            val enriched = if (track.lyricsSyncType == LyricsSyncType.LINE_SYNCED) enrichDurations(track.lyrics) else track.lyrics
+            val result = LyricsResult(track.lyricsSyncType, enriched, "Embedded Metadata")
             memoryCache[cacheKey] = result
             return result
         }
@@ -70,7 +72,8 @@ object LyricsRepository {
 
         // Tier 1: Curated Studio Catalog
         LyricsCatalog.findCuratedLyrics(track.id, track.title)?.let { lines ->
-            val result = LyricsResult(LyricsSyncType.LINE_SYNCED, lines, "Echo Verified Studio Sync")
+            val enriched = enrichDurations(lines)
+            val result = LyricsResult(LyricsSyncType.LINE_SYNCED, enriched, "Echo Verified Studio Sync")
             memoryCache[cacheKey] = result
             return@withContext result
         }
@@ -109,10 +112,8 @@ object LyricsRepository {
             return@withContext result
         }
 
-        // Tier 5: Honest Unavailable State
-        val unavailable = LyricsResult(LyricsSyncType.NONE, emptyList(), "")
-        memoryCache[cacheKey] = unavailable
-        return@withContext unavailable
+        // Tier 5: Honest Unavailable State (do not cache transient misses in memoryCache)
+        return@withContext LyricsResult(LyricsSyncType.NONE, emptyList(), "")
     }
 
     private fun getCacheKey(track: Track): String {
@@ -120,7 +121,10 @@ object LyricsRepository {
     }
 
     private fun cleanQuery(input: String): String {
-        return input.replace(Regex("(?i)\\(.*?\\)|\\[.*?\\]"), "").trim()
+        return input
+            .replace(Regex("(?i)\\(.*?\\)|\\[.*?\\]"), "")
+            .replace(Regex("(?i)\\b(official\\s*video|official\\s*audio|lyric\\s*video|full\\s*video|video|audio|lyrics|4k|hd|remastered|remaster)\\b"), "")
+            .trim()
     }
 
     private fun fetchFromLrclib(track: Track): LyricsResult? {
@@ -128,6 +132,7 @@ object LyricsRepository {
         val primaryArtist = track.artistName.split(",", "&", "feat", "Feat").firstOrNull()?.trim() ?: track.artistName
 
         // Strategy A: Exact metadata match via /api/get
+        var getConn: HttpURLConnection? = null
         try {
             val getUrl = buildString {
                 append("https://lrclib.net/api/get?")
@@ -138,15 +143,15 @@ object LyricsRepository {
                 }
             }
 
-            val conn = (URL(getUrl).openConnection() as HttpURLConnection).apply {
+            getConn = (URL(getUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 5000
                 readTimeout = 6000
                 requestMethod = "GET"
                 setRequestProperty("User-Agent", USER_AGENT)
             }
 
-            if (conn.responseCode == 200) {
-                val respText = conn.inputStream.bufferedReader().use { it.readText() }
+            if (getConn.responseCode == 200) {
+                val respText = getConn.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(respText)
                 val synced = json.optString("syncedLyrics", "")
                 if (synced.isNotBlank()) {
@@ -165,21 +170,24 @@ object LyricsRepository {
             }
         } catch (e: Exception) {
             Log.d(TAG, "LRCLIB /api/get error: ${e.message}")
+        } finally {
+            getConn?.disconnect()
         }
 
         // Strategy B: Full text query via /api/search
+        var searchConn: HttpURLConnection? = null
         try {
             val query = "$cleanTitle $primaryArtist".trim()
             val searchUrl = "https://lrclib.net/api/search?q=" + URLEncoder.encode(query, "UTF-8")
-            val conn = (URL(searchUrl).openConnection() as HttpURLConnection).apply {
+            searchConn = (URL(searchUrl).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 6000
                 readTimeout = 7000
                 requestMethod = "GET"
                 setRequestProperty("User-Agent", USER_AGENT)
             }
 
-            if (conn.responseCode == 200) {
-                val respText = conn.inputStream.bufferedReader().use { it.readText() }
+            if (searchConn.responseCode == 200) {
+                val respText = searchConn.inputStream.bufferedReader().use { it.readText() }
                 val array = JSONArray(respText)
                 // Prioritize synced
                 for (i in 0 until array.length()) {
@@ -206,6 +214,8 @@ object LyricsRepository {
             }
         } catch (e: Exception) {
             Log.d(TAG, "LRCLIB /api/search error: ${e.message}")
+        } finally {
+            searchConn?.disconnect()
         }
 
         return null
@@ -215,23 +225,28 @@ object LyricsRepository {
         val saavnSongId = track.id.removePrefix("saavn_")
         val urlStr = "https://www.jiosaavn.com/api.php?__call=lyrics.getLyrics&ctx=web6dot0&api_version=4&_format=json&_marker=0&lyrics_id=$saavnSongId"
 
-        val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 5000
-            readTimeout = 6000
-            requestMethod = "GET"
-            setRequestProperty("Referer", "https://www.jiosaavn.com/")
-            setRequestProperty("User-Agent", USER_AGENT)
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5000
+                readTimeout = 6000
+                requestMethod = "GET"
+                setRequestProperty("Referer", "https://www.jiosaavn.com/")
+                setRequestProperty("User-Agent", USER_AGENT)
+            }
+
+            if (conn.responseCode != 200) return emptyList()
+
+            val response = conn.inputStream.bufferedReader().use { it.readText() }
+            val json = JSONObject(response)
+            val rawLyrics = json.optString("lyrics", "")
+            if (rawLyrics.isBlank()) return emptyList()
+
+            val cleanLyrics = Html.fromHtml(rawLyrics, Html.FROM_HTML_MODE_LEGACY).toString()
+            parsePlainLyrics(cleanLyrics)
+        } finally {
+            conn?.disconnect()
         }
-
-        if (conn.responseCode != 200) return emptyList()
-
-        val response = conn.inputStream.bufferedReader().use { it.readText() }
-        val json = JSONObject(response)
-        val rawLyrics = json.optString("lyrics", "")
-        if (rawLyrics.isBlank()) return emptyList()
-
-        val cleanLyrics = Html.fromHtml(rawLyrics, Html.FROM_HTML_MODE_LEGACY).toString()
-        return parsePlainLyrics(cleanLyrics)
     }
 
     /**
@@ -248,23 +263,44 @@ object LyricsRepository {
             // Skip ID3 tags like [ar:...], [ti:...], [al:...]
             if (trimmed.matches(Regex("^\\[[a-zA-Z]+:.*?\\]$"))) continue
 
-            val matcher = lrcPattern.matcher(trimmed)
-            if (matcher.find()) {
-                val minStr = matcher.group(1) ?: "00"
-                val secStr = matcher.group(2) ?: "00"
-                val words = matcher.group(3)?.trim() ?: ""
-
+            val timestamps = mutableListOf<Long>()
+            val matcher = lrcTagPattern.matcher(trimmed)
+            while (matcher.find()) {
+                val minStr = matcher.group(1) ?: continue
+                val secStr = matcher.group(2) ?: continue
                 val minutes = minStr.toLongOrNull() ?: 0L
                 val seconds = secStr.toDoubleOrNull() ?: 0.0
-                val timestampMs = (minutes * 60 * 1000) + (seconds * 1000).toLong()
+                timestamps.add((minutes * 60L * 1000L) + kotlin.math.round(seconds * 1000.0).toLong())
+            }
 
+            if (timestamps.isNotEmpty()) {
+                val words = lrcTagPattern.matcher(trimmed).replaceAll("").trim()
                 if (words.isNotBlank()) {
-                    lines.add(LyricLine(timestampMs, words))
+                    for (ts in timestamps) {
+                        lines.add(LyricLine(ts, words))
+                    }
                 }
             }
         }
 
-        return lines.sortedBy { it.timestampMs }
+        return enrichDurations(lines.sortedBy { it.timestampMs })
+    }
+
+    /**
+     * Calculates authentic line duration in milliseconds from consecutive line timestamps.
+     * Essential for high-fidelity progressive karaoke sweep rendering.
+     */
+    fun enrichDurations(lines: List<LyricLine>): List<LyricLine> {
+        if (lines.isEmpty()) return lines
+        return lines.mapIndexed { index, line ->
+            if (line.durationMs > 0L) {
+                line
+            } else {
+                val nextTimestamp = if (index < lines.size - 1) lines[index + 1].timestampMs else (line.timestampMs + 4000L)
+                val duration = (nextTimestamp - line.timestampMs).coerceIn(1200L, 9500L)
+                line.copy(durationMs = duration)
+            }
+        }
     }
 
     /**

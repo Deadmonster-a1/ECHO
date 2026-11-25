@@ -30,8 +30,15 @@ object FullTrackStreamResolver {
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     private const val SAAVN_REFERER = "https://www.jiosaavn.com/"
 
-    // In-memory cache mapping normalized "title_artist" -> full stream URL
-    private val streamCache = ConcurrentHashMap<String, String>()
+    private const val STREAM_CACHE_TTL_MS = 20L * 60L * 1000L // 20 minutes
+
+    private data class CachedStreamEntry(
+        val url: String,
+        val cachedAtMs: Long
+    )
+
+    // In-memory TTL cache mapping normalized "title_artist_album" -> full stream URL
+    private val streamCache = ConcurrentHashMap<String, CachedStreamEntry>()
 
     fun needsResolution(track: Track): Boolean {
         val uri = track.mediaUri
@@ -44,17 +51,36 @@ object FullTrackStreamResolver {
                 uri.startsWith("saavn_enc:")
     }
 
+    internal fun getCachedStreamIfFresh(key: String, nowMs: Long = System.currentTimeMillis()): String? {
+        val entry = streamCache[key] ?: return null
+        if (nowMs - entry.cachedAtMs > STREAM_CACHE_TTL_MS) {
+            streamCache.remove(key, entry)
+            return null
+        }
+        return entry.url
+    }
+
+    internal fun putCachedStream(key: String, url: String, nowMs: Long = System.currentTimeMillis()) {
+        if (url.isNotBlank()) {
+            streamCache[key] = CachedStreamEntry(url = url, cachedAtMs = nowMs)
+        }
+    }
+
+    internal fun clearStreamCache() {
+        streamCache.clear()
+    }
+
     /**
      * Resolves a full-length un-truncated studio audio stream URL for a given track,
      * utilizing movie metadata, album context, and multi-candidate search.
      */
     suspend fun resolveStreamUrl(title: String, artistName: String, albumName: String = ""): String? = withContext(Dispatchers.IO) {
         val cacheKey = "${cleanTitle(title).lowercase()}_${cleanArtist(artistName).lowercase()}_${cleanAlbum(albumName).lowercase()}"
-        streamCache[cacheKey]?.let { return@withContext it }
+        getCachedStreamIfFresh(cacheKey)?.let { return@withContext it }
 
         val details = resolveTrackDetails(title, artistName, albumName)
         if (details != null && details.streamUrl.isNotBlank()) {
-            streamCache[cacheKey] = details.streamUrl
+            putCachedStream(cacheKey, details.streamUrl)
             return@withContext details.streamUrl
         }
 
@@ -91,12 +117,13 @@ object FullTrackStreamResolver {
     }
 
     private fun findEncryptedMediaMatch(query: String, expectedTitle: String = ""): StreamResolution? {
+        var conn: HttpURLConnection? = null
         try {
             val encodedQuery = URLEncoder.encode(query.trim(), "UTF-8")
             val searchUrl = "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=10&p=1&q=$encodedQuery"
-            val conn = openConnection(searchUrl)
+            conn = openConnection(searchUrl)
             if (conn.responseCode == 200) {
-                val respText = conn.inputStream.bufferedReader().readText()
+                val respText = conn.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(respText)
                 val results = json.optJSONArray("results")
                 if (results != null && results.length() > 0) {
@@ -166,6 +193,8 @@ object FullTrackStreamResolver {
             }
         } catch (e: Exception) {
             Log.e(TAG, "findEncryptedMediaMatch failed for query '$query'", e)
+        } finally {
+            conn?.disconnect()
         }
         return null
     }
@@ -178,15 +207,17 @@ object FullTrackStreamResolver {
     }
 
     private fun resolveAudiusStream(title: String, artistName: String): String? {
+        var conn: HttpURLConnection? = null
         try {
             val q = "${cleanTitle(title)} ${cleanArtist(artistName)}".trim()
             val encoded = URLEncoder.encode(q, "UTF-8")
             val urlStr = "https://api.audius.co/v1/tracks/search?query=$encoded&app_name=Echo&limit=3"
-            val conn = URL(urlStr).openConnection() as HttpURLConnection
-            conn.connectTimeout = 5000
-            conn.readTimeout = 7000
+            conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5000
+                readTimeout = 7000
+            }
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val data = json.optJSONArray("data")
                 if (data != null && data.length() > 0) {
                     val first = data.getJSONObject(0)
@@ -198,6 +229,8 @@ object FullTrackStreamResolver {
             }
         } catch (e: Exception) {
             // Ignore Audius fallback error
+        } finally {
+            conn?.disconnect()
         }
         return null
     }
@@ -206,12 +239,13 @@ object FullTrackStreamResolver {
      * Resolves an auth_url directly from an encrypted_media_url string.
      */
     suspend fun resolveAuthToken(encryptedMediaUrl: String, bitrate: String = "160"): String? = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
         try {
             val encEncoded = URLEncoder.encode(encryptedMediaUrl, "UTF-8")
             val tokenUrl = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url=$encEncoded&bitrate=$bitrate&api_version=4&_format=json&ctx=web6dot0&_marker=0"
-            val conn = openConnection(tokenUrl)
+            conn = openConnection(tokenUrl)
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().readText())
+                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
                 val authUrl = json.optString("auth_url", "")
                 if (authUrl.isNotBlank() && authUrl != "false") {
                     return@withContext authUrl
@@ -219,6 +253,8 @@ object FullTrackStreamResolver {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to generate auth token", e)
+        } finally {
+            conn?.disconnect()
         }
         null
     }

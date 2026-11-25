@@ -18,11 +18,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -31,6 +29,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,12 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.spotify.clone.core.designsystem.SpotifyDarkGray
-import com.spotify.clone.core.designsystem.SpotifyGreen
-import com.spotify.clone.core.designsystem.SpotifyLightGray
-import com.spotify.clone.core.designsystem.SpotifyTextMuted
-import com.spotify.clone.core.designsystem.SpotifyTextSecondary
-import com.spotify.clone.core.designsystem.SpotifyWhite
+import com.spotify.clone.core.designsystem.ThemeManager
 
 data class EqPreset(
     val name: String,
@@ -58,6 +52,10 @@ data class EqPreset(
 
 val EQ_PRESETS = listOf(
     EqPreset("Normal", listOf(0f, 0f, 0f, 0f, 0f)),
+    EqPreset("Harman AirPods Pro 2", listOf(2f, 1f, 0f, 2f, 3f)),
+    EqPreset("Harman Sony XM5", listOf(-3f, -2f, 1f, 3f, 2f)),
+    EqPreset("Harman HD650", listOf(4f, 1f, 0f, 1f, 2f)),
+    EqPreset("Samsung Buds 2 Pro", listOf(1f, 0f, 1f, -1f, 2f)),
     EqPreset("Bass Booster", listOf(6f, 4f, 1f, 0f, 0f)),
     EqPreset("Bass Reducer", listOf(-6f, -4f, -1f, 0f, 0f)),
     EqPreset("Vocal Booster", listOf(-2f, 0f, 5f, 4f, -1f)),
@@ -77,23 +75,55 @@ fun EqualizerBottomSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val currentTheme by ThemeManager.currentTheme.collectAsState()
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+
+    val screenBg = if (isDarkMode) currentTheme.darkCardColor else currentTheme.lightCardColor
+    val textPrimary = if (isDarkMode) Color(0xFFFAF8F5) else Color(0xFF171717)
+    val textSecondary = if (isDarkMode) Color(0xFFA6A2B3) else Color(0xFF777777)
+    val chipInactiveBg = if (isDarkMode) Color(0xFF2C2A28) else Color(0xFFF3EFEA)
+    val onAccent = com.spotify.clone.core.designsystem.echoContrastOn(currentTheme.primaryColor)
+
     val prefs: SharedPreferences = remember {
         context.getSharedPreferences("spotify_eq_prefs", Context.MODE_PRIVATE)
     }
+
+    val autoGenreEq by com.spotify.clone.core.settings.SettingsManager.autoGenreEq.collectAsState()
+    val eqUpdateSignal by com.spotify.clone.core.settings.SettingsManager.eqUpdateSignal.collectAsState()
 
     var isEqEnabled by remember {
         mutableStateOf(prefs.getBoolean("eq_enabled", true))
     }
     var selectedPresetName by remember {
-        mutableStateOf(prefs.getString("eq_preset", "Normal") ?: "Normal")
+        mutableStateOf(
+            if (autoGenreEq) prefs.getString("auto_eq_preset", null) ?: prefs.getString("eq_preset", "Normal") ?: "Normal"
+            else prefs.getString("eq_preset", "Normal") ?: "Normal"
+        )
     }
 
     val bandLevels = remember {
         mutableStateListOf<Float>().apply {
+            val useAuto = autoGenreEq && prefs.contains("auto_eq_preset")
+            val prefix = if (useAuto) "auto_band_" else "band_"
             val preset = EQ_PRESETS.find { it.name == selectedPresetName } ?: EQ_PRESETS.first()
             preset.bands.forEachIndexed { i, defaultVal ->
-                add(prefs.getFloat("band_$i", defaultVal))
+                add(prefs.getFloat("$prefix$i", defaultVal))
             }
+        }
+    }
+
+    androidx.compose.runtime.LaunchedEffect(autoGenreEq, eqUpdateSignal) {
+        val useAuto = autoGenreEq && prefs.contains("auto_eq_preset")
+        val prefix = if (useAuto) "auto_band_" else "band_"
+        val activePreset = if (useAuto) {
+            prefs.getString("auto_eq_preset", "Auto") ?: "Auto"
+        } else {
+            prefs.getString("eq_preset", "Normal") ?: "Normal"
+        }
+        selectedPresetName = activePreset
+        val fallback = EQ_PRESETS.find { it.name == activePreset } ?: EQ_PRESETS.first()
+        for (i in 0 until bandLevels.size) {
+            bandLevels[i] = prefs.getFloat("$prefix$i", fallback.bands.getOrElse(i) { 0f })
         }
     }
 
@@ -102,7 +132,7 @@ fun EqualizerBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SpotifyDarkGray
+        containerColor = screenBg
     ) {
         Column(
             modifier = Modifier
@@ -120,39 +150,79 @@ fun EqualizerBottomSheet(
                     Icon(
                         imageVector = Icons.Filled.GraphicEq,
                         contentDescription = "Equalizer",
-                        tint = if (isEqEnabled) SpotifyGreen else SpotifyTextMuted,
+                        tint = if (isEqEnabled) currentTheme.primaryColor else textSecondary,
                         modifier = Modifier.size(26.dp)
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = "Equalizer",
-                        color = SpotifyWhite,
+                        color = textPrimary,
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
 
-                Switch(
-                    checked = isEqEnabled,
-                    onCheckedChange = { enabled ->
-                        isEqEnabled = enabled
-                        prefs.edit().putBoolean("eq_enabled", enabled).apply()
-                    },
+                    Switch(
+                        checked = isEqEnabled,
+                        onCheckedChange = { enabled ->
+                            isEqEnabled = enabled
+                            prefs.edit().putBoolean("eq_enabled", enabled).apply()
+                            com.spotify.clone.core.settings.SettingsManager.notifyEqualizerChanged()
+                        },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = SpotifyGreen,
-                        checkedTrackColor = SpotifyGreen.copy(alpha = 0.4f),
-                        uncheckedThumbColor = SpotifyLightGray,
-                        uncheckedTrackColor = SpotifyDarkGray
+                        checkedThumbColor = onAccent,
+                        checkedTrackColor = currentTheme.primaryColor,
+                        uncheckedThumbColor = textSecondary,
+                        uncheckedTrackColor = chipInactiveBg
                     )
                 )
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(chipInactiveBg.copy(alpha = 0.7f))
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Auto-Match EQ to Song Genre",
+                        color = textPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Dynamically adapts EQ curve as genres change",
+                        color = textSecondary,
+                        fontSize = 11.5.sp
+                    )
+                }
+                Switch(
+                    checked = autoGenreEq,
+                    onCheckedChange = {
+                        com.spotify.clone.core.settings.SettingsManager.setAutoGenreEq(it)
+                        com.spotify.clone.core.settings.SettingsManager.notifyEqualizerChanged()
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = onAccent,
+                        checkedTrackColor = currentTheme.primaryColor,
+                        uncheckedThumbColor = textSecondary,
+                        uncheckedTrackColor = chipInactiveBg
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Presets Horizontal Row
             Text(
                 text = "Presets",
-                color = SpotifyTextSecondary,
+                color = textSecondary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -171,24 +241,29 @@ fun EqualizerBottomSheet(
                         modifier = Modifier
                             .clip(RoundedCornerShape(16.dp))
                             .background(
-                                if (isSelected && isEqEnabled) SpotifyGreen
-                                else SpotifyLightGray.copy(alpha = 0.3f)
+                                if (isSelected && isEqEnabled) currentTheme.primaryColor
+                                else chipInactiveBg
                             )
                             .clickable(enabled = isEqEnabled) {
+                                if (autoGenreEq) {
+                                    com.spotify.clone.core.settings.SettingsManager.setAutoGenreEq(false)
+                                }
                                 selectedPresetName = preset.name
+                                val editor = prefs.edit().putString("eq_preset", preset.name)
                                 preset.bands.forEachIndexed { i, v ->
                                     if (i < bandLevels.size) {
                                         bandLevels[i] = v
-                                        prefs.edit().putFloat("band_$i", v).apply()
+                                        editor.putFloat("band_$i", v)
                                     }
                                 }
-                                prefs.edit().putString("eq_preset", preset.name).apply()
+                                editor.apply()
+                                com.spotify.clone.core.settings.SettingsManager.notifyEqualizerChanged()
                             }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Text(
                             text = preset.name,
-                            color = if (isSelected && isEqEnabled) Color.Black else SpotifyWhite,
+                            color = if (isSelected && isEqEnabled) onAccent else textPrimary,
                             fontSize = 13.sp,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
@@ -201,7 +276,7 @@ fun EqualizerBottomSheet(
             // 5 Band Sliders
             Text(
                 text = "Frequency Bands",
-                color = SpotifyTextSecondary,
+                color = textSecondary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -224,7 +299,7 @@ fun EqualizerBottomSheet(
                 ) {
                     Text(
                         text = label,
-                        color = if (isEqEnabled) SpotifyWhite else SpotifyTextMuted,
+                        color = if (isEqEnabled) textPrimary else textSecondary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.width(68.dp)
@@ -233,26 +308,29 @@ fun EqualizerBottomSheet(
                     Slider(
                         value = level,
                         onValueChange = { newLevel ->
+                            if (autoGenreEq) {
+                                com.spotify.clone.core.settings.SettingsManager.setAutoGenreEq(false)
+                            }
                             bandLevels[index] = newLevel
                             selectedPresetName = "Custom"
-                            prefs.edit()
-                                .putFloat("band_$index", newLevel)
-                                .putString("eq_preset", "Custom")
-                                .apply()
+                            val editor = prefs.edit().putString("eq_preset", "Custom")
+                            bandLevels.forEachIndexed { i, v -> editor.putFloat("band_$i", v) }
+                            editor.apply()
+                            com.spotify.clone.core.settings.SettingsManager.notifyEqualizerChanged()
                         },
                         valueRange = -12f..12f,
                         enabled = isEqEnabled,
                         colors = SliderDefaults.colors(
-                            thumbColor = if (isEqEnabled) SpotifyGreen else SpotifyTextMuted,
-                            activeTrackColor = if (isEqEnabled) SpotifyGreen else SpotifyTextMuted,
-                            inactiveTrackColor = SpotifyLightGray.copy(alpha = 0.3f)
+                            thumbColor = if (isEqEnabled) currentTheme.primaryColor else textSecondary,
+                            activeTrackColor = if (isEqEnabled) currentTheme.primaryColor else textSecondary,
+                            inactiveTrackColor = chipInactiveBg
                         ),
                         modifier = Modifier.weight(1f)
                     )
 
                     Text(
                         text = displayDb,
-                        color = if (isEqEnabled) SpotifyTextSecondary else SpotifyTextMuted,
+                        color = if (isEqEnabled) textSecondary else textSecondary.copy(alpha = 0.6f),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.width(48.dp)

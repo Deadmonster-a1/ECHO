@@ -51,7 +51,7 @@
             android:ellipsize="end"
             android:maxLines="1"
             android:text="Feel the sound"
-            android:textColor="#A79BFF"
+            android:textColor="#7AA7FF"
             android:textSize="12sp" />
     </LinearLayout>
 

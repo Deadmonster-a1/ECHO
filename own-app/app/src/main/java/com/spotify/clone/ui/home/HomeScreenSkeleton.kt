@@ -33,352 +33,190 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.spotify.clone.core.designsystem.LocalAppTheme
+import com.spotify.clone.core.designsystem.LocalReducedMotion
+import com.spotify.clone.core.designsystem.resolvedBackground
 
-/**
- * Creates a sweeping linear gradient shimmer brush for authentic skeleton loaders.
- */
 @Composable
 fun shimmerBrush(isDarkMode: Boolean): Brush {
+    val isReducedMotion = LocalReducedMotion.current
+    val baseColor = if (isDarkMode) Color(0xFF18181B) else Color(0xFFE8E8ED)
+    val highlightColor = if (isDarkMode) Color(0xFF27272C) else Color(0xFFF5F5FA)
+
+    if (isReducedMotion) {
+        return Brush.linearGradient(colors = listOf(baseColor, baseColor))
+    }
+
     val transition = rememberInfiniteTransition(label = "shimmerTransition")
     val translateAnim by transition.animateFloat(
-        initialValue = -300f,
-        targetValue = 1300f,
+        initialValue = -320f,
+        targetValue = 1320f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1100, easing = LinearEasing),
+            animation = tween(durationMillis = 1200, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "shimmerTranslate"
     )
 
-    val baseColor = if (isDarkMode) Color(0xFF1E1C27) else Color(0xFFE5E2DC)
-    val highlightColor = if (isDarkMode) Color(0xFF2E2B3C) else Color(0xFFF3F0EA)
-
     return Brush.linearGradient(
         colors = listOf(baseColor, highlightColor, baseColor),
-        start = Offset(translateAnim - 350f, translateAnim - 350f),
+        start = Offset(translateAnim - 360f, translateAnim - 360f),
         end = Offset(translateAnim, translateAnim)
     )
 }
 
-/**
- * High-fidelity Skeleton Screen for ECHO Home feed.
- * Accurately mirrors every component on the real Home Screen:
- * - Top Bar (Avatar, Logo, Action pills)
- * - Personalized Greeting Header
- * - Top Filter Chips (All, Music, Podcasts)
- * - 2x3 "Jump Back In" Quick Access Grid
- * - Daylist / Flow Banner
- * - Mood Filter Row
- * - Horizontal Blockbuster Album Carousel
- * - Horizontal Made For You Mixes Carousel
- */
 @Composable
 fun HomeScreenSkeleton(
     isDarkMode: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val brush = shimmerBrush(isDarkMode = isDarkMode)
-    val screenBg = if (isDarkMode) Color(0xFF121212) else Color(0xFFF7F5F2)
-    val cardBg = if (isDarkMode) Color(0xFF191722) else Color(0xFFFFFFFF)
+    val activeTheme = LocalAppTheme.current
+    val brush = shimmerBrush(isDarkMode)
+    val screenBg = activeTheme.resolvedBackground(isDarkMode)
 
-    Box(
+    LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .background(screenBg)
+            .statusBarsPadding(),
+        contentPadding = PaddingValues(bottom = 176.dp),
+        userScrollEnabled = false
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 120.dp),
-            userScrollEnabled = false
-        ) {
-            // 1. Top Bar Skeleton
-            item(key = "sk_top_bar") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // User Avatar
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(brush)
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        // Logo pill
-                        Box(
-                            modifier = Modifier
-                                .size(width = 72.dp, height = 24.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(brush)
-                        )
-                    }
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // Action buttons
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(brush)
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(brush)
-                        )
-                    }
-                }
-            }
-
-            // 2. Personalized Greeting Skeleton
-            item(key = "sk_greeting") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
+        // Header skeleton
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(
                         modifier = Modifier
-                            .size(width = 190.dp, height = 26.dp)
+                            .size(width = 118.dp, height = 12.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .background(brush)
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
                     Box(
                         modifier = Modifier
-                            .size(width = 120.dp, height = 13.dp)
-                            .clip(RoundedCornerShape(4.dp))
+                            .size(width = 176.dp, height = 34.dp)
+                            .clip(RoundedCornerShape(10.dp))
                             .background(brush)
                     )
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-
-            // 3. Filter Chips Skeleton
-            item(key = "sk_filter_chips") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(54.dp, 72.dp, 90.dp).forEach { width ->
-                        Box(
-                            modifier = Modifier
-                                .size(width = width, height = 32.dp)
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(brush)
-                        )
-                    }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(brush)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(brush)
+                    )
                 }
-                Spacer(modifier = Modifier.height(18.dp))
             }
+        }
 
-            // 4. 2x3 Quick Access Grid Skeleton (Jump Back In)
-            item(key = "sk_quick_access_grid") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    repeat(3) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            repeat(2) {
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(56.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(cardBg)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxSize(),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        // Card artwork placeholder
-                                        Box(
-                                            modifier = Modifier
-                                                .size(56.dp)
-                                                .background(brush)
-                                        )
-                                        Spacer(modifier = Modifier.width(10.dp))
-                                        Column(
-                                            modifier = Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.Center
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(width = 80.dp, height = 11.dp)
-                                                    .clip(RoundedCornerShape(4.dp))
-                                                    .background(brush)
-                                            )
-                                            Spacer(modifier = Modifier.height(5.dp))
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(width = 46.dp, height = 9.dp)
-                                                    .clip(RoundedCornerShape(3.dp))
-                                                    .background(brush)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+        // Filter chips skeleton
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(52.dp, 76.dp, 94.dp, 96.dp, 72.dp).forEach { w ->
+                    Box(
+                        modifier = Modifier
+                            .size(width = w, height = 34.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(brush)
+                    )
                 }
-                Spacer(modifier = Modifier.height(20.dp))
             }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
 
-            // 5. Daylist / Flow Card Skeleton
-            item(key = "sk_daylist_card") {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .height(105.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(brush)
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-            }
-
-            // 6. Mood Filter Row Skeleton
-            item(key = "sk_moods") {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    repeat(5) {
-                        Box(
-                            modifier = Modifier
-                                .size(width = 74.dp, height = 30.dp)
-                                .clip(RoundedCornerShape(15.dp))
-                                .background(brush)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(26.dp))
-            }
-
-            // 7. Section 1 Carousel Skeleton (Blockbuster Albums)
-            item(key = "sk_section_1") {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .size(width = 220.dp, height = 20.dp)
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(brush)
-                        )
-                        Spacer(modifier = Modifier.height(5.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(width = 150.dp, height = 12.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(brush)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        userScrollEnabled = false
+        // Jump Back In 2-col bento skeleton
+        item {
+            Column(
+                modifier = Modifier.padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                repeat(2) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(4) {
-                            Column(modifier = Modifier.width(150.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(150.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(brush)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(width = 115.dp, height = 13.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(brush)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(width = 75.dp, height = 11.dp)
-                                        .clip(RoundedCornerShape(3.dp))
-                                        .background(brush)
-                                )
-                            }
+                        repeat(2) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(58.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(brush)
+                            )
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(28.dp))
             }
+            Spacer(modifier = Modifier.height(22.dp))
+        }
 
-            // 8. Section 2 Carousel Skeleton (Made For You)
-            item(key = "sk_section_2") {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        Box(
-                            modifier = Modifier
-                                .size(width = 190.dp, height = 20.dp)
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(brush)
-                        )
-                        Spacer(modifier = Modifier.height(5.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(width = 130.dp, height = 12.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(brush)
-                        )
-                    }
+        // Editorial AI Showcase skeleton
+        item {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .size(width = 168.dp, height = 22.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(brush)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                items(3) {
+                    Box(
+                        modifier = Modifier
+                            .width(304.dp)
+                            .height(234.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(brush)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        userScrollEnabled = false
-                    ) {
-                        items(4) {
-                            Column(modifier = Modifier.width(150.dp)) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(150.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(brush)
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(width = 100.dp, height = 13.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(brush)
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(width = 65.dp, height = 11.dp)
-                                        .clip(RoundedCornerShape(3.dp))
-                                        .background(brush)
-                                )
-                            }
-                        }
-                    }
+        // New Songs Today shelf skeleton
+        item {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .size(width = 152.dp, height = 22.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(brush)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                items(4) {
+                    Box(
+                        modifier = Modifier
+                            .width(152.dp)
+                            .height(198.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(brush)
+                    )
                 }
             }
         }

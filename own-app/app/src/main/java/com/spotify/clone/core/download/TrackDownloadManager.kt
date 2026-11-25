@@ -29,14 +29,18 @@ import java.net.URL
  * Handles background streaming downloads, file storage, metadata caching,
  * and offline playback resolution.
  */
-class TrackDownloadManager private constructor(private val context: Context) {
+class TrackDownloadManager private constructor(context: Context) {
 
+    private val appContext = context.applicationContext
+    private val stateLock = Any()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val prefs: SharedPreferences =
-        context.getSharedPreferences("echo_offline_downloads", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences("echo_offline_downloads", Context.MODE_PRIVATE)
 
     private val _downloadedTrackIds = MutableStateFlow<Set<String>>(emptySet())
     val downloadedTrackIds: StateFlow<Set<String>> = _downloadedTrackIds.asStateFlow()
+
+    private val _standaloneTrackIds = MutableStateFlow<Set<String>>(emptySet())
 
     private val _downloadedPlaylistIds = MutableStateFlow<Set<String>>(emptySet())
     val downloadedPlaylistIds: StateFlow<Set<String>> = _downloadedPlaylistIds.asStateFlow()
@@ -46,8 +50,8 @@ class TrackDownloadManager private constructor(private val context: Context) {
 
     private val downloadDir: File
         get() {
-            val dir = context.getExternalFilesDir(Environment.DIRECTORY_MUSIC)
-                ?: File(context.filesDir, "offline_tracks")
+            val dir = appContext.getExternalFilesDir(Environment.DIRECTORY_MUSIC)
+                ?: File(appContext.filesDir, "offline_tracks")
             if (!dir.exists()) dir.mkdirs()
             return dir
         }
@@ -56,15 +60,27 @@ class TrackDownloadManager private constructor(private val context: Context) {
         loadPersistedState()
     }
 
-    private fun getTrackFileName(trackId: String): String =
-        trackId.replace(Regex("[^a-zA-Z0-9_\\-]"), "_") + ".mp3"
+    private fun sanitizedBaseName(trackId: String): String =
+        trackId.replace(Regex("[^a-zA-Z0-9_\\-]"), "_")
+
+    private fun getTrackFileName(trackId: String, extension: String = "mp3"): String =
+        "${sanitizedBaseName(trackId)}.$extension"
+
+    private fun findTrackFileOnDisk(trackId: String): File? {
+        val base = sanitizedBaseName(trackId)
+        val candidates = listOf("m4a", "mp4", "mp3", "aac")
+        for (ext in candidates) {
+            val f = File(downloadDir, "$base.$ext")
+            if (f.exists() && f.length() > 50_000L) return f
+        }
+        return null
+    }
 
     private fun loadPersistedState() {
-        val tracksSet = prefs.getStringSet(KEY_DOWNLOADED_TRACK_IDS, emptySet()) ?: emptySet()
+        val tracksSet = prefs.getStringSet(KEY_DOWNLOADED_TRACK_IDS, emptySet())?.toSet() ?: emptySet()
         // Verify files actually exist on disk
         val validTrackIds = tracksSet.filter { trackId ->
-            val file = File(downloadDir, getTrackFileName(trackId))
-            file.exists() && file.length() > 50_000L
+            findTrackFileOnDisk(trackId) != null
         }.toSet()
 
         if (validTrackIds.size != tracksSet.size) {
@@ -72,8 +88,20 @@ class TrackDownloadManager private constructor(private val context: Context) {
         }
         _downloadedTrackIds.value = validTrackIds
 
-        val playlistSet = prefs.getStringSet(KEY_DOWNLOADED_PLAYLIST_IDS, emptySet()) ?: emptySet()
+        val playlistSet = prefs.getStringSet(KEY_DOWNLOADED_PLAYLIST_IDS, emptySet())?.toSet() ?: emptySet()
         _downloadedPlaylistIds.value = playlistSet
+
+        val persistedStandalone = prefs.getStringSet(KEY_STANDALONE_TRACK_IDS, null)?.toSet()
+        if (persistedStandalone != null) {
+            _standaloneTrackIds.value = persistedStandalone.intersect(validTrackIds)
+        } else {
+            val playlistTrackIds = playlistSet.flatMap { pid ->
+                getDownloadedPlaylist(pid)?.tracks?.map { it.id }.orEmpty()
+            }.toSet()
+            val inferredStandalone = validTrackIds - playlistTrackIds
+            _standaloneTrackIds.value = inferredStandalone
+            prefs.edit().putStringSet(KEY_STANDALONE_TRACK_IDS, inferredStandalone).apply()
+        }
     }
 
     fun isTrackDownloaded(trackId: String): Boolean {
@@ -88,10 +116,7 @@ class TrackDownloadManager private constructor(private val context: Context) {
         return _activeDownloads.value.containsKey(trackId)
     }
 
-    fun getDownloadedTrackFile(trackId: String): File? {
-        val file = File(downloadDir, getTrackFileName(trackId))
-        return if (file.exists() && file.length() > 50_000L) file else null
-    }
+    fun getDownloadedTrackFile(trackId: String): File? = findTrackFileOnDisk(trackId)
 
     suspend fun ensureDownloadedTrackFile(track: Track): File? {
         val existing = getDownloadedTrackFile(track.id)
@@ -111,6 +136,11 @@ class TrackDownloadManager private constructor(private val context: Context) {
     }
 
     fun downloadTrack(track: Track, onComplete: ((Boolean) -> Unit)? = null) {
+        synchronized(stateLock) {
+            val updatedStandalone = _standaloneTrackIds.value + track.id
+            _standaloneTrackIds.value = updatedStandalone
+            prefs.edit().putStringSet(KEY_STANDALONE_TRACK_IDS, updatedStandalone.toSet()).apply()
+        }
         if (isTrackDownloaded(track.id)) {
             onComplete?.invoke(true)
             return
@@ -207,43 +237,58 @@ class TrackDownloadManager private constructor(private val context: Context) {
             }
 
             val connection = activeConnection
-            val safeFileName = getTrackFileName(track.id)
+            val contentType = connection.contentType?.lowercase() ?: ""
+            val resolvedExt = when {
+                chosenCandidate?.contains(".mp4", ignoreCase = true) == true ||
+                    chosenCandidate?.contains(".m4a", ignoreCase = true) == true ||
+                    contentType.contains("mp4") || contentType.contains("m4a") || contentType.contains("aac") -> "m4a"
+                else -> "mp3"
+            }
+            val safeFileName = getTrackFileName(track.id, resolvedExt)
             val tempFile = File(downloadDir, "$safeFileName.tmp")
             val targetFile = File(downloadDir, safeFileName)
 
             val totalSize = connection.contentLength.toLong()
 
-            connection.inputStream.use { input ->
-                FileOutputStream(tempFile).use { output ->
-                    val buffer = ByteArray(32768)
-                    var bytesRead: Int
-                    var totalRead = 0L
+            try {
+                connection.inputStream.use { input ->
+                    FileOutputStream(tempFile).use { output ->
+                        val buffer = ByteArray(32768)
+                        var bytesRead: Int
+                        var totalRead = 0L
 
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        totalRead += bytesRead
-                        if (totalSize > 0) {
-                            val progress = (totalRead.toFloat() / totalSize.toFloat()).coerceIn(0f, 1f)
-                            _activeDownloads.update { it + (track.id to progress) }
+                        while (input.read(buffer).also { bytesRead = it } != -1) {
+                            output.write(buffer, 0, bytesRead)
+                            totalRead += bytesRead
+                            if (totalSize > 0) {
+                                val progress = (totalRead.toFloat() / totalSize.toFloat()).coerceIn(0f, 1f)
+                                _activeDownloads.update { it + (track.id to progress) }
+                            }
                         }
+                        output.flush()
                     }
-                    output.flush()
                 }
+            } finally {
+                connection.disconnect()
             }
-            connection.disconnect()
 
             if (tempFile.exists() && tempFile.length() > 50_000L) {
                 if (targetFile.exists()) targetFile.delete()
-                tempFile.renameTo(targetFile)
-                targetFile.setReadable(true, false)
+                val renamed = tempFile.renameTo(targetFile)
+                if (!renamed) {
+                    tempFile.copyTo(targetFile, overwrite = true)
+                    tempFile.delete()
+                }
 
                 // Save metadata
                 saveTrackMetadata(track)
 
-                // Update downloaded set
-                val updated = _downloadedTrackIds.value + track.id
-                _downloadedTrackIds.value = updated
-                prefs.edit().putStringSet(KEY_DOWNLOADED_TRACK_IDS, updated).apply()
+                // Atomically update downloaded set
+                synchronized(stateLock) {
+                    val updated = _downloadedTrackIds.value + track.id
+                    _downloadedTrackIds.value = updated
+                    prefs.edit().putStringSet(KEY_DOWNLOADED_TRACK_IDS, updated.toSet()).apply()
+                }
 
                 _activeDownloads.update { it - track.id }
                 Log.d(TAG, "Successfully downloaded: ${track.title} (${targetFile.length()} bytes) from $chosenCandidate")
@@ -263,14 +308,28 @@ class TrackDownloadManager private constructor(private val context: Context) {
 
     fun removeTrackDownload(trackId: String) {
         scope.launch {
-            val file = File(downloadDir, getTrackFileName(trackId))
-            if (file.exists()) file.delete()
+            deleteTrackFilesAndState(trackId)
+        }
+    }
 
-            prefs.edit().remove("track_meta_$trackId").apply()
+    private fun deleteTrackFilesAndState(trackId: String) {
+        val base = sanitizedBaseName(trackId)
+        listOf("m4a", "mp4", "mp3", "aac", "mp3.tmp", "m4a.tmp").forEach { ext ->
+            val f = File(downloadDir, "$base.$ext")
+            if (f.exists()) f.delete()
+        }
 
+        prefs.edit().remove("track_meta_$trackId").apply()
+
+        synchronized(stateLock) {
             val updated = _downloadedTrackIds.value - trackId
             _downloadedTrackIds.value = updated
-            prefs.edit().putStringSet(KEY_DOWNLOADED_TRACK_IDS, updated).apply()
+            val updatedStandalone = _standaloneTrackIds.value - trackId
+            _standaloneTrackIds.value = updatedStandalone
+            prefs.edit()
+                .putStringSet(KEY_DOWNLOADED_TRACK_IDS, updated.toSet())
+                .putStringSet(KEY_STANDALONE_TRACK_IDS, updatedStandalone.toSet())
+                .apply()
         }
     }
 
@@ -305,16 +364,26 @@ class TrackDownloadManager private constructor(private val context: Context) {
     fun removePlaylistDownload(playlistId: String) {
         scope.launch {
             val playlist = getDownloadedPlaylist(playlistId)
-            playlist?.tracks?.forEach { track ->
-                // Remove individual track file
-                removeTrackDownload(track.id)
+            val remainingPlaylistIds = synchronized(stateLock) {
+                val updated = _downloadedPlaylistIds.value - playlistId
+                _downloadedPlaylistIds.value = updated
+                prefs.edit().putStringSet(KEY_DOWNLOADED_PLAYLIST_IDS, updated).apply()
+                updated
             }
 
-            prefs.edit().remove("playlist_meta_$playlistId").apply()
+            val otherPlaylistTrackIds = remainingPlaylistIds.flatMap { pid ->
+                getDownloadedPlaylist(pid)?.tracks?.map { it.id }.orEmpty()
+            }.toSet()
+            val standaloneIds = synchronized(stateLock) { _standaloneTrackIds.value.toSet() }
+            val playlistTrackIds = playlist?.tracks?.map { it.id }.orEmpty()
+            val deletableIds = computeDeletableTrackIds(
+                playlistTrackIds = playlistTrackIds,
+                otherPlaylistTrackIds = otherPlaylistTrackIds,
+                standaloneTrackIds = standaloneIds
+            )
+            deletableIds.forEach { tid -> deleteTrackFilesAndState(tid) }
 
-            val updatedPlaylists = _downloadedPlaylistIds.value - playlistId
-            _downloadedPlaylistIds.value = updatedPlaylists
-            prefs.edit().putStringSet(KEY_DOWNLOADED_PLAYLIST_IDS, updatedPlaylists).apply()
+            prefs.edit().remove("playlist_meta_$playlistId").apply()
         }
     }
 
@@ -416,6 +485,7 @@ class TrackDownloadManager private constructor(private val context: Context) {
     companion object {
         private const val TAG = "TrackDownloadManager"
         private const val KEY_DOWNLOADED_TRACK_IDS = "downloaded_track_ids"
+        private const val KEY_STANDALONE_TRACK_IDS = "standalone_downloaded_track_ids"
         private const val KEY_DOWNLOADED_PLAYLIST_IDS = "downloaded_playlist_ids"
 
         @Volatile
@@ -425,6 +495,19 @@ class TrackDownloadManager private constructor(private val context: Context) {
             return instance ?: synchronized(this) {
                 instance ?: TrackDownloadManager(context.applicationContext).also { instance = it }
             }
+        }
+
+        /**
+         * Computes which track IDs can be safely deleted when removing a playlist download,
+         * keeping tracks still referenced by other downloaded playlists or standalone downloads.
+         */
+        fun computeDeletableTrackIds(
+            playlistTrackIds: List<String>,
+            otherPlaylistTrackIds: Set<String>,
+            standaloneTrackIds: Set<String>
+        ): Set<String> {
+            val protectedIds = otherPlaylistTrackIds + standaloneTrackIds
+            return playlistTrackIds.filter { it !in protectedIds }.toSet()
         }
     }
 }

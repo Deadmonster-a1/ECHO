@@ -19,8 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -102,7 +102,7 @@ fun SongCreditsSheet(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Studio fidelity recording details",
+                        text = "Track metadata & playback source",
                         color = textSecondary,
                         fontSize = 12.5.sp
                     )
@@ -163,30 +163,49 @@ fun SongCreditsSheet(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Sections
+            val sourceLabel = when {
+                track.id.startsWith("local_") || track.mediaUri.startsWith("content://") -> "Local Device Audio"
+                track.mediaUri.startsWith("file://") -> "Downloaded Offline"
+                track.id.startsWith("saavn_") || track.mediaUri.contains("saavn", ignoreCase = true) -> "JioSaavn Stream"
+                track.id.startsWith("audius_") || track.mediaUri.contains("audius", ignoreCase = true) -> "Audius Network"
+                else -> "Cloud Stream"
+            }
+            val formatLabel = when {
+                track.mediaUri.contains(".m4a", ignoreCase = true) || track.mediaUri.contains(".mp4", ignoreCase = true) -> "AAC / MP4"
+                track.mediaUri.contains(".mp3", ignoreCase = true) -> "MP3"
+                track.mediaUri.startsWith("content://") -> "On-Device MediaStore"
+                track.mediaUri.isBlank() -> "Pending Resolution"
+                else -> "Adaptive Stream"
+            }
+            val durationLabel = if (track.durationMs > 0L) {
+                val totalSec = track.durationMs / 1000L
+                String.format(java.util.Locale.US, "%d:%02d", totalSec / 60L, totalSec % 60L)
+            } else {
+                "Unknown"
+            }
+            val syncLabel = when (track.lyricsSyncType) {
+                com.spotify.clone.core.model.LyricsSyncType.SYLLABLE_SYNCED -> "Syllable-Synced"
+                com.spotify.clone.core.model.LyricsSyncType.LINE_SYNCED -> "Line-Synced"
+                com.spotify.clone.core.model.LyricsSyncType.UNSYNCED -> "Unsynced Text"
+                com.spotify.clone.core.model.LyricsSyncType.NONE -> "Remote Lookup / Unavailable"
+            }
+
             CreditSection("PERFORMED BY", listOf(
-                "Lead Vocals" to track.artistName,
-                "Backing Choir" to "ECHO Regional Vocal Ensemble"
+                "Artist(s)" to track.artistName.ifBlank { "Unknown Artist" },
+                "Album / Release" to track.albumName.ifBlank { "Single" },
+                "Content Rating" to if (track.isExplicit) "Explicit" else "Clean"
             ), textPrimary, textSecondary)
 
-            CreditSection("WRITTEN & COMPOSED BY", listOf(
-                "Composer / Music Director" to (track.artistName.split(",").lastOrNull()?.trim() ?: "Anirudh Ravichander"),
-                "Lyrics" to "Ramajogayya Sastry, Sri Mani",
-                "Arranger" to "Studio String Orchestra"
+            CreditSection("SOURCE & PLAYBACK", listOf(
+                "Stream Source" to sourceLabel,
+                "Audio Format" to formatLabel,
+                "Duration" to durationLabel,
+                "Track ID" to track.id
             ), textPrimary, textSecondary)
 
-            CreditSection("AUDIO & PRODUCTION", listOf(
-                "Mastering Engineer" to "Bob Ludwig (Gateway Mastering)",
-                "Mixing Engineer" to "Suren G. & Alok Punjabi",
-                "Audio Codec" to "ALAC Lossless 24-bit / 48.0 kHz",
-                "Audio Dynamic Range" to "DR13 • Studio Reference",
-                "Spatial Sound" to "Dolby Atmos Binaural Mix"
-            ), textPrimary, textSecondary)
-
-            CreditSection("COPYRIGHT & RELEASE", listOf(
-                "Record Label" to "T-Series / Aditya Music / Sony Music India",
-                "ISRC" to "IN-T10-24-00982",
-                "Release Year" to "2024 / 2025"
+            CreditSection("LYRICS & METADATA", listOf(
+                "Lyrics Sync" to syncLabel,
+                "Extended Credits" to "Not provided by source"
             ), textPrimary, textSecondary)
         }
     }
@@ -221,15 +240,18 @@ private fun CreditSection(
                     color = textSecondary,
                     fontSize = 13.sp
                 )
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = name,
                     color = textPrimary,
                     fontSize = 13.5.sp,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Divider(color = textSecondary.copy(alpha = 0.15f))
+        HorizontalDivider(color = textSecondary.copy(alpha = 0.15f))
     }
 }

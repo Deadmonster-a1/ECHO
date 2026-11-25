@@ -12,8 +12,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -28,11 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.spotify.clone.core.designsystem.SpotifyDarkGray
-import com.spotify.clone.core.designsystem.SpotifyGreen
-import com.spotify.clone.core.designsystem.SpotifyLightGray
-import com.spotify.clone.core.designsystem.SpotifyTextSecondary
-import com.spotify.clone.core.designsystem.SpotifyWhite
+import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.player.MusicController
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -42,13 +38,21 @@ fun SleepTimerBottomSheet(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val currentTheme by ThemeManager.currentTheme.collectAsState()
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+
+    val screenBg = if (isDarkMode) Color(0xFF1E1D1B) else Color(0xFFFFFFFF)
+    val textPrimary = if (isDarkMode) Color(0xFFFAF8F5) else Color(0xFF171717)
+    val textSecondary = if (isDarkMode) Color(0xFFA6A2B3) else Color(0xFF777777)
+    val dividerColor = if (isDarkMode) Color(0xFF2E2B28) else Color(0xFFEBE9E5)
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val remainingSeconds by musicController.sleepTimerRemainingSeconds.collectAsState()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = SpotifyDarkGray
+        containerColor = screenBg
     ) {
         Column(
             modifier = Modifier
@@ -64,13 +68,13 @@ fun SleepTimerBottomSheet(
                 Icon(
                     imageVector = Icons.Outlined.Bedtime,
                     contentDescription = null,
-                    tint = SpotifyGreen,
+                    tint = currentTheme.primaryColor,
                     modifier = Modifier.size(26.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Stop audio in",
-                    color = SpotifyWhite,
+                    color = textPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -80,23 +84,36 @@ fun SleepTimerBottomSheet(
                 val mins = remainingSeconds!! / 60
                 val secs = remainingSeconds!! % 60
                 Text(
-                    text = "Timer active: ${String.format("%02d:%02d", mins, secs)} remaining",
-                    color = SpotifyGreen,
+                    text = "Timer active: ${String.format(java.util.Locale.US, "%02d:%02d", mins, secs)} remaining",
+                    color = currentTheme.primaryColor,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
                 )
             }
 
-            Divider(
-                color = SpotifyLightGray.copy(alpha = 0.2f),
+            HorizontalDivider(
+                color = dividerColor,
+                thickness = 0.8.dp,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+
+            // Signature Option: End of track
+            TimerOptionRow(
+                label = "End of track",
+                textColor = textPrimary,
+                onClick = {
+                    musicController.setSleepTimerEndOfTrack()
+                    Toast.makeText(context, "Sleep timer set: Audio will pause at end of track", Toast.LENGTH_SHORT).show()
+                    onDismiss()
+                }
             )
 
             val timerOptions = listOf(5, 10, 15, 30, 45, 60)
             timerOptions.forEach { minutes ->
                 TimerOptionRow(
                     label = "$minutes minutes",
+                    textColor = textPrimary,
                     onClick = {
                         musicController.setSleepTimer(minutes)
                         Toast.makeText(context, "Sleep timer set for $minutes minutes", Toast.LENGTH_SHORT).show()
@@ -106,8 +123,9 @@ fun SleepTimerBottomSheet(
             }
 
             if (remainingSeconds != null) {
-                Divider(
-                    color = SpotifyLightGray.copy(alpha = 0.2f),
+                HorizontalDivider(
+                    color = dividerColor,
+                    thickness = 0.8.dp,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
                 )
                 TimerOptionRow(
@@ -127,7 +145,7 @@ fun SleepTimerBottomSheet(
 @Composable
 private fun TimerOptionRow(
     label: String,
-    textColor: Color = SpotifyWhite,
+    textColor: Color,
     onClick: () -> Unit
 ) {
     Row(

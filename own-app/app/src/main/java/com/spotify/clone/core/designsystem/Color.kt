@@ -1,64 +1,67 @@
 package com.spotify.clone.core.designsystem
 
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 // ==========================================
-// ECHO — Organic Sound Architecture Palette
+// ECHO — Pastel Prism & Airy Daylight Design System
+// Derived directly from the ECHO Logo Spectrum
 // ==========================================
 
-// Backgrounds & Surfaces
-val EchoDarkBackground = Color(0xFF101016)
-val EchoDarkSurface = Color(0xFF171720)
-val EchoDarkElevated = Color(0xFF1B1A25)
-val EchoDarkBorder = Color(0xFF262534)
-val EchoCharcoal = EchoDarkBackground
+val EchoPrismRose = Color(0xFFFF8FA3)
+val EchoPrismLavender = Color(0xFFC49BFF)
+val EchoPrismSky = Color(0xFF8FB8FF)
+val EchoPrismAqua = Color(0xFF6FE3E8)
+val EchoPrismPrimary = Color(0xFF7B6EF6)
+val EchoPrismPrimaryPressed = Color(0xFF6254E8)
 
-val EchoLightBackground = Color(0xFFF5F2EE)
+val EchoPrismGradientColors = listOf(
+    EchoPrismRose,
+    EchoPrismLavender,
+    EchoPrismSky,
+    EchoPrismAqua
+)
+
+fun echoPrismBrush(): Brush = Brush.linearGradient(EchoPrismGradientColors)
+
+val EchoAccentCoral = Color(0xFFFA2D48)      // Apple Music Rose-Coral
+val EchoAccentOrange = Color(0xFFFF5E3A)     // Warm ECHO Coral-Orange
+val EchoAccentBlue = Color(0xFF007AFF)       // iOS System Blue
+val EchoAccentMint = Color(0xFF34C759)       // iOS System Green
+val EchoAccentIndigo = Color(0xFF5856D6)     // iOS System Indigo
+
+// Light Mode Surfaces (Airy Porcelain Daylight matching the White Logo Tile)
+val EchoLightBackground = Color(0xFFFBFBFD)
+val EchoLightGroupedBg = Color(0xFFF2F3F9)
 val EchoLightSurface = Color(0xFFFFFFFF)
-val EchoLightElevated = Color(0xFFFAF8F5)
-val EchoLightBorder = Color(0xFFE5E0E8)
-val EchoIvory = EchoLightBackground
+val EchoLightCard = Color(0xFFFFFFFF)
+val EchoLightBorder = Color(0xFFE7E8F2)
 
-// Typography
-val EchoTextPrimaryDark = Color(0xFFF6F3FA)
-val EchoTextSecondaryDark = Color(0xFFA6A2B3)
-val EchoTextMutedDark = Color(0xFF6B687A)
+val EchoTextPrimaryLight = Color(0xFF16161D)
+val EchoTextSecondaryLight = Color(0xFF5E5F6E)
+val EchoTextMutedLight = Color(0xFF8E8F9D)
 
-val EchoTextPrimaryLight = Color(0xFF17171C)
-val EchoTextSecondaryLight = Color(0xFF777680)
-val EchoTextMutedLight = Color(0xFFA09FA8)
-val EchoSecondaryGray = Color(0xFF777680)
+// Dark Mode Surfaces (Rich Tinted Obsidian — never flat #000000 void)
+val EchoDarkBackground = Color(0xFF09090E)
+val EchoDarkSurface = Color(0xFF12121A)
+val EchoDarkElevated = Color(0xFF1B1B26)
+val EchoDarkBorder = Color(0xFF2B2C3B)
 
-// Signature Accents
-val EchoLavender = Color(0xFFA79BFF)
-val EchoCoral = Color(0xFFFF9C88)
-val EchoSoftBlue = Color(0xFFA8C9FF)
-val EchoBlue = EchoSoftBlue
-val EchoMint = Color(0xFF8AE0C8)
-val EchoGold = Color(0xFFFFD166)
+val EchoTextPrimaryDark = Color(0xFFF8F8FC)
+val EchoTextSecondaryDark = Color(0xFFA8A9B8)
+val EchoTextMutedDark = Color(0xFF7D7E8D)
 
-// Translucent & Ambient Overlays
-val EchoScrimDark = Color(0xCC101016)
-val EchoScrimLight = Color(0xCCF5F2EE)
+// Compatibility aliases for retained subcomponents
+val EchoOrange = EchoAccentOrange
+val EchoLavender = EchoPrismLavender
+val EchoCoral = EchoPrismRose
 
-// Legacy Aliases for Seamless Code Compatibility
-val SpotifyBlack = EchoDarkBackground
-val SpotifyDarkGray = EchoDarkSurface
-val SpotifyCardGray = EchoDarkElevated
-val SpotifyLightGray = Color(0xFF252433)
-val SpotifyGreen = EchoLavender // Default accent in ECHO
-val SpotifyGreenPressed = Color(0xFF9183F2)
-val SpotifyWhite = Color(0xFFFFFFFF)
-val SpotifyTextSecondary = EchoTextSecondaryDark
-val SpotifyTextMuted = EchoTextMutedDark
-val SpotifyDivider = EchoDarkBorder
-
-// Category Discovery Tones (Organic Sound Gradients)
-val CategoryPop = Color(0xFF9070D8)
-val CategoryHipHop = Color(0xFFE27B58)
-val CategoryRock = Color(0xFFD64A6C)
-val CategoryIndie = Color(0xFF5E9A86)
-val CategoryDance = Color(0xFF6A79E8)
-val CategoryMood = Color(0xFFC070B8)
-val CategoryPodcasts = Color(0xFF4A889A)
-val CategoryDiscover = Color(0xFF5B69A8)
+// Category Discovery Tones (Soft Pastel Prism Aligned)
+val CategoryPop = Color(0xFFAF6BFF)
+val CategoryHipHop = Color(0xFFFF7A93)
+val CategoryRock = Color(0xFFFF6B8A)
+val CategoryIndie = Color(0xFF4ECDC4)
+val CategoryDance = Color(0xFF7B6EF6)
+val CategoryMood = Color(0xFFC49BFF)
+val CategoryPodcasts = Color(0xFF68B6FF)
+val CategoryDiscover = Color(0xFF6FE3E8)

@@ -1,6 +1,7 @@
 package com.spotify.clone.core.data
 
 import android.util.Base64
+import com.spotify.clone.BuildConfig
 import com.spotify.clone.core.model.Playlist
 import com.spotify.clone.core.model.Track
 import kotlinx.coroutines.Dispatchers
@@ -12,8 +13,8 @@ import java.net.URL
 import java.net.URLEncoder
 
 class SpotifyApiService(
-    private val clientId: String = "8d9610bceb3a47fb9dd9bfdd5a112f1c",
-    private val clientSecret: String = "aea93a8284dc4534bff9ac37c51b152f"
+    private val clientId: String = BuildConfig.SPOTIFY_CLIENT_ID,
+    private val clientSecret: String = BuildConfig.SPOTIFY_CLIENT_SECRET
 ) {
     private var accessToken: String? = null
     private var tokenExpiryTime: Long = 0L
@@ -27,11 +28,15 @@ class SpotifyApiService(
             return@withContext accessToken
         }
 
+        var connection: HttpURLConnection? = null
         try {
             val url = URL("https://accounts.spotify.com/api/token")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.doOutput = true
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 8000
+                readTimeout = 8000
+                requestMethod = "POST"
+                doOutput = true
+            }
 
             val basicAuth = Base64.encodeToString(
                 "$clientId:$clientSecret".toByteArray(),
@@ -44,7 +49,7 @@ class SpotifyApiService(
             OutputStreamWriter(connection.outputStream).use { it.write(body) }
 
             if (connection.responseCode == 200) {
-                val response = connection.inputStream.bufferedReader().readText()
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(response)
                 val token = json.getString("access_token")
                 val expiresIn = json.getLong("expires_in")
@@ -54,6 +59,8 @@ class SpotifyApiService(
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            connection?.disconnect()
         }
         null
     }
@@ -65,15 +72,19 @@ class SpotifyApiService(
         val token = getValidAccessToken() ?: return@withContext emptyList()
         val tracks = mutableListOf<Track>()
 
+        var connection: HttpURLConnection? = null
         try {
             val encodedQuery = URLEncoder.encode(query, "UTF-8")
             val url = URL("https://api.spotify.com/v1/search?q=$encodedQuery&type=track&limit=20")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("Authorization", "Bearer $token")
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 8000
+                readTimeout = 8000
+                requestMethod = "GET"
+                setRequestProperty("Authorization", "Bearer $token")
+            }
 
             if (connection.responseCode == 200) {
-                val response = connection.inputStream.bufferedReader().readText()
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(response)
                 val items = json.getJSONObject("tracks").getJSONArray("items")
 
@@ -103,11 +114,13 @@ class SpotifyApiService(
                     )
                 }
             } else {
-                val err = connection.errorStream?.bufferedReader()?.readText()
+                val err = connection.errorStream?.bufferedReader()?.use { it.readText() }
                 android.util.Log.w("SpotifyApiService", "Spotify API returned ${connection.responseCode}: $err")
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            connection?.disconnect()
         }
         tracks
     }
@@ -118,14 +131,18 @@ class SpotifyApiService(
     suspend fun getPlaylist(playlistId: String): Playlist? = withContext(Dispatchers.IO) {
         val token = getValidAccessToken() ?: return@withContext null
 
+        var connection: HttpURLConnection? = null
         try {
             val url = URL("https://api.spotify.com/v1/playlists/$playlistId")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("Authorization", "Bearer $token")
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 8000
+                readTimeout = 8000
+                requestMethod = "GET"
+                setRequestProperty("Authorization", "Bearer $token")
+            }
 
             if (connection.responseCode == 200) {
-                val response = connection.inputStream.bufferedReader().readText()
+                val response = connection.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(response)
                 val images = json.getJSONArray("images")
                 val coverUrl = if (images.length() > 0) images.getJSONObject(0).getString("url") else ""
@@ -168,6 +185,8 @@ class SpotifyApiService(
             }
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            connection?.disconnect()
         }
         null
     }
