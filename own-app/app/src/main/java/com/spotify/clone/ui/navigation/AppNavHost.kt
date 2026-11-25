@@ -21,12 +21,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +36,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -47,8 +52,12 @@ import com.spotify.clone.core.designsystem.EchoMotion
 import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.player.MusicController
 import com.spotify.clone.core.profile.UserProfileManager
+import com.spotify.clone.core.update.AppUpdateManager
+import com.spotify.clone.core.update.UpdateInfo
 import com.spotify.clone.ui.artist.ArtistDetailScreen
+import com.spotify.clone.ui.components.AppUpdateDialog
 import com.spotify.clone.ui.components.EchoBottomNavBar
+import kotlinx.coroutines.launch
 import com.spotify.clone.ui.components.MiniPlayerBar
 import com.spotify.clone.ui.components.NavigationTab
 import com.spotify.clone.ui.home.HomeEvent
@@ -78,6 +87,29 @@ fun AppNavHost(
 
     var isPlayerExpanded by remember { mutableStateOf(false) }
     var homeScrollTrigger by remember { mutableLongStateOf(0L) }
+    var availableLiveUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
+    var hasCheckedUpdateInSession by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && !hasCheckedUpdateInSession) {
+                hasCheckedUpdateInSession = true
+                coroutineScope.launch {
+                    runCatching {
+                        val installedVer = AppUpdateManager.getInstalledVersionName(context)
+                        val result = AppUpdateManager.checkForUpdates(context, installedVer)
+                        result.getOrNull()?.let { update ->
+                            availableLiveUpdate = update
+                        }
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     BackHandler(enabled = isPlayerExpanded) {
         isPlayerExpanded = false
@@ -385,6 +417,13 @@ fun AppNavHost(
                     isPlayerExpanded = false
                     navController.navigate(Screen.ArtistDetail.createRoute(artistName))
                 }
+            )
+        }
+
+        availableLiveUpdate?.let { update ->
+            AppUpdateDialog(
+                update = update,
+                onDismiss = { availableLiveUpdate = null }
             )
         }
     }

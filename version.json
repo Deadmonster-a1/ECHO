@@ -1,10 +1,10 @@
 {
-  "versionCode": 3,
-  "versionName": "1.0.2",
-  "releaseTitle": "ECHO v1.0.2 - Live Update",
-  "releaseNotes": "Premium update card, English Romanized lyrics engine, automated smooth lyrics sync, and redesigned lyrics player UI/UX",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v1.0.2/echo.apk",
-  "apkSize": 4436870,
+  "versionCode": 4,
+  "versionName": "2.0.0",
+  "releaseTitle": "ECHO v2.0.0 - Daily AI Home & Studio Upgrades",
+  "releaseNotes": "Daily auto-updating Home with on-device AI/ML recommendation models, automatic background Studio HD song upgrader, Pastel Prism redesign, direct OTA updates, and fixed Home tab navigation.",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.0.0/echo.apk",
+  "apkSize": 4512587,
   "mandatory": false,
-  "publishedAt": "2026-10-29T06:05:58Z"
+  "publishedAt": "2026-11-25T14:53:00Z"
 }

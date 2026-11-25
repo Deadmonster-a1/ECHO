@@ -44,6 +44,7 @@ import androidx.compose.material.icons.outlined.Radio
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -62,6 +63,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,8 +99,12 @@ import com.spotify.clone.core.profile.PrismAvatarOption
 import com.spotify.clone.core.profile.UserProfileManager
 import com.spotify.clone.core.recommendation.EchoRecommendationEngine
 import com.spotify.clone.core.settings.SettingsManager
+import com.spotify.clone.core.update.AppUpdateManager
+import com.spotify.clone.core.update.UpdateInfo
+import com.spotify.clone.ui.components.AppUpdateDialog
 import com.spotify.clone.ui.components.EqualizerBottomSheet
 import com.spotify.clone.ui.components.PlaybackSpeedBottomSheet
+import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -148,6 +154,9 @@ fun SettingsScreen(
     var nameDraft by remember(userName) { mutableStateOf(userName) }
     var showEqualizerSheet by remember { mutableStateOf(false) }
     var showSpeedSheet by remember { mutableStateOf(false) }
+    var isCheckingUpdate by remember { mutableStateOf(false) }
+    var availableUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
+    val coroutineScope = rememberCoroutineScope()
     var showClearCacheConfirm by remember { mutableStateOf(false) }
 
     val screenBg = activeTheme.resolvedBackground(isDarkMode)
@@ -466,14 +475,42 @@ fun SettingsScreen(
             }
         }
 
-        // About Section
+        // About & Updates Section
         item {
-            SettingsGroupTitle("ABOUT", textSecondary)
+            SettingsGroupTitle("ABOUT & UPDATES", textSecondary)
             EchoInsetCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                SettingsRow(
+                    icon = Icons.Outlined.SystemUpdate,
+                    title = "Check for Updates",
+                    subtitle = if (isCheckingUpdate) {
+                        "Checking for direct updates..."
+                    } else {
+                        "Version ${BuildConfig.VERSION_NAME} • Tap to check for updates"
+                    },
+                    onClick = {
+                        if (!isCheckingUpdate) {
+                            coroutineScope.launch {
+                                isCheckingUpdate = true
+                                val result = AppUpdateManager.checkForUpdates(context, BuildConfig.VERSION_NAME)
+                                isCheckingUpdate = false
+                                result.onSuccess { update ->
+                                    if (update != null) {
+                                        availableUpdate = update
+                                    } else {
+                                        Toast.makeText(context, "You're on the latest version (v${BuildConfig.VERSION_NAME})", Toast.LENGTH_SHORT).show()
+                                    }
+                                }.onFailure {
+                                    Toast.makeText(context, "Unable to check updates right now", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                )
+                HorizontalDivider(color = dividerColor, thickness = 0.6.dp, modifier = Modifier.padding(start = 54.dp))
                 SettingsRow(
                     icon = Icons.Outlined.Info,
                     title = "ECHO Music",
-                    subtitle = "Version ${BuildConfig.VERSION_NAME} • Simple, clean audio player",
+                    subtitle = "Version ${BuildConfig.VERSION_NAME} • Direct OTA updates enabled",
                     onClick = {}
                 )
             }
@@ -549,6 +586,13 @@ fun SettingsScreen(
         PlaybackSpeedBottomSheet(
             musicController = musicController,
             onDismiss = { showSpeedSheet = false }
+        )
+    }
+
+    availableUpdate?.let { update ->
+        AppUpdateDialog(
+            update = update,
+            onDismiss = { availableUpdate = null }
         )
     }
 }

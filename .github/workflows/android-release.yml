@@ -41,15 +41,15 @@ jobs:
         working-directory: own-app
 
       - name: Run JVM Unit Tests
-        run: ./gradlew test
+        run: ./gradlew --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m" -Dkotlin.daemon.jvmargs="-Xmx2048m" testDebugUnitTest
         working-directory: own-app
 
       - name: Run Android Lint Analysis
-        run: ./gradlew lintRelease || true
+        run: ./gradlew --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m" lintRelease || true
         working-directory: own-app
 
       - name: Build Release APK
-        run: ./gradlew assembleRelease
+        run: ./gradlew --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m" -Dkotlin.daemon.jvmargs="-Xmx2048m" assembleRelease
         working-directory: own-app
 
       - name: Generate Checksums
