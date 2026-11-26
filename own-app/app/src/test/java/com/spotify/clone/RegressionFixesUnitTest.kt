@@ -381,4 +381,18 @@ class RegressionFixesUnitTest {
         assertTrue(aligned.last().timestampMs > aligned[aligned.size - 2].timestampMs)
         assertTrue(aligned.last().timestampMs < 60_000L)
     }
+
+    @Test
+    fun playbackDsp_bypassesFlatEqualizerAndUsesFullNormalizationGain() {
+        val svc = com.spotify.clone.core.player.PlaybackService
+        assertFalse(svc.shouldEnableEqualizer(true, floatArrayOf(0f, 0f, 0f, 0f, 0f)))
+        assertFalse(svc.shouldEnableEqualizer(false, floatArrayOf(4f, 2f, 0f, 0f, 0f)))
+        assertTrue(svc.shouldEnableEqualizer(true, floatArrayOf(4f, 0f, 0f, 0f, 0f)))
+        assertEquals(600, svc.NORMALIZATION_TARGET_GAIN_MB)
+        val sm = com.spotify.clone.core.settings.SettingsManager
+        sm.setCrossfadeSeconds(8)
+        sm.resetDefaults()
+        assertEquals(0, sm.crossfadeSeconds.value)
+        assertTrue(sm.audioNormalization.value)
+    }
 }

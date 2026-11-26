@@ -211,6 +211,13 @@ class MusicController private constructor(rawContext: Context) {
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                // Ensure volume is never left faded down from a previous track transition.
+                if (SettingsManager.crossfadeSeconds.value <= 0 ||
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK ||
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED
+                ) {
+                    ensureFullVolume(controller)
+                }
                 // Only a natural track end triggers "end of track"; a manual skip or a
                 // new queue (PLAYLIST_CHANGED) must not pause playback.
                 if (sleepTimerEndOfTrack && (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
@@ -532,14 +539,17 @@ class MusicController private constructor(rawContext: Context) {
         }
     }
 
+    private fun ensureFullVolume(player: MediaController? = controller) {
+        player ?: return
+        if (abs(player.volume - 1.0f) > 0.01f) {
+            player.volume = 1.0f
+        }
+    }
+
     private fun stopProgressPolling() {
         progressJob?.cancel()
         progressJob = null
-        controller?.let { player ->
-            if (abs(player.volume - 1.0f) > 0.01f) {
-                player.volume = 1.0f
-            }
-        }
+        ensureFullVolume(controller)
     }
 
     fun playTrack(track: Track, queue: List<Track> = listOf(track)) {
@@ -621,6 +631,7 @@ class MusicController private constructor(rawContext: Context) {
                     currentQueue = updatedQueue
                     val player = controller
                     if (player != null) {
+                        ensureFullVolume(player)
                         player.shuffleModeEnabled = false
                         player.setMediaItems(mediaItems, startIndex, 0L)
                         player.prepare()
@@ -628,6 +639,7 @@ class MusicController private constructor(rawContext: Context) {
                     } else {
                         pendingAction = {
                             controller?.let {
+                                ensureFullVolume(it)
                                 it.shuffleModeEnabled = false
                                 it.setMediaItems(mediaItems, startIndex, 0L)
                                 it.prepare()
@@ -831,6 +843,7 @@ class MusicController private constructor(rawContext: Context) {
             EchoRecommendationEngine.recordEarlySkip(currentTrack)
         }
         if (player.hasNextMediaItem()) {
+            ensureFullVolume(player)
             player.seekToNextMediaItem()
         } else {
             val nextIdx = (_playbackState.value.queueIndex + 1)
@@ -846,6 +859,7 @@ class MusicController private constructor(rawContext: Context) {
             pendingAction = { skipPrevious() }
             return
         }
+        ensureFullVolume(player)
         if (player.currentPosition > 3000L || !player.hasPreviousMediaItem()) {
             player.seekTo(0L)
         } else {
@@ -854,6 +868,7 @@ class MusicController private constructor(rawContext: Context) {
     }
 
     fun seekTo(positionMs: Long) {
+        ensureFullVolume(controller)
         controller?.seekTo(positionMs)
         val dur = controller?.duration?.coerceAtLeast(0L) ?: _playbackState.value.durationMs
         _positionState.value = PositionState(

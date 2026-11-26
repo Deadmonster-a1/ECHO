@@ -1,11 +1,11 @@
 {
-  "versionCode": 9,
-  "versionName": "2.4.0",
-  "releaseTitle": "echo v2.4.0 - Onboarding Polish, Playback Reliability & Security Hardening",
-  "releaseNotes": "• Polished onboarding flow with segmented step indicator, theme/dark-mode picker, and inline GRAVIT legal links\n• Respects system dark theme and accessibility 'Remove animations' setting by default\n• Auto-skips unplayable queue tracks (up to 3) and fixes end-of-track sleep timer pause accuracy\n• Hardened OTA update verification with release certificate matching and repository-pinned asset checks",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.4.0/echo.apk",
-  "apkSize": 5999726,
-  "sha256": "30660c0646707c2a601aea21ca404424da757a7b4565b53b2bfd82d386ff4bd3",
+  "versionCode": 10,
+  "versionName": "2.4.1",
+  "releaseTitle": "echo v2.4.1 - Full-Volume Audio Fix & Playback Polish",
+  "releaseNotes": "• Restored full unattenuated playback loudness by bypassing Android Equalizer DSP on flat presets\n• Boosted Volume Normalization target gain to +6.0 dB (600 mB) for consistent, punchy audio output\n• Fixed unintended intro/outro volume dimming by defaulting single-player Crossfade to Off and ensuring 100% volume reset on track transitions",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.4.1/echo.apk",
+  "apkSize": 5999740,
+  "sha256": "f61d43fbdddca0a65596a3cd5f4277b83963c4c665c27d77899981e7ad9ba828",
   "mandatory": false,
-  "publishedAt": "2026-11-26T21:18:30Z"
+  "publishedAt": "2026-11-26T21:52:30Z"
 }

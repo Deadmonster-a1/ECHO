@@ -46,7 +46,7 @@ object SettingsManager {
     private val _autoMatchGenre = MutableStateFlow(true)
     val autoMatchGenre: StateFlow<Boolean> = _autoMatchGenre.asStateFlow()
 
-    private val _crossfadeSeconds = MutableStateFlow(4)
+    private val _crossfadeSeconds = MutableStateFlow(0)
     val crossfadeSeconds: StateFlow<Int> = _crossfadeSeconds.asStateFlow()
 
     private val _autoGenreEq = MutableStateFlow(false)
@@ -84,7 +84,7 @@ object SettingsManager {
             _smartRadioEnabled.value = p.getBoolean(KEY_SMART_RADIO, true)
             _selectedGenreLock.value = MusicGenre.fromId(p.getString(KEY_GENRE_LOCK, MusicGenre.ALL.id))
             _autoMatchGenre.value = p.getBoolean(KEY_AUTO_MATCH_GENRE, true)
-            _crossfadeSeconds.value = p.getInt(KEY_CROSSFADE_SECONDS, 4).coerceIn(0, 12)
+            _crossfadeSeconds.value = p.getInt(KEY_CROSSFADE_SECONDS, 0).coerceIn(0, 12)
             _autoGenreEq.value = p.getBoolean(KEY_AUTO_GENRE_EQ, false)
             _lyricsSizeTier.value = p.getString(KEY_LYRICS_SIZE_TIER, "STANDARD") ?: "STANDARD"
             _lyricsOffsetMs.value = p.getLong(KEY_LYRICS_OFFSET_MS, 0L).coerceIn(-10_000L, 10_000L)
@@ -170,7 +170,7 @@ object SettingsManager {
         setSmartRadioEnabled(true)
         setGenreLock(MusicGenre.ALL)
         setAutoMatchGenre(true)
-        setCrossfadeSeconds(4)
+        setCrossfadeSeconds(0)
         setAutoGenreEq(false)
         setLyricsSizeTier("STANDARD")
         setLyricsOffsetMs(0L)

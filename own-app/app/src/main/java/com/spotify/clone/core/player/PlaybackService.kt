@@ -78,20 +78,23 @@ class PlaybackService : MediaSessionService() {
         val prefs = getSharedPreferences("spotify_eq_prefs", Context.MODE_PRIVATE)
         val userEqEnabled = prefs.getBoolean("eq_enabled", true)
         val normEnabled = SettingsManager.audioNormalization.value
+        val useAutoBands = SettingsManager.autoGenreEq.value && prefs.contains("auto_eq_preset")
+        val bandPrefix = if (useAutoBands) "auto_band_" else "band_"
+        val userBands = FloatArray(5) { i ->
+            prefs.getFloat("$bandPrefix$i", prefs.getFloat("band_$i", 0f))
+        }
+        // Bypass hardware/HAL Equalizer when flat ("Normal" = all 0 dB) so Android's
+        // AudioEffect mixer does not apply a -3..-6 dB preamp headroom cut unnecessarily.
+        val enableEq = shouldEnableEqualizer(userEqEnabled, userBands)
 
         try {
             equalizer?.let { eq ->
-                eq.enabled = userEqEnabled
-                if (userEqEnabled) {
+                eq.enabled = enableEq
+                if (enableEq) {
                     val range = eq.bandLevelRange
                     val minMb = range[0].toInt()
                     val maxMb = range[1].toInt()
                     val numBands = eq.numberOfBands.toInt()
-                    val useAutoBands = SettingsManager.autoGenreEq.value && prefs.contains("auto_eq_preset")
-                    val bandPrefix = if (useAutoBands) "auto_band_" else "band_"
-                    val userBands = FloatArray(5) { i ->
-                        prefs.getFloat("$bandPrefix$i", prefs.getFloat("band_$i", 0f))
-                    }
 
                     for (b in 0 until numBands) {
                         val centerHz = eq.getCenterFreq(b.toShort()) / 1000f
@@ -114,7 +117,7 @@ class PlaybackService : MediaSessionService() {
         try {
             loudnessEnhancer?.let { le ->
                 le.enabled = normEnabled
-                le.setTargetGain(if (normEnabled) 250 else 0)
+                le.setTargetGain(if (normEnabled) NORMALIZATION_TARGET_GAIN_MB else 0)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed applying LoudnessEnhancer: ${e.message}")
@@ -261,6 +264,15 @@ class PlaybackService : MediaSessionService() {
 
     companion object {
         private const val TAG = "EchoPlaybackService"
+        const val NORMALIZATION_TARGET_GAIN_MB = 600
+
+        /**
+         * Returns true only when EQ is enabled AND at least one band deviates from 0 dB,
+         * avoiding unnecessary Android AudioEffect headroom attenuation on flat presets.
+         */
+        fun shouldEnableEqualizer(userEqEnabled: Boolean, bands: FloatArray): Boolean {
+            return userEqEnabled && bands.any { kotlin.math.abs(it) >= 0.05f }
+        }
 
         /**
          * Maps a user dB setting in [-12, +12] into hardware millibels respecting
