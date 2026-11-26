@@ -1,10 +1,11 @@
 {
-  "versionCode": 8,
-  "versionName": "2.3.0",
-  "releaseTitle": "echo v2.3.0 - GRAVIT Copyright & Legal Center",
-  "releaseNotes": "• Reserved all copyrights & brand attribution to GRAVIT (© 2026 GRAVIT. All rights reserved.)\n• Added complete in-app Legal Center in Settings & Onboarding: Privacy Policy, Terms & Conditions, Copyright/DMCA Notice, Data & Permissions, and Open-Source Licenses\n• Added GRAVIT rights disclosures across Song Credits, Share Lyrics, and Update prompts",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.3.0/echo.apk",
-  "apkSize": 5999730,
+  "versionCode": 9,
+  "versionName": "2.4.0",
+  "releaseTitle": "echo v2.4.0 - Onboarding Polish, Playback Reliability & Security Hardening",
+  "releaseNotes": "• Polished onboarding flow with segmented step indicator, theme/dark-mode picker, and inline GRAVIT legal links\n• Respects system dark theme and accessibility 'Remove animations' setting by default\n• Auto-skips unplayable queue tracks (up to 3) and fixes end-of-track sleep timer pause accuracy\n• Hardened OTA update verification with release certificate matching and repository-pinned asset checks",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.4.0/echo.apk",
+  "apkSize": 5999726,
+  "sha256": "30660c0646707c2a601aea21ca404424da757a7b4565b53b2bfd82d386ff4bd3",
   "mandatory": false,
-  "publishedAt": "2026-11-26T18:56:33Z"
+  "publishedAt": "2026-11-26T21:18:30Z"
 }

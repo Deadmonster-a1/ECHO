@@ -15,8 +15,8 @@ android {
         applicationId = "com.echo.musicplayer"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "2.3.0"
+        versionCode = 9
+        versionName = "2.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -38,30 +38,39 @@ android {
 
     signingConfigs {
         create("release") {
-            val envPath = System.getenv("KEYSTORE_PATH")?.takeIf { it.isNotBlank() }
-            val propPath = (project.findProperty("KEYSTORE_PATH") as? String)?.takeIf { it.isNotBlank() }
-            val customKeystorePath = envPath ?: propPath
-            val projectKeystore = rootProject.file("keystore/echo-release.jks")
+            // Signing secrets come only from env vars, Gradle properties, or the
+            // git-ignored local.properties. Never hardcode them here.
+            val signingProps = Properties().apply {
+                val f = rootProject.file("local.properties")
+                if (f.isFile) f.inputStream().use { load(it) }
+            }
+            fun signingValue(name: String): String? =
+                (System.getenv(name)
+                    ?: (project.findProperty(name) as? String)
+                    ?: signingProps.getProperty(name))
+                    ?.takeIf { it.isNotBlank() }
 
-            if (customKeystorePath != null && file(customKeystorePath).isFile) {
-                storeFile = file(customKeystorePath)
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: (project.findProperty("KEYSTORE_PASSWORD") as? String) ?: "echomusicplayer"
-                keyAlias = System.getenv("KEY_ALIAS") ?: (project.findProperty("KEY_ALIAS") as? String) ?: "echokey"
-                keyPassword = System.getenv("KEY_PASSWORD") ?: (project.findProperty("KEY_PASSWORD") as? String) ?: "echomusicplayer"
-                enableV1Signing = true
-                enableV2Signing = true
-                enableV3Signing = true
-                enableV4Signing = true
-            } else if (projectKeystore.isFile) {
-                storeFile = projectKeystore
-                storePassword = "echomusicplayer"
-                keyAlias = "echokey"
-                keyPassword = "echomusicplayer"
+            val releaseKeystore = (signingValue("KEYSTORE_PATH")?.let { rootProject.file(it) }
+                ?: rootProject.file("keystore/echo-release.jks"))
+                .takeIf { it.isFile }
+            val releaseStorePassword = signingValue("KEYSTORE_PASSWORD")
+            val releaseKeyAlias = signingValue("KEY_ALIAS")
+            val releaseKeyPassword = signingValue("KEY_PASSWORD") ?: releaseStorePassword
+
+            if (releaseKeystore != null && releaseStorePassword != null && releaseKeyAlias != null) {
+                storeFile = releaseKeystore
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true
                 enableV4Signing = true
             } else {
+                logger.warn(
+                    "ECHO: release keystore or KEYSTORE_PASSWORD/KEY_ALIAS not set; " +
+                        "release build will be signed with the DEBUG key."
+                )
                 val debugConfig = getByName("debug")
                 var debugStore = debugConfig.storeFile
                 if (debugStore == null || !debugStore.isFile) {

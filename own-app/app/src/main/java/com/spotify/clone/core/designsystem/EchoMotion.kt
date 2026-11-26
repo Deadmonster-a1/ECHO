@@ -23,6 +23,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -121,7 +123,8 @@ fun Modifier.echoPressable(
         animationSpec = if (isPressed) {
             tween(durationMillis = EchoMotion.DurationPress, easing = EchoMotion.EaseOutStrong)
         } else {
-            EchoMotion.SpatialDefault
+            // Taps carry no momentum: settle critically damped, no wobble on release.
+            EchoMotion.EffectsFast
         },
         label = "echo_press_scale"
     )
@@ -135,6 +138,7 @@ fun Modifier.echoPressable(
             interactionSource = interactionSource,
             indication = null,
             enabled = enabled,
+            role = Role.Button,
             onClick = {
                 if (hapticOnClick) {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -166,7 +170,8 @@ fun Modifier.echoStaggeredEntrance(
         }
     }
 
-    var visible by remember { mutableStateOf(delayMs == 0L) }
+    // Saveable so LazyColumn sections don't replay the entrance when scrolled back into view.
+    var visible by rememberSaveable { mutableStateOf(delayMs == 0L) }
     LaunchedEffect(delayMs) {
         if (!visible) {
             delay(delayMs)

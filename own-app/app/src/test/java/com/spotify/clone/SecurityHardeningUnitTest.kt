@@ -94,4 +94,15 @@ class SecurityHardeningUnitTest {
             temp.delete()
         }
     }
+
+    @Test
+    fun otaDownload_onlyAcceptsOwnRepoReleaseAssets() {
+        val u = com.spotify.clone.core.update.AppUpdateManager
+        assertTrue(u.isOwnReleaseAsset("https://github.com/Deadmonster-a1/ECHO/releases/download/v2.3.0/echo.apk"))
+        assertFalse(u.isOwnReleaseAsset("https://github.com/attacker/ECHO/releases/download/v9.0.0/echo.apk"))
+        assertFalse(u.isOwnReleaseAsset("https://raw.githubusercontent.com/attacker/x/main/echo.apk"))
+        assertFalse(u.isOwnReleaseAsset("https://github.com/Deadmonster-a1/ECHO/releases/download/../../../attacker/x/echo.apk"))
+        assertFalse(u.isOwnReleaseAsset("http://github.com/Deadmonster-a1/ECHO/releases/download/v2.3.0/echo.apk"))
+        assertFalse(u.isOwnReleaseAsset(null))
+    }
 }

@@ -1,5 +1,6 @@
 package com.spotify.clone.ui.onboarding
 
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -48,9 +49,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.ColorLens
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -86,6 +91,7 @@ import com.spotify.clone.core.data.GlobalCatalogService
 import com.spotify.clone.core.data.OnboardingArtist
 import com.spotify.clone.core.data.WorldOnboardingCatalog
 import com.spotify.clone.core.data.WorldRegion
+import com.spotify.clone.core.designsystem.AppThemeOption
 import com.spotify.clone.core.designsystem.EchoArtistAvatar
 import com.spotify.clone.core.designsystem.EchoInsetCard
 import com.spotify.clone.core.designsystem.EchoMotion
@@ -133,6 +139,8 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier
 ) {
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+    val activeTheme by ThemeManager.currentTheme.collectAsState()
+    val isDynamicColor by ThemeManager.dynamicColorEnabled.collectAsState()
     val isReducedMotion = LocalReducedMotion.current
     val focusManager = LocalFocusManager.current
     val catalogService = remember { GlobalCatalogService() }
@@ -198,12 +206,6 @@ fun OnboardingScreen(
     val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
     val accent = MaterialTheme.colorScheme.primary
 
-    val progressFraction by animateFloatAsState(
-        targetValue = (currentStep + 1) / 3f,
-        animationSpec = if (isReducedMotion) tween(120) else EchoMotion.SpatialDefault,
-        label = "onboarding_progress"
-    )
-
     fun saveAndFinish() {
         focusManager.clearFocus()
         val resolvedName = nameInput.trim().ifBlank { "Listener" }
@@ -260,36 +262,63 @@ fun OnboardingScreen(
                         modifier = Modifier.size(20.dp)
                     )
                 }
-            }
-
-            // Clean 3-step capsule progress bar
-            Box(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .width(108.dp)
-                    .height(5.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            ) {
+            } else {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth(progressFraction)
-                        .height(5.dp)
-                        .clip(CircleShape)
-                        .background(accent)
-                )
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    contentAlignment = Alignment.Center
+                ) {
+                    EchoAcousticLogoMark(modifier = Modifier.size(30.dp))
+                }
             }
 
-            Text(
-                text = "Skip",
-                color = textSecondary,
-                style = MaterialTheme.typography.labelLarge,
+            // Segmented 3-step Apple HIG step indicator
+            Row(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(3) { index ->
+                    val isActive = index == currentStep
+                    val isDone = index < currentStep
+                    val segWidth by animateDpAsState(
+                        targetValue = if (isActive) 34.dp else 18.dp,
+                        animationSpec = if (isReducedMotion) tween(0) else AppleCrispDpSpring,
+                        label = "step_seg_w_$index"
+                    )
+                    val segColor by animateColorAsState(
+                        targetValue = when {
+                            isActive -> accent
+                            isDone -> accent.copy(alpha = 0.45f)
+                            else -> MaterialTheme.colorScheme.surfaceContainerHighest
+                        },
+                        animationSpec = tween(180),
+                        label = "step_seg_c_$index"
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(segWidth)
+                            .height(5.dp)
+                            .clip(CircleShape)
+                            .background(segColor)
+                    )
+                }
+            }
+
+            Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.72f))
                     .echoPressable(scaleOnPress = 0.95f) { saveAndFinish() }
-                    .padding(horizontal = 10.dp, vertical = 8.dp)
-            )
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Skip",
+                    color = textSecondary,
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
         }
 
         // Step Content Area
@@ -317,12 +346,20 @@ fun OnboardingScreen(
                     onNameChange = { nameInput = it },
                     selectedAvatarId = selectedAvatarId,
                     onAvatarSelect = { selectedAvatarId = it },
+                    activeTheme = activeTheme,
+                    isDarkMode = isDarkMode,
+                    isDynamicColor = isDynamicColor,
+                    onSelectTheme = { option ->
+                        ThemeManager.setDynamicColorEnabled(false)
+                        ThemeManager.setTheme(option)
+                    },
+                    onToggleDarkMode = { dark -> ThemeManager.setDarkMode(dark) },
+                    onToggleDynamicColor = { enabled -> ThemeManager.setDynamicColorEnabled(enabled) },
                     onSubmit = {
                         focusManager.clearFocus()
                         currentStep = 1
                     },
                     onOpenLegal = { tab -> activeLegalTab = tab },
-                    isDarkMode = isDarkMode,
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
                     accent = accent
@@ -426,11 +463,24 @@ fun OnboardingScreen(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = ctaText,
-                        color = ctaFg,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = ctaText,
+                            color = ctaFg,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        if (canProceed) {
+                            Icon(
+                                imageVector = if (currentStep < 2) Icons.AutoMirrored.Rounded.ArrowForward else Icons.Filled.Check,
+                                contentDescription = null,
+                                tint = ctaFg,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -451,9 +501,14 @@ private fun ProfileStep(
     onNameChange: (String) -> Unit,
     selectedAvatarId: String,
     onAvatarSelect: (String) -> Unit,
+    activeTheme: AppThemeOption,
+    isDarkMode: Boolean,
+    isDynamicColor: Boolean,
+    onSelectTheme: (AppThemeOption) -> Unit,
+    onToggleDarkMode: (Boolean) -> Unit,
+    onToggleDynamicColor: (Boolean) -> Unit,
     onSubmit: () -> Unit,
     onOpenLegal: (LegalDocumentTab) -> Unit,
-    isDarkMode: Boolean,
     textPrimary: Color,
     textSecondary: Color,
     accent: Color
@@ -461,60 +516,98 @@ private fun ProfileStep(
     val activeAvatar = PrismAvatarOption.fromId(selectedAvatarId)
     val initial = nameInput.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "E"
     val isReducedMotion = LocalReducedMotion.current
-    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.30f)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
-        // Clean borderless floating ECHO acoustic mark
-        EchoAcousticLogoMark(modifier = Modifier.size(38.dp))
+        // Clean classic monogram avatar
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .clip(CircleShape)
+                .background(Brush.linearGradient(listOf(activeAvatar.startColor, activeAvatar.endColor))),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = initial,
+                color = Color.White,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Minimal badge tint dots
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PrismAvatarOption.entries.forEach { option ->
+                val selected = option.id == selectedAvatarId
+                val dotScale by animateFloatAsState(
+                    targetValue = if (selected && !isReducedMotion) 1.15f else 1f,
+                    animationSpec = if (isReducedMotion) tween(0) else AppleCrispFloatSpring,
+                    label = "dot_${option.id}"
+                )
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .graphicsLayer {
+                            scaleX = dotScale
+                            scaleY = dotScale
+                        }
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(option.startColor, option.endColor)))
+                        .then(
+                            if (selected) {
+                                Modifier.border(
+                                    2.dp,
+                                    if (isDarkMode) Color.White else Color(0xFF16161D),
+                                    CircleShape
+                                )
+                            } else Modifier
+                        )
+                        .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true) {
+                            onAvatarSelect(option.id)
+                        }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(22.dp))
 
         Text(
             text = "Welcome to echo",
             color = textPrimary,
-            style = MaterialTheme.typography.displayLarge
+            style = MaterialTheme.typography.displayMedium,
+            textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = "Add your name and pick a badge color to personalize your listening space.",
+            text = "Enter your name and choose your look.",
             color = textSecondary,
-            style = MaterialTheme.typography.bodyLarge
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(26.dp))
 
-        // Apple HIG grouped inset card: Name input + Badge color in one unified surface
+        // Classic single grouped setup card: Name + Appearance + Theme swatches
         EchoInsetCard(shape = RoundedCornerShape(EchoRadius.xl)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                    .padding(horizontal = 18.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(activeAvatar.startColor, activeAvatar.endColor))),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = initial,
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(14.dp))
-
                 BasicTextField(
                     value = nameInput,
                     onValueChange = onNameChange,
@@ -546,7 +639,7 @@ private fun ProfileStep(
                 if (nameInput.isNotEmpty()) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(26.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                             .echoPressable(scaleOnPress = 0.88f) { onNameChange("") },
@@ -556,7 +649,7 @@ private fun ProfileStep(
                             imageVector = Icons.Filled.Close,
                             contentDescription = "Clear",
                             tint = textSecondary,
-                            modifier = Modifier.size(15.dp)
+                            modifier = Modifier.size(14.dp)
                         )
                     }
                 }
@@ -565,111 +658,222 @@ private fun ProfileStep(
             HorizontalDivider(
                 color = dividerColor,
                 thickness = 0.6.dp,
-                modifier = Modifier.padding(start = 74.dp)
+                modifier = Modifier.padding(horizontal = 18.dp)
             )
 
+            // Clean Light / Dark segmented switcher
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = "Badge color",
-                    color = textSecondary,
-                    style = MaterialTheme.typography.titleSmall
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PrismAvatarOption.entries.forEach { option ->
-                        val selected = option.id == selectedAvatarId
-                        val dotScale by animateFloatAsState(
-                            targetValue = if (selected && !isReducedMotion) 1.12f else 1f,
-                            animationSpec = if (isReducedMotion) tween(0) else AppleCrispFloatSpring,
-                            label = "dot_${option.id}"
+                listOf(false to "Light", true to "Dark").forEach { (darkOption, label) ->
+                    val selected = isDarkMode == darkOption
+                    val pillBg by animateColorAsState(
+                        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        animationSpec = tween(160),
+                        label = "classic_mode_bg_$label"
+                    )
+                    val pillFg by animateColorAsState(
+                        targetValue = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else textSecondary,
+                        animationSpec = tween(160),
+                        label = "classic_mode_fg_$label"
+                    )
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                            .clip(CircleShape)
+                            .background(pillBg)
+                            .echoPressable(scaleOnPress = 0.96f, hapticOnClick = true) {
+                                onToggleDarkMode(darkOption)
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = if (darkOption) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
+                            contentDescription = null,
+                            tint = pillFg,
+                            modifier = Modifier.size(16.dp)
                         )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = label,
+                            color = pillFg,
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(
+                color = dividerColor,
+                thickness = 0.6.dp,
+                modifier = Modifier.padding(horizontal = 18.dp)
+            )
+
+            // Simple classic single-row theme swatches
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val shortLabels = remember {
+                    mapOf(
+                        AppThemeOption.PASTEL_PRISM to "Violet",
+                        AppThemeOption.ELECTRIC_CORAL to "Coral",
+                        AppThemeOption.AURORA_TEAL to "Aurora",
+                        AppThemeOption.STUDIO_AMBER to "Gold"
+                    )
+                }
+                AppThemeOption.entries.forEach { option ->
+                    val isSelected = activeTheme == option && !isDynamicColor
+                    val swatchPrimary = option.resolvedPrimary(isDarkMode)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .echoPressable(scaleOnPress = 0.92f, hapticOnClick = true) {
+                                onSelectTheme(option)
+                            }
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(28.dp)
-                                .graphicsLayer {
-                                    scaleX = dotScale
-                                    scaleY = dotScale
-                                }
+                                .size(38.dp)
                                 .clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(option.startColor, option.endColor)))
+                                .background(Brush.linearGradient(listOf(swatchPrimary, option.gradientEnd)))
                                 .then(
-                                    if (selected) {
+                                    if (isSelected) {
                                         Modifier.border(
-                                            2.dp,
+                                            2.5.dp,
                                             if (isDarkMode) Color.White else Color(0xFF16161D),
                                             CircleShape
                                         )
                                     } else Modifier
-                                )
-                                .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true) {
-                                    onAvatarSelect(option.id)
-                                },
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (selected) {
+                            if (isSelected) {
                                 Icon(
                                     imageVector = Icons.Filled.Check,
-                                    contentDescription = option.label,
+                                    contentDescription = option.displayName,
                                     tint = Color.White,
-                                    modifier = Modifier.size(13.dp)
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = shortLabels[option] ?: option.displayName,
+                            color = if (isSelected) textPrimary else textSecondary,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .echoPressable(scaleOnPress = 0.92f, hapticOnClick = true) {
+                                onToggleDynamicColor(!isDynamicColor)
+                            }
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                .then(
+                                    if (isDynamicColor) {
+                                        Modifier.border(2.5.dp, accent, CircleShape)
+                                    } else Modifier
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ColorLens,
+                                contentDescription = "Dynamic Color",
+                                tint = if (isDynamicColor) accent else textSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Auto",
+                            color = if (isDynamicColor) textPrimary else textSecondary,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = if (isDynamicColor) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            maxLines = 1
+                        )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
-        // Clean Apple HIG legal & GRAVIT copyright acceptance footer
+        // Clean inline legal links
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(
-                text = "By continuing, you agree to ${GravitLegalCatalog.OWNER_NAME}'s Terms & Conditions and Privacy Policy.",
-                color = textSecondary,
-                style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp)
-            )
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                listOf(
-                    LegalDocumentTab.PRIVACY,
-                    LegalDocumentTab.TERMS,
-                    LegalDocumentTab.COPYRIGHT
-                ).forEach { tab ->
-                    Text(
-                        text = tab.fullTitle,
-                        color = accent,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                            .echoPressable(scaleOnPress = 0.96f, hapticOnClick = true) {
-                                onOpenLegal(tab)
-                            }
-                            .padding(horizontal = 10.dp, vertical = 5.dp)
-                    )
-                }
+                Text(
+                    text = "By continuing, you agree to ${GravitLegalCatalog.OWNER_NAME}'s ",
+                    color = textSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Privacy Policy",
+                    color = accent,
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.echoPressable(scaleOnPress = 0.96f) {
+                        onOpenLegal(LegalDocumentTab.PRIVACY)
+                    }
+                )
+                Text(
+                    text = " & ",
+                    color = textSecondary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = "Terms.",
+                    color = accent,
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.echoPressable(scaleOnPress = 0.96f) {
+                        onOpenLegal(LegalDocumentTab.TERMS)
+                    }
+                )
             }
             Text(
                 text = GravitLegalCatalog.COPYRIGHT_NOTICE,
                 color = textSecondary.copy(alpha = 0.8f),
-                style = MaterialTheme.typography.labelSmall
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.echoPressable(scaleOnPress = 0.96f) {
+                    onOpenLegal(LegalDocumentTab.COPYRIGHT)
+                }
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -698,8 +902,17 @@ private fun TasteStep(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
+        Text(
+            text = "TASTE PROFILE",
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelMedium.copy(
+                letterSpacing = 0.9.sp,
+                fontWeight = FontWeight.Bold
+            )
+        )
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "What do you listen to?",
             color = textPrimary,
@@ -863,6 +1076,15 @@ private fun ArtistsStep(
     ) {
         Spacer(modifier = Modifier.height(10.dp))
 
+        Text(
+            text = "FAVORITE ARTISTS",
+            color = accent,
+            style = MaterialTheme.typography.labelMedium.copy(
+                letterSpacing = 0.9.sp,
+                fontWeight = FontWeight.Bold
+            )
+        )
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "Choose your artists",
             color = textPrimary,

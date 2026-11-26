@@ -39,6 +39,17 @@ object AppUpdateManager {
     var githubOwner: String = "Deadmonster-a1"
     var githubRepo: String = "ECHO"
 
+    /**
+     * The entry URL must be a release asset of OUR repo. Host-only checks would
+     * accept any github.com/raw.githubusercontent.com path from any account.
+     * Redirect hops are still checked by host in [downloadApk].
+     */
+    fun isOwnReleaseAsset(url: String?): Boolean {
+        val prefix = "https://github.com/$githubOwner/$githubRepo/releases/download/"
+        return url != null && url.trim().startsWith(prefix, ignoreCase = true) &&
+            !url.contains("/../") && NetworkSecurity.isTrustedUpdateUrl(url)
+    }
+
     fun getInstalledVersionName(context: Context): String {
         return try {
             val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -148,7 +159,7 @@ object AppUpdateManager {
                     val name = asset.safeOptString("name")
                     if (name.endsWith(".apk", ignoreCase = true)) {
                         val candidateUrl = asset.safeOptString("browser_download_url")
-                        if (NetworkSecurity.isTrustedUpdateUrl(candidateUrl, allowCdnRedirects = false)) {
+                        if (isOwnReleaseAsset(candidateUrl)) {
                             apkDownloadUrl = candidateUrl
                             apkSize = asset.optLong("size", 0L)
                             break
@@ -157,7 +168,7 @@ object AppUpdateManager {
                 }
             }
 
-            if (isNewerVersion(remoteVersion, cleanCurrent) && NetworkSecurity.isTrustedUpdateUrl(apkDownloadUrl)) {
+            if (isNewerVersion(remoteVersion, cleanCurrent) && isOwnReleaseAsset(apkDownloadUrl)) {
                 val updateInfo = UpdateInfo(
                     versionName = remoteVersion,
                     releaseTitle = releaseTitle,
@@ -211,7 +222,7 @@ object AppUpdateManager {
             val isCodeNewer = currentCode > 0L && remoteCode > currentCode
             val isNameNewer = isNewerVersion(remoteVersion, currentVersion)
 
-            val update = if ((isCodeNewer || isNameNewer) && NetworkSecurity.isTrustedUpdateUrl(downloadUrl)) {
+            val update = if ((isCodeNewer || isNameNewer) && isOwnReleaseAsset(downloadUrl)) {
                 UpdateInfo(
                     versionName = remoteVersion,
                     releaseTitle = title,
@@ -240,7 +251,7 @@ object AppUpdateManager {
         expectedSha256: String = "",
         onProgress: (Float) -> Unit
     ): File? = withContext(Dispatchers.IO) {
-        if (!NetworkSecurity.isTrustedUpdateUrl(downloadUrl, allowCdnRedirects = true)) {
+        if (!isOwnReleaseAsset(downloadUrl)) {
             Log.e(TAG, "Blocked untrusted OTA download URL")
             return@withContext null
         }
@@ -371,13 +382,21 @@ object AppUpdateManager {
             val archiveInfo = pm.getPackageArchiveInfo(apkFile.absolutePath, flags) ?: return false
             if (archiveInfo.packageName != context.packageName) return false
 
-            val hasSignature = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                val signingInfo = archiveInfo.signingInfo
-                signingInfo != null && (signingInfo.apkContentsSigners?.isNotEmpty() == true)
+            // The update must be signed by the same certificate as the installed app,
+            // otherwise reject before handing it to the installer.
+            val installed = pm.getPackageInfo(context.packageName, flags)
+            val (archiveCerts, installedCerts) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val a = archiveInfo.signingInfo ?: return false
+                val i = installed.signingInfo ?: return false
+                // apkContentsSigners for the archive; signingCertificateHistory lets a
+                // future key rotation (v3 lineage) still match the installed signer.
+                val history: List<android.content.pm.Signature> = i.signingCertificateHistory?.toList() ?: emptyList()
+                val current: List<android.content.pm.Signature> = i.apkContentsSigners?.toList() ?: emptyList()
+                (a.apkContentsSigners?.toList() ?: emptyList()) to (history + current)
             } else {
-                archiveInfo.signatures?.isNotEmpty() == true
+                (archiveInfo.signatures?.toList() ?: emptyList()) to (installed.signatures?.toList() ?: emptyList())
             }
-            hasSignature
+            archiveCerts.isNotEmpty() && archiveCerts.any { it in installedCerts }
         } catch (e: Exception) {
             Log.e(TAG, "APK verification error: ${e.message}")
             false

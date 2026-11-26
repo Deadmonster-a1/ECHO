@@ -45,3 +45,8 @@ Thumbs.db
 
 # Obsidian
 .obsidian/
+
+# Signing keys
+*.jks
+*.keystore
+keystore/

@@ -246,8 +246,20 @@ object ThemeManager {
             prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val savedThemeId = prefs?.getString(KEY_THEME_ID, AppThemeOption.PASTEL_PRISM.id)
             _currentTheme.value = AppThemeOption.entries.find { it.id == savedThemeId } ?: AppThemeOption.PASTEL_PRISM
-            _isDarkMode.value = prefs?.getBoolean(KEY_DARK_MODE, false) ?: false
-            _reducedMotion.value = prefs?.getBoolean(KEY_REDUCED_MOTION, false) ?: false
+            // Until the user picks in Settings, follow the system dark theme and
+            // "Remove animations" accessibility setting.
+            val systemDark = (context.resources.configuration.uiMode and
+                android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
+                android.content.res.Configuration.UI_MODE_NIGHT_YES
+            val systemNoAnimations = try {
+                android.provider.Settings.Global.getFloat(
+                    context.contentResolver,
+                    android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+                    1f
+                ) == 0f
+            } catch (_: Exception) { false }
+            _isDarkMode.value = prefs?.getBoolean(KEY_DARK_MODE, systemDark) ?: systemDark
+            _reducedMotion.value = prefs?.getBoolean(KEY_REDUCED_MOTION, systemNoAnimations) ?: systemNoAnimations
             _dynamicColorEnabled.value = prefs?.getBoolean(KEY_DYNAMIC_COLOR, false) ?: false
         }
     }

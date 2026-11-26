@@ -85,6 +85,7 @@ class MusicController private constructor(rawContext: Context) {
 
     private var sleepTimerJob: Job? = null
     private var sleepTimerEndOfTrack: Boolean = false
+    private var consecutiveErrorSkips = 0
     private val _sleepTimerRemainingSeconds = MutableStateFlow<Long?>(null)
     val sleepTimerRemainingSeconds: StateFlow<Long?> = _sleepTimerRemainingSeconds.asStateFlow()
 
@@ -181,6 +182,7 @@ class MusicController private constructor(rawContext: Context) {
     private fun setupPlayerListener(player: MediaController) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) consecutiveErrorSkips = 0
                 updateState()
                 if (isPlaying) startProgressPolling() else stopProgressPolling()
             }
@@ -197,6 +199,7 @@ class MusicController private constructor(rawContext: Context) {
                     resolveTrackInBackgroundIfNeeded(current, queueGenerationId)
                     return
                 }
+                if (skipBrokenTrack()) return
                 _playbackState.update {
                     it.copy(
                         isPlaying = false,
@@ -208,7 +211,10 @@ class MusicController private constructor(rawContext: Context) {
             }
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                if (sleepTimerEndOfTrack) {
+                // Only a natural track end triggers "end of track"; a manual skip or a
+                // new queue (PLAYLIST_CHANGED) must not pause playback.
+                if (sleepTimerEndOfTrack && (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
+                        reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT)) {
                     controller?.pause()
                     cancelSleepTimer()
                     updateState()
@@ -322,6 +328,7 @@ class MusicController private constructor(rawContext: Context) {
                             _playbackState.update { it.copy(currentTrack = resolved, errorMessage = null) }
                         }
                     } else if (controller?.currentMediaItemIndex == idx && controller?.playbackState == Player.STATE_IDLE) {
+                        if (skipBrokenTrack()) return@withContext
                         _playbackState.update {
                             it.copy(
                                 isPlaying = false,
@@ -335,6 +342,21 @@ class MusicController private constructor(rawContext: Context) {
                 resolvingTrackIds.remove(track.id)
             }
         }
+    }
+
+    /**
+     * One unplayable stream should not stop a whole queue/radio. Skips forward,
+     * capped so a dead network doesn't spin through every track.
+     * ponytail: fixed cap of 3; reset whenever a track actually starts playing.
+     */
+    private fun skipBrokenTrack(): Boolean {
+        val player = controller ?: return false
+        if (consecutiveErrorSkips >= MAX_ERROR_SKIPS || !player.hasNextMediaItem()) return false
+        consecutiveErrorSkips++
+        player.seekToNextMediaItem()
+        player.prepare()
+        player.play()
+        return true
     }
 
     private suspend fun resolvePlayableTrack(track: Track, downloadMgr: TrackDownloadManager): Track {
@@ -1118,15 +1140,10 @@ class MusicController private constructor(rawContext: Context) {
                     continue
                 }
                 val rem = ((totalDur - p.currentPositionMs) / 1000L).coerceAtLeast(0L)
+                // Countdown display only. The pause happens in onMediaItemTransition on the
+                // real track end; positionState can be stale while the UI is hidden, so pausing
+                // from here could cut the next song short.
                 _sleepTimerRemainingSeconds.value = rem
-                if (rem <= 1L && s.isPlaying) {
-                    delay(1200)
-                    if (sleepTimerEndOfTrack) {
-                        controller?.pause()
-                        cancelSleepTimer()
-                    }
-                    break
-                }
             }
         }
     }
@@ -1218,6 +1235,7 @@ class MusicController private constructor(rawContext: Context) {
 
     companion object {
         private const val TAG = "EchoMusicController"
+        private const val MAX_ERROR_SKIPS = 3
 
         @SuppressLint("StaticFieldLeak")
         @Volatile

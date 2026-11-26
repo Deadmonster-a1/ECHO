@@ -48,7 +48,29 @@ jobs:
         run: ./gradlew --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m" lintRelease || true
         working-directory: own-app
 
+      - name: Restore Release Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            if [ "$IS_RELEASE" = "true" ]; then
+              echo "::warning::KEYSTORE_BASE64 secret missing; skipping automated GitHub Release upload so a debug-signed APK is never published."
+            else
+              echo "::warning::KEYSTORE_BASE64 secret missing; APK will be debug-signed."
+            fi
+            echo "HAS_RELEASE_KEYSTORE=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/echo-release.jks"
+          echo "KEYSTORE_PATH=$RUNNER_TEMP/echo-release.jks" >> "$GITHUB_ENV"
+          echo "HAS_RELEASE_KEYSTORE=true" >> "$GITHUB_ENV"
+
       - name: Build Release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew --no-daemon --max-workers=2 -Dorg.gradle.jvmargs="-Xmx2048m -XX:MaxMetaspaceSize=512m" -Dkotlin.daemon.jvmargs="-Xmx2048m" assembleRelease
         working-directory: own-app
 
@@ -63,7 +85,7 @@ jobs:
 
       - name: Create GitHub Release & Upload Assets
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+        if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') && env.HAS_RELEASE_KEYSTORE == 'true'
         with:
           name: ECHO Music Player ${{ github.ref_name || inputs.version_name }}
           draft: false
