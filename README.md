@@ -5,7 +5,7 @@
 [![Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-4285F4?style=flat&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![Media3](https://img.shields.io/badge/AndroidX_Media3-1.4.1-FF6F00?style=flat)](https://developer.android.com/media/media3)
 [![License](https://img.shields.io/badge/Copyright-%C2%A9_2026_GRAVIT-blue.svg)](#legal--copyright)
-[![CI/CD](https://github.com/Deadmonster-a1/ECHO/actions/workflows/android-release.yml/badge.svg)](https://github.com/Deadmonster-a1/ECHO/actions)
+[![CI/CD](https://github.com/hellogravitagency-maker/ECHO/actions/workflows/android-release.yml/badge.svg)](https://github.com/hellogravitagency-maker/ECHO/actions)
 
 **ECHO v2.0** is a high-performance Android music player crafted with Jetpack Compose, AndroidX Media3, and reverse-engineered architectural blueprints from **LastWave-Native**. Designed with Liquid Glass frosted refraction surfaces, Material 3 Expressive spring physics, audiophile DSP controls (AutoEQ presets, independent tempo & pitch stretch, smart Automix crossfade, audio normalization), millisecond-synchronized lyrics, and dynamic Spotify Canvas visualizers.
 
@@ -83,7 +83,7 @@
 ### 🚀 Zero-Cost In-App Auto-Updates
 - **Dual-Strategy Update Engine (`AppUpdateManager.kt`):**
   1. *Fast Raw CDN Check:* Reads `version.json` via GitHub raw CDN (zero rate-limiting).
-  2. *Fallback REST API:* Queries `api.github.com/repos/Deadmonster-a1/ECHO/releases/latest`.
+  2. *Fallback REST API:* Queries `api.github.com/repos/hellogravitagency-maker/ECHO/releases/latest`.
 - **In-App Package Installer:** Downloads APKs directly to secure cache storage and triggers native installation via Android `FileProvider` without leaving the app.
 - **Settings Screen Integration:** Manual "Check for Updates" button under Settings > About & Architecture.
 
@@ -158,7 +158,7 @@ Whenever you want to release a new version of ECHO to your users, simply run the
 5. **GitHub Actions CI/CD automatically:**
    - Compiles and minifies the APK and AAB.
    - Runs all unit and lint tests.
-   - Creates a new GitHub Release under `Deadmonster-a1/ECHO`.
+   - Creates a new GitHub Release under `hellogravitagency-maker/ECHO`.
    - Attaches `echo-release.apk` and `echo-release.aab`.
 6. Active ECHO users get an instant update notification inside the app!
 
