@@ -23,12 +23,23 @@ class GlobalCatalogService {
 
     companion object {
         private const val TAG = "GlobalCatalog"
-        private val trackQueryCache = java.util.concurrent.ConcurrentHashMap<String, List<Track>>()
-        private val playlistQueryCache = java.util.concurrent.ConcurrentHashMap<String, Playlist>()
+        private const val MAX_TRACK_QUERY_CACHE = 50
+        private val COMPILATION_KEYWORDS = listOf(
+            "superhits", "waves", "collection", "mashup",
+            "top 10", "top 20", "top 50", "romantic songs", "dance dhamaka"
+        )
+        private val trackQueryCache: MutableMap<String, List<Track>> = java.util.Collections.synchronizedMap(
+            object : LinkedHashMap<String, List<Track>>(32, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<Track>>?): Boolean =
+                    size > MAX_TRACK_QUERY_CACHE
+            }
+        )
     }
 
     private fun openConnection(urlStr: String, referer: String? = null): HttpURLConnection {
-        val url = URL(urlStr)
+        val safeUrl = NetworkSecurity.enforceHttpsOrUpgradeKnownCdn(urlStr)
+            ?: throw SecurityException("Blocked non-HTTPS catalog request")
+        val url = URL(safeUrl)
         val conn = url.openConnection() as HttpURLConnection
         conn.connectTimeout = 3000
         conn.readTimeout = 4000
@@ -57,7 +68,7 @@ class GlobalCatalogService {
             val url = "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=$limit&p=1&q=$encoded"
             conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val json = JSONObject(conn.inputStream.use { NetworkSecurity.readBoundedText(it) })
                 val results = json.optJSONArray("results") ?: return@withContext emptyList()
 
                 for (i in 0 until results.length()) {
@@ -101,10 +112,9 @@ class GlobalCatalogService {
         } finally {
             conn?.disconnect()
         }
-        val compilationKeywords = listOf("superhits", "waves", "collection", "mashup", "top 10", "top 20", "top 50", "romantic songs", "dance dhamaka")
         val sortedTracks = tracks.sortedBy { t ->
             val lower = t.albumName.lowercase()
-            if (compilationKeywords.any { lower.contains(it) }) 1 else 0
+            if (COMPILATION_KEYWORDS.any { lower.contains(it) }) 1 else 0
         }
         if (sortedTracks.isNotEmpty()) {
             trackQueryCache[cacheKey] = sortedTracks
@@ -149,7 +159,7 @@ class GlobalCatalogService {
         try {
             conn = openConnection(urlStr)
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val json = JSONObject(conn.inputStream.use { NetworkSecurity.readBoundedText(it) })
                 val results = json.optJSONArray("results") ?: return emptyList()
 
                 for (i in 0 until results.length()) {
@@ -313,7 +323,7 @@ class GlobalCatalogService {
             val url = "https://www.jiosaavn.com/api.php?__call=search.getAlbumResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=$limit&p=1&q=$encoded"
             conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val json = JSONObject(conn.inputStream.use { NetworkSecurity.readBoundedText(it) })
                 val results = json.optJSONArray("results") ?: return@withContext emptyList()
                 for (i in 0 until results.length()) {
                     val item = results.optJSONObject(i) ?: continue
@@ -356,10 +366,11 @@ class GlobalCatalogService {
     suspend fun getAlbumPlaylist(albumId: String): Playlist? = withContext(Dispatchers.IO) {
         var conn: HttpURLConnection? = null
         try {
-            val url = "https://www.jiosaavn.com/api.php?__call=content.getAlbumDetails&_format=json&_marker=0&api_version=4&ctx=web6dot0&albumid=$albumId"
+            val encodedId = URLEncoder.encode(albumId.trim(), "UTF-8")
+            val url = "https://www.jiosaavn.com/api.php?__call=content.getAlbumDetails&_format=json&_marker=0&api_version=4&ctx=web6dot0&albumid=$encodedId"
             conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val json = JSONObject(conn.inputStream.use { NetworkSecurity.readBoundedText(it) })
                 val rawTitle = json.safeOptString("title")
                 if (rawTitle.isBlank()) return@withContext null
                 val title = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString().trim()
@@ -458,17 +469,17 @@ class GlobalCatalogService {
             val url = "https://rss.applemarketingtools.com/api/v2/us/music/most-played/$limit/songs.json"
             conn = openConnection(url)
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val json = JSONObject(conn.inputStream.use { NetworkSecurity.readBoundedText(it) })
                 val results = json.optJSONObject("feed")?.optJSONArray("results")
                 if (results != null) {
                     for (i in 0 until results.length()) {
                         val item = results.optJSONObject(i) ?: continue
-                        val id = item.optString("id", "")
-                        val title = item.optString("name", "")
-                        val artist = item.optString("artistName", "")
-                        val rawArt = item.optString("artworkUrl100", "")
+                        val id = item.safeOptString("id")
+                        val title = item.safeOptString("name")
+                        val artist = item.safeOptString("artistName", "Unknown Artist")
+                        val rawArt = item.safeOptString("artworkUrl100")
                         val cover = rawArt.replace("100x100bb", "600x600bb")
-                        if (title.isBlank()) continue
+                        if (id.isBlank() || title.isBlank()) continue
                         tracks.add(
                             Track(
                                 id = "apple_new_$id",
@@ -506,19 +517,19 @@ class GlobalCatalogService {
             val url = "https://rss.applemarketingtools.com/api/v2/us/music/most-played/$limit/albums.json"
             conn = openConnection(url)
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val json = JSONObject(conn.inputStream.use { NetworkSecurity.readBoundedText(it) })
                 val results = json.optJSONObject("feed")?.optJSONArray("results")
                 if (results != null) {
                     for (i in 0 until results.length()) {
                         val item = results.optJSONObject(i) ?: continue
-                        val id = item.optString("id", "")
-                        val title = item.optString("name", "")
-                        val artist = item.optString("artistName", "")
-                        val rawArt = item.optString("artworkUrl100", "")
+                        val id = item.safeOptString("id")
+                        val title = item.safeOptString("name")
+                        val artist = item.safeOptString("artistName", "Unknown Artist")
+                        val rawArt = item.safeOptString("artworkUrl100")
                         val cover = rawArt.replace("100x100bb", "600x600bb")
-                        val releaseDate = item.optString("releaseDate", "2026")
+                        val releaseDate = item.safeOptString("releaseDate", "2026")
                         val year = releaseDate.take(4)
-                        if (title.isBlank()) continue
+                        if (id.isBlank() || title.isBlank()) continue
                         albums.add(
                             Playlist(
                                 id = "album_apple_$id",
@@ -544,9 +555,12 @@ class GlobalCatalogService {
      * Fetches ranked Daily Top 100 charts (merges global chartbusters and top Indian hits).
      */
     suspend fun getDailyTop100(limit: Int = 20): List<Track> = withContext(Dispatchers.IO) {
-        val usTracks = async { getAppleNewSongs(limit = limit / 2) }
-        val inTracks = async { fetchSaavnTracks("top hits 2026", limit = limit / 2) }
-        (usTracks.await() + inTracks.await()).distinctBy { it.title.lowercase() }
+        val halfLimit = (limit / 2).coerceAtLeast(1)
+        val usTracks = async { getAppleNewSongs(limit = halfLimit) }
+        val inTracks = async { fetchSaavnTracks("top hits 2026", limit = halfLimit) }
+        (usTracks.await() + inTracks.await()).distinctBy {
+            "${it.title.lowercase().trim()}_${it.artistName.lowercase().trim()}"
+        }
     }
 
     /**
@@ -559,12 +573,12 @@ class GlobalCatalogService {
             val url = "https://www.jiosaavn.com/api.php?__call=content.getCharts&api_version=4&_format=json&_marker=0&ctx=web6dot0"
             conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val array = org.json.JSONArray(conn.inputStream.bufferedReader().use { it.readText() })
+                val array = org.json.JSONArray(conn.inputStream.use { NetworkSecurity.readBoundedText(it) })
                 for (i in 0 until array.length()) {
                     val obj = array.optJSONObject(i) ?: continue
-                    val id = obj.optString("id", "")
-                    val rawTitle = obj.optString("title", "")
-                    val image = obj.optString("image", "").replace("150x150", "500x500")
+                    val id = obj.safeOptString("id")
+                    val rawTitle = obj.safeOptString("title")
+                    val image = obj.safeOptString("image").replace("150x150", "500x500")
                     if (id.isBlank() || rawTitle.isBlank()) continue
                     val title = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString().trim()
                     charts.add(
@@ -597,16 +611,16 @@ class GlobalCatalogService {
             val url = "https://www.jiosaavn.com/api.php?__call=webapi.getLaunchData&api_version=4&_format=json&_marker=0&ctx=web6dot0"
             conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val json = JSONObject(conn.inputStream.use { NetworkSecurity.readBoundedText(it) })
                 val newTrending = json.optJSONArray("new_trending")
                 if (newTrending != null) {
                     for (i in 0 until newTrending.length()) {
                         val item = newTrending.optJSONObject(i) ?: continue
-                        val id = item.optString("id", "")
-                        val rawTitle = item.optString("title", "")
-                        val rawSub = item.optString("subtitle", "Trending Now")
-                        val image = item.optString("image", "").replace("150x150", "500x500")
-                        val type = item.optString("type", "playlist")
+                        val id = item.safeOptString("id")
+                        val rawTitle = item.safeOptString("title")
+                        val rawSub = item.safeOptString("subtitle", "Trending Now")
+                        val image = item.safeOptString("image").replace("150x150", "500x500")
+                        val type = item.safeOptString("type", "playlist")
                         if (id.isBlank() || rawTitle.isBlank()) continue
                         val title = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString().trim()
                         val sub = Html.fromHtml(rawSub, Html.FROM_HTML_MODE_LEGACY).toString().trim()
@@ -642,19 +656,19 @@ class GlobalCatalogService {
             val url = "https://www.jiosaavn.com/api.php?__call=webapi.getLaunchData&api_version=4&_format=json&_marker=0&ctx=web6dot0"
             conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val json = JSONObject(conn.inputStream.use { NetworkSecurity.readBoundedText(it) })
                 val artistRecos = json.optJSONArray("artist_recos")
                 if (artistRecos != null) {
                     for (i in 0 until artistRecos.length()) {
                         val item = artistRecos.optJSONObject(i) ?: continue
-                        val id = item.optString("id", "")
-                        val rawName = item.optString("title", item.optString("name", ""))
-                        val rawArt = item.optString("image", "").replace("150x150", "500x500")
+                        val id = item.safeOptString("id")
+                        val rawName = item.safeOptString("title", item.safeOptString("name"))
+                        val rawArt = item.safeOptString("image").replace("150x150", "500x500")
                         if (rawName.isBlank()) continue
                         val name = Html.fromHtml(rawName, Html.FROM_HTML_MODE_LEGACY).toString().trim()
                         radios.add(
                             Artist(
-                                id = "saavn_radio_$id",
+                                id = if (id.isNotBlank()) "saavn_radio_$id" else "saavn_radio_${name.lowercase().replace(" ", "_")}",
                                 name = name,
                                 avatarUrl = rawArt,
                                 monthlyListeners = 15000000L,
@@ -678,10 +692,11 @@ class GlobalCatalogService {
     suspend fun getJioSaavnPlaylist(listId: String): Playlist? = withContext(Dispatchers.IO) {
         var conn: HttpURLConnection? = null
         try {
-            val url = "https://www.jiosaavn.com/api.php?__call=playlist.getDetails&listid=$listId&api_version=4&_format=json&_marker=0&ctx=web6dot0"
+            val encodedId = URLEncoder.encode(listId.trim(), "UTF-8")
+            val url = "https://www.jiosaavn.com/api.php?__call=playlist.getDetails&listid=$encodedId&api_version=4&_format=json&_marker=0&ctx=web6dot0"
             conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val json = JSONObject(conn.inputStream.use { NetworkSecurity.readBoundedText(it) })
                 val rawTitle = json.safeOptString("title")
                 if (rawTitle.isBlank()) return@withContext null
                 val title = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString().trim()
@@ -734,16 +749,17 @@ class GlobalCatalogService {
     }
 
     /**
-     * Fetches regional songs for a selected JioSaavn music language.
+     * Fetches regional or global songs for any supported Indian or World language.
      */
     suspend fun getSongsForLanguage(language: String): List<Track> = withContext(Dispatchers.IO) {
-        when (language.lowercase()) {
-            "telugu" -> fetchSaavnTracks("telugu top hits", limit = 20)
-            "hindi" -> fetchSaavnTracks("hindi top hits", limit = 20)
-            "punjabi" -> fetchSaavnTracks("punjabi top hits", limit = 20)
-            "tamil" -> fetchSaavnTracks("tamil top hits", limit = 20)
-            "english" -> searchTracks("top hits 2026", limit = 20)
-            else -> fetchSaavnTracks("top hits", limit = 20)
+        val query = WorldOnboardingCatalog.searchQueriesForLanguage(language).firstOrNull()
+            ?: "top hits"
+        val isIndian = language.trim() in WorldOnboardingCatalog.INDIAN_LANGUAGES
+        if (isIndian) {
+            val saavn = fetchSaavnTracks(query, limit = 20)
+            saavn.ifEmpty { searchTracks(query, limit = 20) }
+        } else {
+            searchTracks(query, limit = 20)
         }
     }
 

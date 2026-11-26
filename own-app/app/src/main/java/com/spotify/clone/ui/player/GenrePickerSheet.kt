@@ -40,14 +40,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.spotify.clone.core.designsystem.EchoFilterChip
 import com.spotify.clone.core.designsystem.EchoInsetCard
 import com.spotify.clone.core.designsystem.EchoRadius
-import com.spotify.clone.core.designsystem.LocalAppTheme
-import com.spotify.clone.core.designsystem.ThemeManager
-import com.spotify.clone.core.designsystem.echoContrastOn
+import com.spotify.clone.core.designsystem.EchoTonalIconBadge
 import com.spotify.clone.core.designsystem.echoPressable
-import com.spotify.clone.core.designsystem.resolvedBorder
-import com.spotify.clone.core.designsystem.resolvedCard
 import com.spotify.clone.core.model.MusicGenre
 import com.spotify.clone.core.player.MusicController
 
@@ -61,8 +58,6 @@ fun GenrePickerBottomSheet(
     musicController: MusicController,
     onDismiss: () -> Unit
 ) {
-    val activeTheme = LocalAppTheme.current
-    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val activeLock by musicController.activeGenreLock.collectAsState()
     val autoMatch by musicController.autoMatchGenre.collectAsState()
     val playbackState by musicController.playbackState.collectAsState()
@@ -70,10 +65,10 @@ fun GenrePickerBottomSheet(
     val inferredGenre = currentTrack?.let { MusicGenre.inferGenre(it) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val primaryColor = MaterialTheme.colorScheme.primary
     val textPrimary = MaterialTheme.colorScheme.onSurface
     val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
-    val cardBg = activeTheme.resolvedCard(isDarkMode)
-    val borderColor = activeTheme.resolvedBorder(isDarkMode)
+    val borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -89,24 +84,18 @@ fun GenrePickerBottomSheet(
                 .padding(bottom = 32.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.Radio,
-                    contentDescription = null,
-                    tint = activeTheme.primaryColor,
-                    modifier = Modifier.size(22.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
+                EchoTonalIconBadge(icon = Icons.Filled.Radio)
+                Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
                         text = "Same-Genre Radio",
                         color = textPrimary,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.titleLarge
                     )
                     Text(
-                        text = "Keeps queue in one genre with Spotify artist-balanced order",
+                        text = "Keeps queue in one genre with balanced order",
                         color = textSecondary,
-                        fontSize = 12.5.sp
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
@@ -123,7 +112,7 @@ fun GenrePickerBottomSheet(
                     Icon(
                         imageVector = Icons.Filled.AutoAwesome,
                         contentDescription = null,
-                        tint = activeTheme.primaryColor,
+                        tint = primaryColor,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
@@ -150,8 +139,8 @@ fun GenrePickerBottomSheet(
                             musicController.setAutoMatchGenre(enabled)
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = echoContrastOn(activeTheme.primaryColor),
-                            checkedTrackColor = activeTheme.primaryColor
+                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                            checkedTrackColor = primaryColor
                         )
                     )
                 }
@@ -172,7 +161,7 @@ fun GenrePickerBottomSheet(
                     ) {
                         Text(
                             text = "Start ${inferredGenre.shortLabel} Radio from \"${activeTrack.title}\"",
-                            color = activeTheme.primaryColor,
+                            color = primaryColor,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f)
@@ -186,9 +175,7 @@ fun GenrePickerBottomSheet(
             Text(
                 text = "LOCK & PLAY GENRE STATION",
                 color = textSecondary,
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.7.sp
+                style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.7.sp)
             )
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -197,44 +184,18 @@ fun GenrePickerBottomSheet(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 MusicGenre.entries.forEach { genre ->
-                    val isSelected = activeLock == genre
-                    val chipShape = RoundedCornerShape(EchoRadius.pill)
-                    Row(
-                        modifier = Modifier
-                            .clip(chipShape)
-                            .background(if (isSelected) activeTheme.primaryColor else cardBg)
-                            .border(
-                                width = if (isSelected) 1.dp else 0.6.dp,
-                                color = if (isSelected) activeTheme.primaryColor else borderColor,
-                                shape = chipShape
-                            )
-                            .echoPressable(scaleOnPress = 0.97f, hapticOnClick = true) {
-                                if (genre == MusicGenre.ALL) {
-                                    musicController.setAutoMatchGenre(true)
-                                } else {
-                                    musicController.playGenreRadio(genre)
-                                }
-                                onDismiss()
+                    EchoFilterChip(
+                        text = genre.displayName,
+                        isSelected = activeLock == genre,
+                        onClick = {
+                            if (genre == MusicGenre.ALL) {
+                                musicController.setAutoMatchGenre(true)
+                            } else {
+                                musicController.playGenreRadio(genre)
                             }
-                            .padding(horizontal = 14.dp, vertical = 9.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Filled.Check,
-                                contentDescription = null,
-                                tint = echoContrastOn(activeTheme.primaryColor),
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
+                            onDismiss()
                         }
-                        Text(
-                            text = genre.displayName,
-                            color = if (isSelected) echoContrastOn(activeTheme.primaryColor) else textPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
-                        )
-                    }
+                    )
                 }
             }
         }

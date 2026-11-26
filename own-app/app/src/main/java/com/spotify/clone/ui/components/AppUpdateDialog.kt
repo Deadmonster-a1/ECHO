@@ -74,8 +74,6 @@ import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoContrastOn
 import com.spotify.clone.core.designsystem.echoGlassSurface
 import com.spotify.clone.core.designsystem.echoPressable
-import com.spotify.clone.core.designsystem.resolvedBorder
-import com.spotify.clone.core.designsystem.resolvedCard
 import com.spotify.clone.core.designsystem.tabularFigures
 import com.spotify.clone.core.update.AppUpdateManager
 import com.spotify.clone.core.update.UpdateInfo
@@ -93,10 +91,10 @@ fun AppUpdateDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val activeTheme = LocalAppTheme.current
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val isReducedMotion = LocalReducedMotion.current
     val scope = rememberCoroutineScope()
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     var isDownloading by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
@@ -120,8 +118,8 @@ fun AppUpdateDialog(
     )
 
     val cardShape = RoundedCornerShape(EchoRadius.xl)
-    val borderColor = activeTheme.resolvedBorder(isDarkMode)
-    val innerCardBg = if (isDarkMode) Color(0xFF1A1B25) else Color(0xFFF3F4FA)
+    val borderColor = MaterialTheme.colorScheme.outlineVariant
+    val innerCardBg = MaterialTheme.colorScheme.surfaceContainerLow
     val textPrimary = MaterialTheme.colorScheme.onSurface
     val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
 
@@ -143,7 +141,11 @@ fun AppUpdateDialog(
         isDownloading = true
         progress = 0.04f
         scope.launch {
-            val apkFile = AppUpdateManager.downloadApk(context, update.downloadUrl) { p ->
+            val apkFile = AppUpdateManager.downloadApk(
+                context = context,
+                downloadUrl = update.downloadUrl,
+                expectedSha256 = update.sha256
+            ) { p ->
                 progress = p
             }
             isDownloading = false
@@ -178,7 +180,7 @@ fun AppUpdateDialog(
                         isDarkMode = isDarkMode,
                         shape = cardShape,
                         fallbackBorder = borderColor,
-                        tintColor = activeTheme.primaryColor,
+                        tintColor = primaryColor,
                         elevation = 18.dp
                     )
             ) {
@@ -217,8 +219,7 @@ fun AppUpdateDialog(
                                 modifier = Modifier
                                     .size(46.dp)
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(activeTheme.resolvedCard(isDarkMode))
-                                    .border(0.75.dp, borderColor, RoundedCornerShape(14.dp)),
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                                 contentAlignment = Alignment.Center
                             ) {
                                 EchoAcousticLogoMark(
@@ -235,12 +236,12 @@ fun AppUpdateDialog(
                                 Box(
                                     modifier = Modifier
                                         .clip(CircleShape)
-                                        .background(activeTheme.primaryColor.copy(alpha = if (isDarkMode) 0.22f else 0.12f))
+                                        .background(MaterialTheme.colorScheme.primaryContainer)
                                         .padding(horizontal = 10.dp, vertical = 4.dp)
                                 ) {
                                     Text(
                                         text = "v${update.versionName}",
-                                        color = activeTheme.primaryColor,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         style = MaterialTheme.typography.labelMedium.tabularFigures().copy(
                                             fontWeight = FontWeight.Bold
                                         )
@@ -297,14 +298,13 @@ fun AppUpdateDialog(
                             .fillMaxWidth()
                             .clip(notesShape)
                             .background(innerCardBg)
-                            .border(0.6.dp, borderColor.copy(alpha = 0.8f), notesShape)
                             .padding(14.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Outlined.AutoAwesome,
                                 contentDescription = null,
-                                tint = activeTheme.primaryColor,
+                                tint = primaryColor,
                                 modifier = Modifier.size(15.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -330,21 +330,18 @@ fun AppUpdateDialog(
                         }
                     }
 
-                    // Smooth Download Progress
+                    // Smooth Download Progress (Material 3 Expressive Wavy Indicator)
                     AnimatedVisibility(
                         visible = isDownloading,
                         enter = fadeIn(tween(180, easing = EchoMotion.EaseOutStrong)) + expandVertically(tween(220, easing = EchoMotion.EaseOutStrong)),
                         exit = fadeOut(tween(130)) + shrinkVertically(tween(160))
                     ) {
                         Column(modifier = Modifier.padding(top = 14.dp)) {
-                            LinearProgressIndicator(
-                                progress = { animatedProgress },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(7.dp)
-                                    .clip(CircleShape),
-                                color = activeTheme.primaryColor,
-                                trackColor = borderColor.copy(alpha = 0.65f)
+                            com.spotify.clone.core.designsystem.ExpressiveWavyProgressIndicator(
+                                progress = animatedProgress,
+                                modifier = Modifier.fillMaxWidth(),
+                                color = MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(
@@ -359,7 +356,7 @@ fun AppUpdateDialog(
                                 )
                                 Text(
                                     text = "${(animatedProgress * 100).toInt()}%",
-                                    color = activeTheme.primaryColor,
+                                    color = primaryColor,
                                     style = MaterialTheme.typography.labelLarge.tabularFigures()
                                 )
                             }
@@ -411,8 +408,8 @@ fun AppUpdateDialog(
                                 .height(48.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    if (isDownloading) activeTheme.primaryColor.copy(alpha = 0.45f)
-                                    else activeTheme.primaryColor
+                                    if (isDownloading) primaryColor.copy(alpha = 0.45f)
+                                    else primaryColor
                                 )
                                 .echoPressable(
                                     scaleOnPress = 0.96f,
@@ -433,7 +430,7 @@ fun AppUpdateDialog(
                                     Icon(
                                         imageVector = Icons.Outlined.SystemUpdate,
                                         contentDescription = null,
-                                        tint = echoContrastOn(activeTheme.primaryColor),
+                                        tint = MaterialTheme.colorScheme.onPrimary,
                                         modifier = Modifier.size(18.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -443,7 +440,7 @@ fun AppUpdateDialog(
                                             hasErr -> "Retry Update"
                                             else -> "Update Now"
                                         },
-                                        color = echoContrastOn(activeTheme.primaryColor),
+                                        color = MaterialTheme.colorScheme.onPrimary,
                                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
                                     )
                                 }

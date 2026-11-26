@@ -7,82 +7,103 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+/**
+ * ECHO — Material 3 Expressive Typography Scale
+ * Emphasizes bold editorial display contrast, crisp geometric proportions,
+ * tight negative tracking on headlines, and readable emphasized labels.
+ */
 val EchoTypography = Typography(
     displayLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Bold,
-        fontSize = 32.sp,
-        lineHeight = 36.sp,
-        letterSpacing = (-0.8).sp,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 36.sp,
+        lineHeight = 40.sp,
+        letterSpacing = (-1.1).sp,
         color = Color.Unspecified
     ),
     displayMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 30.sp,
+        lineHeight = 35.sp,
+        letterSpacing = (-0.8).sp,
+        color = Color.Unspecified
+    ),
+    displaySmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
-        fontSize = 28.sp,
-        lineHeight = 32.sp,
+        fontSize = 26.sp,
+        lineHeight = 31.sp,
         letterSpacing = (-0.6).sp,
         color = Color.Unspecified
     ),
     headlineLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Bold,
-        fontSize = 24.sp,
-        lineHeight = 29.sp,
+        fontWeight = FontWeight.ExtraBold,
+        fontSize = 25.sp,
+        lineHeight = 30.sp,
         letterSpacing = (-0.5).sp,
         color = Color.Unspecified
     ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 20.sp,
-        lineHeight = 25.sp,
-        letterSpacing = (-0.3).sp,
+        fontWeight = FontWeight.Bold,
+        fontSize = 21.sp,
+        lineHeight = 26.sp,
+        letterSpacing = (-0.35).sp,
+        color = Color.Unspecified
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Bold,
+        fontSize = 19.sp,
+        lineHeight = 24.sp,
+        letterSpacing = (-0.25).sp,
         color = Color.Unspecified
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 17.sp,
-        lineHeight = 22.sp,
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp,
+        lineHeight = 23.sp,
         letterSpacing = (-0.2).sp,
         color = Color.Unspecified
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 15.sp,
-        lineHeight = 20.sp,
+        fontSize = 15.5.sp,
+        lineHeight = 21.sp,
         letterSpacing = (-0.1).sp,
         color = Color.Unspecified
     ),
     titleSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
-        lineHeight = 18.sp,
+        lineHeight = 19.sp,
         letterSpacing = 0.sp,
         color = Color.Unspecified
     ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
-        fontSize = 15.sp,
+        fontSize = 15.5.sp,
         lineHeight = 22.sp,
-        letterSpacing = (-0.1).sp,
+        letterSpacing = (-0.05).sp,
         color = Color.Unspecified
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 13.5.sp,
-        lineHeight = 19.sp,
+        lineHeight = 19.5.sp,
         letterSpacing = 0.sp,
         color = Color.Unspecified
     ),
     bodySmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
+        fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.1.sp,
@@ -90,10 +111,10 @@ val EchoTypography = Typography(
     ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.SemiBold,
-        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        fontSize = 13.5.sp,
         lineHeight = 18.sp,
-        letterSpacing = 0.2.sp,
+        letterSpacing = 0.15.sp,
         color = Color.Unspecified
     ),
     labelMedium = TextStyle(
@@ -106,8 +127,8 @@ val EchoTypography = Typography(
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Medium,
-        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        fontSize = 10.5.sp,
         lineHeight = 14.sp,
         letterSpacing = 0.45.sp,
         color = Color.Unspecified

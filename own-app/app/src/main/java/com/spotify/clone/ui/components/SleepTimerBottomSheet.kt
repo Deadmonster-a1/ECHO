@@ -46,9 +46,10 @@ fun SleepTimerBottomSheet(
     val currentTheme by ThemeManager.currentTheme.collectAsState()
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
 
-    val screenBg = MaterialTheme.colorScheme.surface
+    val screenBg = MaterialTheme.colorScheme.surfaceContainerLow
     val textPrimary = MaterialTheme.colorScheme.onSurface
-    val dividerColor = currentTheme.resolvedBorder(isDarkMode)
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val remainingSeconds by musicController.sleepTimerRemainingSeconds.collectAsState()

@@ -20,6 +20,7 @@ class SearchHistoryRepository private constructor(context: Context) {
     private val _history = MutableStateFlow<List<String>>(loadHistory())
     val history: StateFlow<List<String>> = _history.asStateFlow()
 
+    @Synchronized
     fun add(query: String) {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return
@@ -31,6 +32,7 @@ class SearchHistoryRepository private constructor(context: Context) {
         _history.value = capped
     }
 
+    @Synchronized
     fun remove(query: String) {
         val current = _history.value.toMutableList()
         current.removeAll { it.equals(query, ignoreCase = true) }
@@ -38,6 +40,7 @@ class SearchHistoryRepository private constructor(context: Context) {
         _history.value = current
     }
 
+    @Synchronized
     fun clear() {
         saveHistory(emptyList())
         _history.value = emptyList()

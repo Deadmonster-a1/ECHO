@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -31,18 +32,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.spotify.clone.core.designsystem.EchoRadius
-import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
-import com.spotify.clone.core.designsystem.resolvedBackground
 
 @Composable
 fun shimmerBrush(isDarkMode: Boolean): Brush {
     val isReducedMotion = LocalReducedMotion.current
-    val baseColor = if (isDarkMode) Color(0xFF18181B) else Color(0xFFE8E8ED)
-    val highlightColor = if (isDarkMode) Color(0xFF27272C) else Color(0xFFF5F5FA)
+    val baseColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val highlightColor = MaterialTheme.colorScheme.surfaceContainerHighest
 
     if (isReducedMotion) {
         return Brush.linearGradient(colors = listOf(baseColor, baseColor))
@@ -71,9 +69,8 @@ fun HomeScreenSkeleton(
     isDarkMode: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val activeTheme = LocalAppTheme.current
     val brush = shimmerBrush(isDarkMode)
-    val screenBg = activeTheme.resolvedBackground(isDarkMode)
+    val screenBg = MaterialTheme.colorScheme.background
 
     LazyColumn(
         modifier = modifier
@@ -87,27 +84,37 @@ fun HomeScreenSkeleton(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(brush)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(width = 68.dp, height = 18.dp)
-                            .clip(RoundedCornerShape(6.dp))
+                            .size(width = 112.dp, height = 12.dp)
+                            .clip(RoundedCornerShape(EchoRadius.pill))
                             .background(brush)
                     )
                     Box(
                         modifier = Modifier
-                            .size(width = 210.dp, height = 30.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .size(width = 156.dp, height = 22.dp)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(brush)
                     )
                 }
+                Spacer(modifier = Modifier.width(10.dp))
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(brush)
                 )
@@ -121,16 +128,16 @@ fun HomeScreenSkeleton(
                     .padding(horizontal = 20.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(52.dp, 76.dp, 62.dp, 72.dp).forEach { w ->
+                listOf(64.dp, 86.dp, 72.dp, 80.dp).forEach { w ->
                     Box(
                         modifier = Modifier
-                            .size(width = w, height = 34.dp)
-                            .clip(RoundedCornerShape(50))
+                            .size(width = w, height = 38.dp)
+                            .clip(RoundedCornerShape(EchoRadius.pill))
                             .background(brush)
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
         item {
@@ -147,8 +154,8 @@ fun HomeScreenSkeleton(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(56.dp)
-                                    .clip(RoundedCornerShape(EchoRadius.sm))
+                                    .height(62.dp)
+                                    .clip(RoundedCornerShape(EchoRadius.md))
                                     .background(brush)
                             )
                         }
@@ -162,8 +169,8 @@ fun HomeScreenSkeleton(
             Box(
                 modifier = Modifier
                     .padding(horizontal = 20.dp, vertical = 6.dp)
-                    .size(width = 140.dp, height = 22.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .size(width = 148.dp, height = 24.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(brush)
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -174,9 +181,9 @@ fun HomeScreenSkeleton(
                 items(3) {
                     Box(
                         modifier = Modifier
-                            .width(296.dp)
-                            .height(210.dp)
-                            .clip(RoundedCornerShape(EchoRadius.lg))
+                            .width(304.dp)
+                            .height(216.dp)
+                            .clip(RoundedCornerShape(EchoRadius.xl))
                             .background(brush)
                     )
                 }
@@ -188,8 +195,8 @@ fun HomeScreenSkeleton(
             Box(
                 modifier = Modifier
                     .padding(horizontal = 20.dp, vertical = 6.dp)
-                    .size(width = 132.dp, height = 22.dp)
-                    .clip(RoundedCornerShape(6.dp))
+                    .size(width = 140.dp, height = 24.dp)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(brush)
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -201,8 +208,8 @@ fun HomeScreenSkeleton(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
                             modifier = Modifier
-                                .size(148.dp)
-                                .clip(RoundedCornerShape(EchoRadius.md))
+                                .size(152.dp)
+                                .clip(RoundedCornerShape(EchoRadius.lg))
                                 .background(brush)
                         )
                         Box(

@@ -247,6 +247,10 @@ fun EchoSplashOverlay(
     }
 }
 
+private val LOGO_HEIGHT_FRACTIONS = floatArrayOf(0.34f, 0.60f, 0.88f, 0.60f, 0.34f)
+private val LOGO_WAVE_FREQS = floatArrayOf(1.7f, 2.3f, 1.3f, 2.7f, 1.9f)
+private val LOGO_WAVE_OFFSETS = floatArrayOf(0.0f, 1.15f, 2.30f, 0.65f, 1.85f)
+
 /**
  * Clean 5-bar symmetric acoustic mark painted with the Pastel Prism Apple gradient (no circles).
  */
@@ -256,37 +260,41 @@ fun EchoAcousticLogoMark(
     breathPhase: Float? = null,
     shimmerShift: Float = 0f,
     playingWaveStrength: Float = 0f,
+    breathPhaseState: androidx.compose.runtime.State<Float>? = null,
+    shimmerShiftState: androidx.compose.runtime.State<Float>? = null,
+    playingWaveStrengthState: androidx.compose.runtime.State<Float>? = null,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
         val center = Offset(w / 2f, h / 2f)
+        val livePhase = breathPhaseState?.value ?: breathPhase
+        val liveShimmer = shimmerShiftState?.value ?: shimmerShift
+        val liveStrength = playingWaveStrengthState?.value ?: playingWaveStrength
 
         val gradientBrush = Brush.linearGradient(
             colors = EchoPrismGradientColors,
-            start = Offset(w * (0.08f + shimmerShift * 0.15f), h * 0.08f),
-            end = Offset(w * (0.92f + shimmerShift * 0.15f), h * 0.92f)
+            start = Offset(w * (0.08f + liveShimmer * 0.15f), h * 0.08f),
+            end = Offset(w * (0.92f + liveShimmer * 0.15f), h * 0.92f)
         )
 
         val barWidth = w * 0.108f
         val pitch = w * 0.180f
-        val heightFractions = listOf(0.34f, 0.60f, 0.88f, 0.60f, 0.34f)
-        val waveFreqs = listOf(1.7f, 2.3f, 1.3f, 2.7f, 1.9f)
-        val waveOffsets = listOf(0.0f, 1.15f, 2.30f, 0.65f, 1.85f)
 
-        heightFractions.forEachIndexed { idx, targetFrac ->
+        for (idx in LOGO_HEIGHT_FRACTIONS.indices) {
+            val targetFrac = LOGO_HEIGHT_FRACTIONS[idx]
             val distFromCenter = kotlin.math.abs(idx - 2)
             val staggered = ((progress - distFromCenter * 0.12f) / (1f - distFromCenter * 0.12f))
                 .coerceIn(0.18f, 1f)
-            val waveScale = if (breathPhase != null && progress > 0.85f) {
-                if (playingWaveStrength > 0.01f) {
-                    val primary = sin(breathPhase * waveFreqs[idx] + waveOffsets[idx])
-                    val secondary = sin(breathPhase * 1.1f - idx * 0.9f) * 0.35f
+            val waveScale = if (livePhase != null && progress > 0.85f) {
+                if (liveStrength > 0.01f) {
+                    val primary = sin(livePhase * LOGO_WAVE_FREQS[idx] + LOGO_WAVE_OFFSETS[idx])
+                    val secondary = sin(livePhase * 1.1f - idx * 0.9f) * 0.35f
                     val combined = (primary + secondary).coerceIn(-1f, 1f)
-                    1f + combined * (0.34f * playingWaveStrength)
+                    1f + combined * (0.34f * liveStrength)
                 } else {
-                    1f + 0.09f * sin(breathPhase + idx * 0.75f)
+                    1f + 0.09f * sin(livePhase + idx * 0.75f)
                 }
             } else {
                 1f

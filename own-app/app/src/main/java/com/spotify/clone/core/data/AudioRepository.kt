@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
 import android.util.Size
+import androidx.core.content.ContextCompat
+import androidx.room.withTransaction
 import com.spotify.clone.core.database.AppDatabase
 import com.spotify.clone.core.database.PlaylistEntity
 import com.spotify.clone.core.database.PlaylistTrackCrossRef
@@ -24,7 +26,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -132,9 +136,16 @@ class AudioRepository(
     }
 
     fun getUserPlaylists(): Flow<List<Playlist>> {
-        return playlistDao.getAllPlaylists().map { entities ->
+        return combine(
+            playlistDao.getAllPlaylists(),
+            playlistDao.getAllPlaylistTracksWithEntities()
+        ) { entities, playlistTracks ->
+            val tracksByPlaylist = playlistTracks.groupBy(
+                keySelector = { it.playlistId },
+                valueTransform = { it.track.toDomainModel() }
+            )
             entities.map { entity ->
-                val tracks = playlistDao.getTracksForPlaylist(entity.id).first().map { it.toDomainModel() }
+                val tracks = tracksByPlaylist[entity.id].orEmpty()
                 Playlist(
                     id = entity.id,
                     name = entity.name,
@@ -144,7 +155,7 @@ class AudioRepository(
                     tracks = tracks
                 )
             }
-        }
+        }.flowOn(Dispatchers.IO)
     }
 
     suspend fun getHomeArtists(): List<Artist> = withContext(Dispatchers.IO) {
@@ -152,30 +163,18 @@ class AudioRepository(
             withTimeoutOrNull(2500) { globalCatalog.getJioSaavnArtistRadios() }
         }.getOrNull().orEmpty()
 
-        val globalFeatured = listOf(
-            Artist(
-                id = "art_weeknd",
-                name = "The Weeknd",
-                avatarUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/49/3d/ab/493dab54-f920-9043-6181-80993b8116c9/19UMGIM53909.rgb.jpg/600x600bb.jpg",
-                monthlyListeners = 112000000L
-            ),
-            Artist(
-                id = "art_taylor",
-                name = "Taylor Swift",
-                avatarUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=500&q=80",
-                monthlyListeners = 98000000L
-            ),
-            Artist(
-                id = "art_arijit",
-                name = "Arijit Singh",
-                avatarUrl = "https://c.saavncdn.com/871/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155213-500x500.jpg",
-                monthlyListeners = 42000000L
+        val favorites = runCatching { trackDao.getFavoriteTracks().first().map { it.toDomainModel() } }.getOrDefault(emptyList())
+        val recent = runCatching { trackDao.getRecentlyPlayedTracks().first().map { it.toDomainModel() } }.getOrDefault(emptyList())
+        val personalizedWorld = com.spotify.clone.core.recommendation.EchoRecommendationEngine
+            .getOptimizedHomeArtists(
+                recentlyPlayed = recent,
+                favorites = favorites,
+                limit = 16
             )
-        )
 
-        (saavnRadios + globalFeatured + SampleCatalog.sampleArtists)
+        (personalizedWorld + saavnRadios + SampleCatalog.sampleArtists)
             .distinctBy { it.name.lowercase().trim() }
-            .take(12)
+            .take(18)
     }
 
     fun getFavoriteTracks(): Flow<List<Track>> =
@@ -184,27 +183,36 @@ class AudioRepository(
     fun getRecentlyPlayedTracks(): Flow<List<Track>> =
         trackDao.getRecentlyPlayedTracks().map { list -> list.map { it.toDomainModel() } }
 
+    suspend fun getTrackById(id: String): Track? = withContext(Dispatchers.IO) {
+        SampleCatalog.sampleTracksById[id]
+            ?: trackDao.getTrackById(id)?.toDomainModel()
+    }
+
     suspend fun recordTrackPlayed(track: Track) = withContext(Dispatchers.IO) {
-        val existing = trackDao.getTrackById(track.id)
-        val isFav = existing?.isFavorite ?: track.isFavorite
-        val now = System.currentTimeMillis()
-        val entity = TrackEntity.fromDomainModel(track.copy(isFavorite = isFav), lastPlayed = now)
-        trackDao.insertTrack(entity)
-        trackDao.updateLastPlayed(track.id, now)
+        database.withTransaction {
+            val existing = trackDao.getTrackById(track.id)
+            val isFav = existing?.isFavorite ?: track.isFavorite
+            val now = System.currentTimeMillis()
+            val entity = TrackEntity.fromDomainModel(track.copy(isFavorite = isFav), lastPlayed = now)
+            trackDao.insertTrack(entity)
+            trackDao.updateLastPlayed(track.id, now)
+        }
     }
 
     suspend fun toggleFavorite(track: Track): Boolean = withContext(Dispatchers.IO) {
-        val existing = trackDao.getTrackById(track.id)
-        val currentFav = existing?.isFavorite ?: track.isFavorite
-        val newStatus = !currentFav
-        trackDao.insertTrack(
-            TrackEntity.fromDomainModel(
-                track.copy(isFavorite = newStatus),
-                lastPlayed = existing?.lastPlayedTimestamp ?: 0L
+        database.withTransaction {
+            val existing = trackDao.getTrackById(track.id)
+            val currentFav = existing?.isFavorite ?: track.isFavorite
+            val newStatus = !currentFav
+            trackDao.insertTrack(
+                TrackEntity.fromDomainModel(
+                    track.copy(isFavorite = newStatus),
+                    lastPlayed = existing?.lastPlayedTimestamp ?: 0L
+                )
             )
-        )
-        trackDao.setFavorite(track.id, newStatus)
-        newStatus
+            trackDao.setFavorite(track.id, newStatus)
+            newStatus
+        }
     }
 
     suspend fun search(query: String): List<Track> = withContext(Dispatchers.IO) {
@@ -297,6 +305,17 @@ class AudioRepository(
                 val updated = cached.copy(tracks = tracks)
                 playlistCache[id] = updated
                 return@withContext updated
+            } else if (tracks.isNotEmpty()) {
+                val fallback = Playlist(
+                    id = id,
+                    name = "Audius Playlist",
+                    description = "${tracks.size} tracks",
+                    coverArtUrl = tracks.first().coverArtUrl,
+                    ownerName = "Audius",
+                    tracks = tracks
+                )
+                playlistCache[id] = fallback
+                return@withContext fallback
             }
         }
 
@@ -315,21 +334,35 @@ class AudioRepository(
     }
 
     suspend fun addTrackToPlaylist(track: Track, playlistId: String) = withContext(Dispatchers.IO) {
-        val existing = trackDao.getTrackById(track.id)
-        trackDao.insertTrack(
-            TrackEntity.fromDomainModel(
-                track.copy(isFavorite = existing?.isFavorite ?: track.isFavorite),
-                lastPlayed = existing?.lastPlayedTimestamp ?: 0L
+        database.withTransaction {
+            val existing = trackDao.getTrackById(track.id)
+            trackDao.insertTrack(
+                TrackEntity.fromDomainModel(
+                    track.copy(isFavorite = existing?.isFavorite ?: track.isFavorite),
+                    lastPlayed = existing?.lastPlayedTimestamp ?: 0L
+                )
             )
-        )
-        val existingCount = playlistDao.getTracksForPlaylist(playlistId).first().size
-        playlistDao.addTrackToPlaylist(
-            PlaylistTrackCrossRef(
-                playlistId = playlistId,
-                trackId = track.id,
-                position = existingCount
-            )
-        )
+            if (playlistDao.countTrackInPlaylist(playlistId, track.id) == 0) {
+                val nextPos = playlistDao.getMaxPositionForPlaylist(playlistId) + 1
+                playlistDao.addTrackToPlaylist(
+                    PlaylistTrackCrossRef(
+                        playlistId = playlistId,
+                        trackId = track.id,
+                        position = nextPos
+                    )
+                )
+            }
+            val pl = playlistDao.getPlaylistById(playlistId)
+            if (pl != null && pl.coverArtUrl.isBlank() && track.coverArtUrl.isNotBlank()) {
+                playlistDao.updatePlaylistCover(playlistId, track.coverArtUrl)
+            }
+        }
+    }
+
+    suspend fun updatePlaylistDetails(playlistId: String, name: String, description: String) = withContext(Dispatchers.IO) {
+        val cleanName = name.trim()
+        if (cleanName.isBlank()) return@withContext
+        playlistDao.updatePlaylistDetails(playlistId, cleanName, description.trim())
     }
 
     suspend fun removeTrackFromPlaylist(playlistId: String, trackId: String) = withContext(Dispatchers.IO) {
@@ -355,11 +388,27 @@ class AudioRepository(
     }
 
     suspend fun deletePlaylist(playlistId: String) = withContext(Dispatchers.IO) {
-        playlistDao.clearPlaylistTracks(playlistId)
-        playlistDao.deletePlaylist(playlistId)
+        database.withTransaction {
+            playlistDao.clearPlaylistTracks(playlistId)
+            playlistDao.deletePlaylist(playlistId)
+        }
+    }
+
+    private fun hasLocalAudioPermission(): Boolean {
+        val perm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            android.Manifest.permission.READ_MEDIA_AUDIO
+        } else {
+            android.Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+        return ContextCompat.checkSelfPermission(context, perm) == android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
     suspend fun scanLocalAudioFiles(forceRefresh: Boolean = false): List<Track> = withContext(Dispatchers.IO) {
+        if (!hasLocalAudioPermission()) {
+            cachedLocalTracks = null
+            lastLocalScanMs = 0L
+            return@withContext emptyList()
+        }
         val cached = cachedLocalTracks
         val now = System.currentTimeMillis()
         if (!forceRefresh && cached != null && (now - lastLocalScanMs) < 60_000L) {
@@ -435,11 +484,17 @@ class AudioRepository(
             }
             val loaded = runCatching {
                 val bmp = context.contentResolver.loadThumbnail(contentUri, Size(320, 320), null)
-                FileOutputStream(cachedFile).use { out ->
-                    bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                try {
+                    FileOutputStream(cachedFile).use { out ->
+                        bmp.compress(Bitmap.CompressFormat.JPEG, 85, out)
+                    }
+                    Uri.fromFile(cachedFile).toString()
+                } catch (e: Exception) {
+                    cachedFile.delete()
+                    throw e
+                } finally {
+                    bmp.recycle()
                 }
-                bmp.recycle()
-                Uri.fromFile(cachedFile).toString()
             }.getOrNull()
             if (!loaded.isNullOrBlank()) return loaded
         }
@@ -450,7 +505,9 @@ class AudioRepository(
 
     suspend fun getBestNewSongs(): List<Track> = SongUpgradeEngine.upgradeCatalogFast(globalCatalog.getAppleNewSongs(20))
 
-    suspend fun getNewAlbums(): List<Playlist> = globalCatalog.getAppleNewAlbums(15)
+    suspend fun getNewAlbums(): List<Playlist> = globalCatalog.getAppleNewAlbums(15).also { albums ->
+        albums.forEach { playlistCache[it.id] = it }
+    }
 
     suspend fun getDailyTop100(): List<Track> = SongUpgradeEngine.upgradeCatalogFast(globalCatalog.getDailyTop100(20))
 
@@ -465,21 +522,36 @@ class AudioRepository(
         coroutineScope {
             val appleGlobalDef = async { runCatching { globalCatalog.getAppleNewSongs(20) }.getOrDefault(emptyList()) }
             val saavnLatestInDef = async { runCatching { globalCatalog.fetchSaavnTracks("latest indian songs 2026", limit = 15) }.getOrDefault(emptyList()) }
-            val regionalQuery = when {
-                "Telugu" in preferredLanguages -> "new telugu songs 2026"
-                "Hindi" in preferredLanguages -> "latest hindi songs 2026"
-                "Tamil" in preferredLanguages -> "new tamil songs 2026"
-                "Punjabi" in preferredLanguages -> "new punjabi songs 2026"
-                else -> "new trending songs 2026"
+            val primaryLang = preferredLanguages.firstOrNull { !it.equals("English", ignoreCase = true) && !it.equals("Global", ignoreCase = true) }
+                ?: preferredLanguages.firstOrNull()
+            val regionalQuery = if (primaryLang != null) {
+                WorldOnboardingCatalog.searchQueriesForLanguage(primaryLang).lastOrNull() ?: "new trending songs 2026"
+            } else {
+                "new trending songs 2026"
             }
-            val regionalDef = async { runCatching { globalCatalog.fetchSaavnTracks(regionalQuery, limit = 15) }.getOrDefault(emptyList()) }
+            val regionalDef = async {
+                if (primaryLang != null && primaryLang !in WorldOnboardingCatalog.INDIAN_LANGUAGES) {
+                    runCatching { globalCatalog.searchTracks(regionalQuery, limit = 15) }.getOrDefault(emptyList())
+                } else {
+                    runCatching { globalCatalog.fetchSaavnTracks(regionalQuery, limit = 15) }.getOrDefault(emptyList())
+                }
+            }
+            val secondaryLang = preferredLanguages.firstOrNull { !it.equals(primaryLang, ignoreCase = true) && !it.equals("Global", ignoreCase = true) }
+            val secondaryLangDef = async {
+                if (secondaryLang != null) {
+                    val q = WorldOnboardingCatalog.searchQueriesForLanguage(secondaryLang).firstOrNull() ?: secondaryLang
+                    runCatching { globalCatalog.searchTracks(q, limit = 10) }.getOrDefault(emptyList())
+                } else {
+                    emptyList()
+                }
+            }
             val genreQuery = preferredGenres.firstOrNull { it != MusicGenre.ALL }?.searchQueries?.firstOrNull()
             val genreDef = async {
                 if (genreQuery != null) runCatching { globalCatalog.fetchSaavnTracks(genreQuery, limit = 12) }.getOrDefault(emptyList())
                 else emptyList()
             }
 
-            val merged = appleGlobalDef.await() + regionalDef.await() + saavnLatestInDef.await() + genreDef.await()
+            val merged = appleGlobalDef.await() + regionalDef.await() + secondaryLangDef.await() + saavnLatestInDef.await() + genreDef.await()
             SongUpgradeEngine.upgradeCatalogFast(merged)
         }
     }
@@ -489,13 +561,15 @@ class AudioRepository(
     }
 
     suspend fun persistUpgradedTrack(track: Track) = withContext(Dispatchers.IO) {
-        val existing = trackDao.getTrackById(track.id)
-        trackDao.insertTrack(
-            TrackEntity.fromDomainModel(
-                track = track.copy(isFavorite = existing?.isFavorite ?: track.isFavorite),
-                lastPlayed = existing?.lastPlayedTimestamp ?: 0L
+        database.withTransaction {
+            val existing = trackDao.getTrackById(track.id)
+            trackDao.insertTrack(
+                TrackEntity.fromDomainModel(
+                    track = track.copy(isFavorite = existing?.isFavorite ?: track.isFavorite),
+                    lastPlayed = existing?.lastPlayedTimestamp ?: 0L
+                )
             )
-        )
+        }
     }
 
     suspend fun getJioSaavnCharts(): List<Playlist> = globalCatalog.getJioSaavnCharts()
@@ -503,7 +577,13 @@ class AudioRepository(
     suspend fun getJioSaavnTrending(): List<Playlist> = globalCatalog.getJioSaavnTrending()
 
     companion object {
-        private val playlistCache = ConcurrentHashMap<String, Playlist>()
+        private const val MAX_PLAYLIST_CACHE_ENTRIES = 60
+        private val playlistCache: MutableMap<String, Playlist> = java.util.Collections.synchronizedMap(
+            object : LinkedHashMap<String, Playlist>(32, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Playlist>?): Boolean =
+                    size > MAX_PLAYLIST_CACHE_ENTRIES
+            }
+        )
         @Volatile private var cachedHomePlaylists: List<Playlist>? = null
         @Volatile private var cachedHomeDateKey: String? = null
         @Volatile private var cachedLocalTracks: List<Track>? = null

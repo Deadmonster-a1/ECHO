@@ -348,4 +348,37 @@ class RegressionFixesUnitTest {
             com.spotify.clone.core.profile.PrismAvatarOption.fromId("unknown_id")
         )
     }
+
+    @Test
+    fun streamResolver_requiresResolutionForSpotifyUrisAndLiteralNull() {
+        val resolver = com.spotify.clone.core.data.FullTrackStreamResolver
+        assertTrue(resolver.needsResolution(sampleTrack(id = "s1", title = "Song 1", uri = "spotify:track:12345")))
+        assertTrue(resolver.needsResolution(sampleTrack(id = "s2", title = "Song 2", uri = "null")))
+        assertFalse(resolver.needsResolution(sampleTrack(id = "s3", title = "Song 3", uri = "https://aac.saavncdn.com/123/song_320.mp4")))
+    }
+
+    @Test
+    fun appUpdateManager_comparesSuffixedSemverCorrectly() {
+        val mgr = com.spotify.clone.core.update.AppUpdateManager
+        assertTrue(mgr.isNewerVersion("2.1.1-beta1", "2.1.0"))
+        assertFalse(mgr.isNewerVersion("2.1.0-rc1", "2.1.0"))
+        assertTrue(mgr.isNewerVersion("2.2.0", "2.1.9-hotfix"))
+    }
+
+    @Test
+    fun lyricsCatalog_doesNotHijackAmmaSubstrings() {
+        assertEquals(null, com.spotify.clone.core.lyrics.LyricsCatalog.findCuratedLyrics("t1", "Ammaadi"))
+        assertEquals(null, com.spotify.clone.core.lyrics.LyricsCatalog.findCuratedLyrics("t2", "Mamma Mia"))
+        assertTrue(com.spotify.clone.core.lyrics.LyricsCatalog.findCuratedLyrics("t3", "Amma Song")?.isNotEmpty() == true)
+    }
+
+    @Test
+    fun lyricsSyncEngine_scalesDenseUnsyncedLyricsWithinTrackDuration() {
+        val denseLines = (1..80).map { com.spotify.clone.core.model.LyricLine(-1L, "Line number $it") }
+        val aligned = com.spotify.clone.core.lyrics.LyricsSyncEngine.alignUnsyncedLines(denseLines, trackDurationMs = 60_000L)
+        assertEquals(80, aligned.size)
+        // Trailing lines should remain strictly increasing rather than piling onto the same final timestamp
+        assertTrue(aligned.last().timestampMs > aligned[aligned.size - 2].timestampMs)
+        assertTrue(aligned.last().timestampMs < 60_000L)
+    }
 }

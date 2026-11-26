@@ -38,7 +38,8 @@ fun PlaybackSpeedBottomSheet(
     onDismiss: () -> Unit
 ) {
     val currentTheme by ThemeManager.currentTheme.collectAsState()
-    val screenBg = MaterialTheme.colorScheme.surface
+    val screenBg = MaterialTheme.colorScheme.surfaceContainerLow
+    val primaryColor = MaterialTheme.colorScheme.primary
     val textPrimary = MaterialTheme.colorScheme.onSurface
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)

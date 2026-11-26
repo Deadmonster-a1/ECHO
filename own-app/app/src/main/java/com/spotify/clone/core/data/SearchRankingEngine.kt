@@ -17,6 +17,8 @@ import kotlin.math.min
  */
 object SearchRankingEngine {
 
+    private val WHITESPACE_SPLIT_REGEX = Regex("\\s+")
+
     fun levenshteinDistance(a: String, b: String): Int {
         if (a == b) return 0
         if (a.isEmpty()) return b.length
@@ -57,7 +59,7 @@ object SearchRankingEngine {
         val title = track.title.trim().lowercase(Locale.ROOT)
         val artist = track.artistName.trim().lowercase(Locale.ROOT)
         val album = track.albumName.trim().lowercase(Locale.ROOT)
-        val qTokens = q.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val qTokens = q.split(WHITESPACE_SPLIT_REGEX).filter { it.isNotBlank() }
 
         var score = 0.0
 

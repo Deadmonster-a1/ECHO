@@ -40,10 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.spotify.clone.core.designsystem.EchoRadius
-import com.spotify.clone.core.designsystem.LocalAppTheme
-import com.spotify.clone.core.designsystem.ThemeManager
-import com.spotify.clone.core.designsystem.resolvedBorder
-import com.spotify.clone.core.designsystem.resolvedCard
+import com.spotify.clone.core.designsystem.EchoTonalIconBadge
 import com.spotify.clone.core.model.Track
 
 /**
@@ -56,13 +53,11 @@ fun SongCreditsSheet(
     track: Track,
     onDismiss: () -> Unit
 ) {
-    val activeTheme = LocalAppTheme.current
-    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val sheetBg = MaterialTheme.colorScheme.surface
-    val cardBg = activeTheme.resolvedCard(isDarkMode)
-    val cardBorder = activeTheme.resolvedBorder(isDarkMode)
+    val sheetBg = MaterialTheme.colorScheme.surfaceContainerLow
+    val cardBg = MaterialTheme.colorScheme.surfaceContainerHigh
+    val primaryColor = MaterialTheme.colorScheme.primary
     val textPrimary = MaterialTheme.colorScheme.onSurface
     val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
 
@@ -84,20 +79,7 @@ fun SongCreditsSheet(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(activeTheme.primaryColor.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Info,
-                        contentDescription = null,
-                        tint = activeTheme.primaryColor,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
+                EchoTonalIconBadge(icon = Icons.Outlined.Info, size = 42.dp, iconSize = 22.dp)
 
                 Spacer(modifier = Modifier.width(14.dp))
 
@@ -124,7 +106,6 @@ fun SongCreditsSheet(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
                     .background(cardBg)
-                    .border(1.dp, cardBorder, RoundedCornerShape(16.dp))
                     .padding(14.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -151,7 +132,7 @@ fun SongCreditsSheet(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = track.artistName,
-                            color = activeTheme.primaryColor,
+                            color = primaryColor,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1,
@@ -210,9 +191,10 @@ fun SongCreditsSheet(
                 "Track ID" to track.id
             ), textPrimary, textSecondary)
 
-            CreditSection("LYRICS & METADATA", listOf(
-                "Lyrics Sync" to syncLabel,
-                "Extended Credits" to "Not provided by source"
+            val inferredGenre = com.spotify.clone.core.model.MusicGenre.inferGenre(track).displayName
+            CreditSection("LYRICS & CLASSIFICATION", listOf(
+                "Genre" to inferredGenre,
+                "Lyrics Sync" to syncLabel
             ), textPrimary, textSecondary)
         }
     }

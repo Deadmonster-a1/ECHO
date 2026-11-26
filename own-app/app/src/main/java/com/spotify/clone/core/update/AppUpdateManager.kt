@@ -2,11 +2,13 @@ package com.spotify.clone.core.update
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
+import com.spotify.clone.core.data.NetworkSecurity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -22,7 +24,8 @@ data class UpdateInfo(
     val downloadUrl: String,
     val apkSize: Long = 0L,
     val publishedAt: String = "",
-    val isMandatory: Boolean = false
+    val isMandatory: Boolean = false,
+    val sha256: String = ""
 )
 
 object AppUpdateManager {
@@ -67,12 +70,18 @@ object AppUpdateManager {
      * 2. Direct raw version.json from GitHub with anti-caching query tokens.
      * 3. Official GitHub Releases API (releases/latest).
      */
+    private fun JSONObject.safeOptString(key: String, fallback: String = ""): String {
+        if (isNull(key)) return fallback
+        val value = optString(key, fallback).trim()
+        return if (value.isEmpty() || value.equals("null", ignoreCase = true)) fallback else value
+    }
+
     suspend fun checkForUpdates(
         context: Context? = null,
         currentVersion: String = "1.0.0"
     ): Result<UpdateInfo?> = withContext(Dispatchers.IO) {
         val cleanCurrent = currentVersion.removePrefix("v").trim()
-        val currentCode = context?.let { getInstalledVersionCode(it) } ?: 1L
+        val currentCode = context?.let { getInstalledVersionCode(it) } ?: -1L
         val timestamp = System.currentTimeMillis()
 
         // Strategy 1: Ultra-fast Global Edge CDN (jsDelivr)
@@ -100,10 +109,11 @@ object AppUpdateManager {
         }
 
         // Strategy 3: GitHub Releases API
+        var connection: HttpURLConnection? = null
         try {
             val apiUrl = "https://api.github.com/repos/$githubOwner/$githubRepo/releases/latest"
             val url = URL(apiUrl)
-            val connection = (url.openConnection() as HttpURLConnection).apply {
+            connection = (url.openConnection() as HttpURLConnection).apply {
                 connectTimeout = 8000
                 readTimeout = 10000
                 requestMethod = "GET"
@@ -120,13 +130,13 @@ object AppUpdateManager {
                 return@withContext Result.failure(Exception("GitHub API error: HTTP $responseCode"))
             }
 
-            val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+            val responseBody = NetworkSecurity.readBoundedText(connection.inputStream)
             val json = JSONObject(responseBody)
 
-            val rawTagName = json.optString("tag_name", "")
-            val releaseTitle = json.optString("name", rawTagName)
-            val releaseNotes = json.optString("body", "No changelog provided.")
-            val publishedAt = json.optString("published_at", "")
+            val rawTagName = json.safeOptString("tag_name")
+            val releaseTitle = json.safeOptString("name", rawTagName)
+            val releaseNotes = json.safeOptString("body", "No changelog provided.")
+            val publishedAt = json.safeOptString("published_at")
             val remoteVersion = rawTagName.removePrefix("v").trim()
 
             var apkDownloadUrl = ""
@@ -134,17 +144,20 @@ object AppUpdateManager {
             val assets = json.optJSONArray("assets")
             if (assets != null) {
                 for (i in 0 until assets.length()) {
-                    val asset = assets.getJSONObject(i)
-                    val name = asset.optString("name", "")
+                    val asset = assets.optJSONObject(i) ?: continue
+                    val name = asset.safeOptString("name")
                     if (name.endsWith(".apk", ignoreCase = true)) {
-                        apkDownloadUrl = asset.optString("browser_download_url", "")
-                        apkSize = asset.optLong("size", 0L)
-                        break
+                        val candidateUrl = asset.safeOptString("browser_download_url")
+                        if (NetworkSecurity.isTrustedUpdateUrl(candidateUrl, allowCdnRedirects = false)) {
+                            apkDownloadUrl = candidateUrl
+                            apkSize = asset.optLong("size", 0L)
+                            break
+                        }
                     }
                 }
             }
 
-            if (isNewerVersion(remoteVersion, cleanCurrent) && apkDownloadUrl.isNotBlank()) {
+            if (isNewerVersion(remoteVersion, cleanCurrent) && NetworkSecurity.isTrustedUpdateUrl(apkDownloadUrl)) {
                 val updateInfo = UpdateInfo(
                     versionName = remoteVersion,
                     releaseTitle = releaseTitle,
@@ -161,12 +174,14 @@ object AppUpdateManager {
         } catch (e: Exception) {
             Log.e(TAG, "Update check failed: ${e.message}", e)
             Result.failure(e)
+        } finally {
+            connection?.disconnect()
         }
     }
 
     private data class JsonCheckOutcome(val update: UpdateInfo?)
 
-    private fun fetchVersionFromJson(rawUrl: String, currentVersion: String, currentCode: Long = 1L): JsonCheckOutcome? {
+    private fun fetchVersionFromJson(rawUrl: String, currentVersion: String, currentCode: Long = -1L): JsonCheckOutcome? {
         val connection = (URL(rawUrl).openConnection() as HttpURLConnection).apply {
             connectTimeout = 7000
             readTimeout = 7000
@@ -181,28 +196,30 @@ object AppUpdateManager {
         try {
             if (connection.responseCode != 200) return null
 
-            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            val response = NetworkSecurity.readBoundedText(connection.inputStream)
             val json = JSONObject(response)
 
-            val remoteVersion = json.optString("versionName", "").removePrefix("v").trim()
+            val remoteVersion = json.safeOptString("versionName").removePrefix("v").trim()
             val remoteCode = json.optLong("versionCode", 0L)
-            val title = json.optString("releaseTitle", "echo v$remoteVersion Update")
-            val notes = json.optString("releaseNotes", "Bug fixes and performance improvements.")
-            val downloadUrl = json.optString("downloadUrl", "")
+            val title = json.safeOptString("releaseTitle", "echo v$remoteVersion Update")
+            val notes = json.safeOptString("releaseNotes", "Bug fixes and performance improvements.")
+            val downloadUrl = json.safeOptString("downloadUrl")
             val size = json.optLong("apkSize", 0L)
             val mandatory = json.optBoolean("mandatory", false)
+            val sha256 = json.safeOptString("sha256").lowercase()
 
-            val isCodeNewer = remoteCode > 0 && currentCode > 0 && remoteCode > currentCode
+            val isCodeNewer = currentCode > 0L && remoteCode > currentCode
             val isNameNewer = isNewerVersion(remoteVersion, currentVersion)
 
-            val update = if ((isCodeNewer || isNameNewer) && downloadUrl.isNotBlank()) {
+            val update = if ((isCodeNewer || isNameNewer) && NetworkSecurity.isTrustedUpdateUrl(downloadUrl)) {
                 UpdateInfo(
                     versionName = remoteVersion,
                     releaseTitle = title,
                     releaseNotes = notes,
                     downloadUrl = downloadUrl,
                     apkSize = size,
-                    isMandatory = mandatory
+                    isMandatory = mandatory,
+                    sha256 = sha256
                 )
             } else {
                 null
@@ -214,63 +231,88 @@ object AppUpdateManager {
     }
 
     /**
-     * Downloads the APK file to the application's external cache directory.
-     * Robust implementation that explicitly handles HTTP 301/302/303/307/308 redirects
-     * (required for GitHub release assets hosted on AWS S3 / Azure CDN).
+     * Downloads the APK file into private internal cache (`cacheDir/updates`) with strict HTTPS
+     * host verification on every redirect and package/signature validation before installation.
      */
     suspend fun downloadApk(
         context: Context,
         downloadUrl: String,
+        expectedSha256: String = "",
         onProgress: (Float) -> Unit
     ): File? = withContext(Dispatchers.IO) {
+        if (!NetworkSecurity.isTrustedUpdateUrl(downloadUrl, allowCdnRedirects = true)) {
+            Log.e(TAG, "Blocked untrusted OTA download URL")
+            return@withContext null
+        }
+
+        val appContext = context.applicationContext
         var finalConnection: HttpURLConnection? = null
+        var tempFile: File? = null
         try {
             var currentUrl = downloadUrl
             var redirectCount = 0
             val maxRedirects = 6
 
             while (redirectCount < maxRedirects) {
+                if (!NetworkSecurity.isTrustedUpdateUrl(currentUrl, allowCdnRedirects = true)) {
+                    throw SecurityException("Blocked untrusted redirect host or non-HTTPS scheme")
+                }
+
                 val url = URL(currentUrl)
                 val conn = (url.openConnection() as HttpURLConnection).apply {
                     connectTimeout = 20000
                     readTimeout = 60000
-                    instanceFollowRedirects = false // Handle explicitly for cross-domain redirects
+                    instanceFollowRedirects = false // Handle explicitly to enforce HTTPS host policy per hop
                     setRequestProperty("User-Agent", "ECHO-Android-Updater")
                     setRequestProperty("Accept", "*/*")
                 }
 
-                val status = conn.responseCode
-                if (status == HttpURLConnection.HTTP_MOVED_TEMP ||
-                    status == HttpURLConnection.HTTP_MOVED_PERM ||
-                    status == HttpURLConnection.HTTP_SEE_OTHER ||
-                    status == 307 || status == 308
-                ) {
-                    val location = conn.getHeaderField("Location")
-                    conn.disconnect()
-                    if (!location.isNullOrBlank()) {
-                        currentUrl = if (location.startsWith("http")) location else URL(url, location).toString()
-                        redirectCount++
-                        continue
+                try {
+                    val status = conn.responseCode
+                    if (status == HttpURLConnection.HTTP_MOVED_TEMP ||
+                        status == HttpURLConnection.HTTP_MOVED_PERM ||
+                        status == HttpURLConnection.HTTP_SEE_OTHER ||
+                        status == 307 || status == 308
+                    ) {
+                        val location = conn.getHeaderField("Location")
+                        conn.disconnect()
+                        if (!location.isNullOrBlank()) {
+                            val nextUrl = if (location.startsWith("http", ignoreCase = true)) {
+                                location
+                            } else {
+                                URL(url, location).toString()
+                            }
+                            if (!NetworkSecurity.isTrustedUpdateUrl(nextUrl, allowCdnRedirects = true)) {
+                                throw SecurityException("Blocked redirect to untrusted update host")
+                            }
+                            currentUrl = nextUrl
+                            redirectCount++
+                            continue
+                        }
                     }
-                }
 
-                if (status == HttpURLConnection.HTTP_OK) {
-                    finalConnection = conn
-                    break
-                } else {
-                    conn.disconnect()
-                    throw Exception("HTTP Error: $status from $currentUrl")
+                    if (status == HttpURLConnection.HTTP_OK) {
+                        finalConnection = conn
+                        break
+                    } else {
+                        conn.disconnect()
+                        throw Exception("HTTP Error: $status")
+                    }
+                } catch (e: Exception) {
+                    if (finalConnection !== conn) conn.disconnect()
+                    throw e
                 }
             }
 
             val conn = finalConnection ?: throw Exception("Failed to follow download redirects")
             val totalSize = conn.contentLength.toLong()
-            val cacheDir = context.externalCacheDir ?: context.cacheDir
-            val destinationFile = File(cacheDir, "echo.apk")
-            if (destinationFile.exists()) destinationFile.delete()
+            val updatesDir = File(appContext.cacheDir, "updates").apply { if (!exists()) mkdirs() }
+            val destinationFile = File(updatesDir, "echo.apk")
+            val stagingFile = File(updatesDir, "echo.apk.tmp").also { tempFile = it }
+            if (stagingFile.exists()) stagingFile.delete()
 
             conn.inputStream.use { input ->
-                FileOutputStream(destinationFile).use { output ->
+                FileOutputStream(stagingFile).use { output ->
                     val buffer = ByteArray(32768)
                     var bytesRead: Int
                     var totalRead = 0L
@@ -287,18 +329,58 @@ object AppUpdateManager {
                 }
             }
 
-            if (destinationFile.exists() && destinationFile.length() > 1_000_000L) {
-                destinationFile.setReadable(true, false)
+            val isValidSize = stagingFile.exists() && stagingFile.length() > 1_000_000L
+            val isShaValid = expectedSha256.isBlank() ||
+                NetworkSecurity.sha256Hex(stagingFile).equals(expectedSha256.trim(), ignoreCase = true)
+            val isPackageValid = isValidSize && isShaValid && verifyApkArchive(appContext, stagingFile)
+
+            if (isPackageValid) {
+                if (destinationFile.exists()) destinationFile.delete()
+                if (!stagingFile.renameTo(destinationFile)) {
+                    stagingFile.copyTo(destinationFile, overwrite = true)
+                    stagingFile.delete()
+                }
                 destinationFile
             } else {
-                Log.e(TAG, "Downloaded file too small: ${destinationFile.length()} bytes")
+                val len = stagingFile.length()
+                stagingFile.delete()
+                Log.e(TAG, "Downloaded APK rejected (size=$len, shaOk=$isShaValid, pkgOk=$isPackageValid)")
                 null
             }
         } catch (e: Exception) {
+            tempFile?.let { if (it.exists()) it.delete() }
             Log.e(TAG, "Download failed: ${e.message}", e)
             null
         } finally {
             finalConnection?.disconnect()
+        }
+    }
+
+    /**
+     * Verifies the downloaded file is a signed APK matching this app's package name.
+     */
+    @Suppress("DEPRECATION")
+    private fun verifyApkArchive(context: Context, apkFile: File): Boolean {
+        return try {
+            val pm = context.packageManager
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                PackageManager.GET_SIGNING_CERTIFICATES
+            } else {
+                PackageManager.GET_SIGNATURES
+            }
+            val archiveInfo = pm.getPackageArchiveInfo(apkFile.absolutePath, flags) ?: return false
+            if (archiveInfo.packageName != context.packageName) return false
+
+            val hasSignature = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                val signingInfo = archiveInfo.signingInfo
+                signingInfo != null && (signingInfo.apkContentsSigners?.isNotEmpty() == true)
+            } else {
+                archiveInfo.signatures?.isNotEmpty() == true
+            }
+            hasSignature
+        } catch (e: Exception) {
+            Log.e(TAG, "APK verification error: ${e.message}")
+            false
         }
     }
 
@@ -337,7 +419,6 @@ object AppUpdateManager {
      */
     fun installApk(context: Context, apkFile: File) {
         try {
-            apkFile.setReadable(true, false)
             val uri: Uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -358,6 +439,10 @@ object AppUpdateManager {
     }
 
     fun openBrowserDownload(context: Context, url: String) {
+        if (!NetworkSecurity.isTrustedUpdateUrl(url, allowCdnRedirects = true)) {
+            Log.e(TAG, "Blocked untrusted browser download URL")
+            return
+        }
         try {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -391,8 +476,10 @@ object AppUpdateManager {
      */
     fun isNewerVersion(remote: String, current: String): Boolean {
         if (remote.isBlank() || current.isBlank()) return false
-        val rParts = remote.split(".").mapNotNull { it.toIntOrNull() }
-        val cParts = current.split(".").mapNotNull { it.toIntOrNull() }
+        val digitRegex = Regex("^\\d+")
+        val rParts = remote.split(".").mapNotNull { digitRegex.find(it.trim())?.value?.toIntOrNull() }
+        val cParts = current.split(".").mapNotNull { digitRegex.find(it.trim())?.value?.toIntOrNull() }
+        if (rParts.isEmpty() || cParts.isEmpty()) return false
 
         val maxLen = maxOf(rParts.size, cParts.size)
         for (i in 0 until maxLen) {

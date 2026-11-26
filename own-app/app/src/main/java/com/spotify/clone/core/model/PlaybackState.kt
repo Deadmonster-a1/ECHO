@@ -1,5 +1,14 @@
 package com.spotify.clone.core.model
 
+data class PositionState(
+    val currentPositionMs: Long = 0L,
+    val bufferedPositionMs: Long = 0L,
+    val durationMs: Long = 0L
+) {
+    val progress: Float
+        get() = if (durationMs > 0) (currentPositionMs.toFloat() / durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+}
+
 data class PlaybackState(
     val currentTrack: Track? = null,
     val isPlaying: Boolean = false,

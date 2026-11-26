@@ -78,11 +78,12 @@ fun EqualizerBottomSheet(
     val currentTheme by ThemeManager.currentTheme.collectAsState()
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
 
-    val screenBg = androidx.compose.material3.MaterialTheme.colorScheme.surface
+    val screenBg = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerLow
     val textPrimary = androidx.compose.material3.MaterialTheme.colorScheme.onSurface
     val textSecondary = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
-    val chipInactiveBg = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
-    val onAccent = com.spotify.clone.core.designsystem.echoContrastOn(currentTheme.primaryColor)
+    val chipInactiveBg = androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainerHigh
+    val primaryAccent = androidx.compose.material3.MaterialTheme.colorScheme.primary
+    val onAccent = androidx.compose.material3.MaterialTheme.colorScheme.onPrimary
 
     val prefs: SharedPreferences = remember {
         context.getSharedPreferences("spotify_eq_prefs", Context.MODE_PRIVATE)
@@ -314,6 +315,8 @@ fun EqualizerBottomSheet(
                             }
                             bandLevels[index] = newLevel
                             selectedPresetName = "Custom"
+                        },
+                        onValueChangeFinished = {
                             val editor = prefs.edit().putString("eq_preset", "Custom")
                             bandLevels.forEachIndexed { i, v -> editor.putFloat("band_$i", v) }
                             editor.apply()

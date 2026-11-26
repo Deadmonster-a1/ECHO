@@ -29,9 +29,25 @@ object LyricsRepository {
 
     private const val TAG = "EchoLyricsRepository"
     private const val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    private const val MAX_LYRICS_CACHE_ENTRIES = 60
 
-    private val memoryCache = ConcurrentHashMap<String, LyricsResult>()
+    private val rawMemoryCache: MutableMap<String, LyricsResult> = java.util.Collections.synchronizedMap(
+        object : LinkedHashMap<String, LyricsResult>(32, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, LyricsResult>?): Boolean =
+                size > MAX_LYRICS_CACHE_ENTRIES
+        }
+    )
     private val lrcTagPattern = Pattern.compile("\\[(\\d{1,3}):(\\d{2}(?:\\.\\d{1,3})?)]")
+    private val CLEAN_PARENS_REGEX = Regex("(?i)\\(.*?\\)|\\[.*?\\]")
+    private val CLEAN_FROM_REGEX = Regex("(?i)\\s*-\\s*from\\s+\"?.*$")
+    private val CLEAN_NOISE_REGEX = Regex("(?i)\\b(official\\s*video|official\\s*audio|lyric\\s*video|full\\s*video|lyrical|video|audio|lyrics|4k|hd|remastered|remaster)\\b")
+    private val ID3_HEADER_REGEX = Regex("^\\[[a-zA-Z]+:.*?\\]$")
+
+    private fun JSONObject.safeOptString(key: String, fallback: String = ""): String {
+        if (isNull(key)) return fallback
+        val value = optString(key, fallback).trim()
+        return if (value.isEmpty() || value.equals("null", ignoreCase = true)) fallback else value
+    }
 
     /**
      * Instantly retrieves cached or curated English-normalized synced lyrics if available (synchronous).
@@ -39,29 +55,23 @@ object LyricsRepository {
     fun getCachedLyrics(track: Track, durationHintMs: Long = track.durationMs): LyricsResult {
         val effectiveDuration = maxOf(track.durationMs, durationHintMs)
         val cacheKey = getCacheKey(track)
-        memoryCache[cacheKey]?.let { cached ->
-            return if (effectiveDuration > 15_000L) {
-                LyricsSyncEngine.prepareEnglishSyncedLyrics(cached, effectiveDuration)
-            } else {
-                cached
-            }
+        rawMemoryCache[cacheKey]?.let { raw ->
+            return LyricsSyncEngine.prepareEnglishSyncedLyrics(raw, effectiveDuration)
         }
 
         // Check curated catalog
         LyricsCatalog.findCuratedLyrics(track.id, track.title)?.let { lines ->
             val rawResult = LyricsResult(LyricsSyncType.LINE_SYNCED, enrichDurations(lines), "Echo Verified Studio Sync")
-            val result = LyricsSyncEngine.prepareEnglishSyncedLyrics(rawResult, effectiveDuration)
-            memoryCache[cacheKey] = result
-            return result
+            rawMemoryCache[cacheKey] = rawResult
+            return LyricsSyncEngine.prepareEnglishSyncedLyrics(rawResult, effectiveDuration)
         }
 
         // Check if track object already has rich lyrics
         if (track.lyrics.isNotEmpty()) {
             val enriched = if (track.lyricsSyncType == LyricsSyncType.LINE_SYNCED) enrichDurations(track.lyrics) else track.lyrics
             val rawResult = LyricsResult(track.lyricsSyncType, enriched, "Embedded Metadata")
-            val result = LyricsSyncEngine.prepareEnglishSyncedLyrics(rawResult, effectiveDuration)
-            memoryCache[cacheKey] = result
-            return result
+            rawMemoryCache[cacheKey] = rawResult
+            return LyricsSyncEngine.prepareEnglishSyncedLyrics(rawResult, effectiveDuration)
         }
 
         return LyricsResult(LyricsSyncType.NONE, emptyList(), "")
@@ -74,31 +84,24 @@ object LyricsRepository {
     suspend fun getOrFetchLyrics(track: Track, durationHintMs: Long = track.durationMs): LyricsResult = withContext(Dispatchers.IO) {
         val effectiveDuration = maxOf(track.durationMs, durationHintMs)
         val cacheKey = getCacheKey(track)
-        memoryCache[cacheKey]?.let { cached ->
-            val updated = if (effectiveDuration > 15_000L) {
-                LyricsSyncEngine.prepareEnglishSyncedLyrics(cached, effectiveDuration)
-            } else {
-                cached
-            }
-            memoryCache[cacheKey] = updated
-            return@withContext updated
+        rawMemoryCache[cacheKey]?.let { raw ->
+            return@withContext LyricsSyncEngine.prepareEnglishSyncedLyrics(raw, effectiveDuration)
         }
 
         // Tier 1: Curated Studio Catalog
         LyricsCatalog.findCuratedLyrics(track.id, track.title)?.let { lines ->
             val rawResult = LyricsResult(LyricsSyncType.LINE_SYNCED, enrichDurations(lines), "Echo Verified Studio Sync")
-            val result = LyricsSyncEngine.prepareEnglishSyncedLyrics(rawResult, effectiveDuration)
-            memoryCache[cacheKey] = result
-            return@withContext result
+            rawMemoryCache[cacheKey] = rawResult
+            return@withContext LyricsSyncEngine.prepareEnglishSyncedLyrics(rawResult, effectiveDuration)
         }
 
         // Tier 2: LRCLIB API (Global Synced Lyrics Engine)
         try {
             val lrclibResult = fetchFromLrclib(track)
             if (lrclibResult != null && lrclibResult.lines.isNotEmpty()) {
+                rawMemoryCache[cacheKey] = lrclibResult
                 val syncedEnglish = LyricsSyncEngine.prepareEnglishSyncedLyrics(lrclibResult, effectiveDuration)
                 Log.d(TAG, "Loaded ${syncedEnglish.lines.size} lines (${syncedEnglish.syncType}) from LRCLIB for '${track.title}'")
-                memoryCache[cacheKey] = syncedEnglish
                 return@withContext syncedEnglish
             }
         } catch (e: Exception) {
@@ -106,15 +109,14 @@ object LyricsRepository {
         }
 
         // Tier 3: JioSaavn Lyrics API + Algorithmic Sync & Romanization
-        if (track.id.startsWith("saavn_") || track.mediaUri.contains("saavn")) {
+        if (track.id.startsWith("saavn_")) {
             try {
                 val saavnLines = fetchFromSaavn(track)
                 if (saavnLines.isNotEmpty()) {
                     Log.d(TAG, "Loaded ${saavnLines.size} lines from Saavn for '${track.title}'")
                     val rawResult = LyricsResult(LyricsSyncType.UNSYNCED, saavnLines, "JioSaavn")
-                    val result = LyricsSyncEngine.prepareEnglishSyncedLyrics(rawResult, effectiveDuration)
-                    memoryCache[cacheKey] = result
-                    return@withContext result
+                    rawMemoryCache[cacheKey] = rawResult
+                    return@withContext LyricsSyncEngine.prepareEnglishSyncedLyrics(rawResult, effectiveDuration)
                 }
             } catch (e: Exception) {
                 Log.d(TAG, "Saavn lyrics lookup failed for '${track.title}': ${e.message}")
@@ -124,12 +126,11 @@ object LyricsRepository {
         // Tier 4: Existing track embedded lyrics if present
         if (track.lyrics.isNotEmpty()) {
             val rawResult = LyricsResult(track.lyricsSyncType, track.lyrics, "Embedded Metadata")
-            val result = LyricsSyncEngine.prepareEnglishSyncedLyrics(rawResult, effectiveDuration)
-            memoryCache[cacheKey] = result
-            return@withContext result
+            rawMemoryCache[cacheKey] = rawResult
+            return@withContext LyricsSyncEngine.prepareEnglishSyncedLyrics(rawResult, effectiveDuration)
         }
 
-        // Tier 5: Honest Unavailable State (do not cache transient misses in memoryCache)
+        // Tier 5: Honest Unavailable State (do not cache transient misses in rawMemoryCache)
         return@withContext LyricsResult(LyricsSyncType.NONE, emptyList(), "")
     }
 
@@ -139,9 +140,9 @@ object LyricsRepository {
 
     private fun cleanQuery(input: String): String {
         return input
-            .replace(Regex("(?i)\\(.*?\\)|\\[.*?\\]"), "")
-            .replace(Regex("(?i)\\s*-\\s*from\\s+\"?.*$"), "")
-            .replace(Regex("(?i)\\b(official\\s*video|official\\s*audio|lyric\\s*video|full\\s*video|lyrical|video|audio|lyrics|4k|hd|remastered|remaster)\\b"), "")
+            .replace(CLEAN_PARENS_REGEX, "")
+            .replace(CLEAN_FROM_REGEX, "")
+            .replace(CLEAN_NOISE_REGEX, "")
             .trim()
     }
 
@@ -169,16 +170,16 @@ object LyricsRepository {
             }
 
             if (getConn.responseCode == 200) {
-                val respText = getConn.inputStream.bufferedReader().use { it.readText() }
+                val respText = com.spotify.clone.core.data.NetworkSecurity.readBoundedText(getConn.inputStream)
                 val json = JSONObject(respText)
-                val synced = json.optString("syncedLyrics", "")
+                val synced = json.safeOptString("syncedLyrics")
                 if (synced.isNotBlank()) {
                     val parsed = parseLrc(synced)
                     if (parsed.isNotEmpty()) {
                         return LyricsResult(LyricsSyncType.LINE_SYNCED, parsed, "LRCLIB Synced")
                     }
                 }
-                val plain = json.optString("plainLyrics", "")
+                val plain = json.safeOptString("plainLyrics")
                 if (plain.isNotBlank()) {
                     val plainLines = parsePlainLyrics(plain)
                     if (plainLines.isNotEmpty()) {
@@ -206,23 +207,23 @@ object LyricsRepository {
                 }
 
                 if (searchConn.responseCode == 200) {
-                    val respText = searchConn.inputStream.bufferedReader().use { it.readText() }
+                    val respText = com.spotify.clone.core.data.NetworkSecurity.readBoundedText(searchConn.inputStream)
                     val array = JSONArray(respText)
                     var bestResult: LyricsResult? = null
                     var bestScore = Double.NEGATIVE_INFINITY
 
                     for (i in 0 until array.length()) {
-                        val item = array.getJSONObject(i)
-                        val synced = item.optString("syncedLyrics", "")
-                        val plain = item.optString("plainLyrics", "")
+                        val item = array.optJSONObject(i) ?: continue
+                        val synced = item.safeOptString("syncedLyrics")
+                        val plain = item.safeOptString("plainLyrics")
                         if (synced.isBlank() && plain.isBlank()) continue
 
                         val score = LyricsSyncEngine.scoreCandidateMatch(
                             queryTitle = cleanTitle,
                             queryArtist = primaryArtist,
                             targetDurationMs = track.durationMs,
-                            candTitle = item.optString("trackName", ""),
-                            candArtist = item.optString("artistName", ""),
+                            candTitle = item.safeOptString("trackName"),
+                            candArtist = item.safeOptString("artistName"),
                             candDurationSec = item.optDouble("duration", 0.0),
                             hasSynced = synced.isNotBlank()
                         )
@@ -255,7 +256,8 @@ object LyricsRepository {
     }
 
     private fun fetchFromSaavn(track: Track): List<LyricLine> {
-        val saavnSongId = track.id.removePrefix("saavn_")
+        val saavnSongId = URLEncoder.encode(track.id.removePrefix("saavn_").trim(), "UTF-8")
+        if (saavnSongId.isBlank()) return emptyList()
         val urlStr = "https://www.jiosaavn.com/api.php?__call=lyrics.getLyrics&ctx=web6dot0&api_version=4&_format=json&_marker=0&lyrics_id=$saavnSongId"
 
         var conn: HttpURLConnection? = null
@@ -270,9 +272,9 @@ object LyricsRepository {
 
             if (conn.responseCode != 200) return emptyList()
 
-            val response = conn.inputStream.bufferedReader().use { it.readText() }
+            val response = com.spotify.clone.core.data.NetworkSecurity.readBoundedText(conn.inputStream)
             val json = JSONObject(response)
-            val rawLyrics = json.optString("lyrics", "")
+            val rawLyrics = json.safeOptString("lyrics")
             if (rawLyrics.isBlank()) return emptyList()
 
             val cleanLyrics = Html.fromHtml(rawLyrics, Html.FROM_HTML_MODE_LEGACY).toString()
@@ -294,7 +296,7 @@ object LyricsRepository {
             val trimmed = line.trim()
             if (trimmed.isBlank()) continue
             // Skip ID3 tags like [ar:...], [ti:...], [al:...]
-            if (trimmed.matches(Regex("^\\[[a-zA-Z]+:.*?\\]$"))) continue
+            if (trimmed.matches(ID3_HEADER_REGEX)) continue
 
             val timestamps = mutableListOf<Long>()
             val matcher = lrcTagPattern.matcher(trimmed)

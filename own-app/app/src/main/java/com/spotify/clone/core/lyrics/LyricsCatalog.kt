@@ -386,7 +386,7 @@ object LyricsCatalog {
             clean.contains("kissik") || id.contains("kissik") -> lyricsKissik
             clean.contains("kurchi") || id.contains("kurchi") -> lyricsKurchi
             clean.contains("dum masala") || id.contains("dum_masala") -> lyricsDumMasala
-            clean.contains("amma") || id.contains("amma_song") -> lyricsAmmaSong
+            clean == "amma" || clean.contains("amma song") || id.contains("amma_song") -> lyricsAmmaSong
             clean.contains("bhairava") || id.contains("bhairava") -> lyricsBhairavaAnthem
             clean.contains("ta takkara") || id.contains("ta_takkara") -> lyricsTaTakkara
             clean.contains("theme of kalki") || id.contains("kalki") -> lyricsThemeOfKalki

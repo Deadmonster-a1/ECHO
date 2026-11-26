@@ -265,7 +265,7 @@ fun ShareLyricsDialog(
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = artworkColors.vibrantAccent,
-                        contentColor = Color(0xFF101016)
+                        contentColor = com.spotify.clone.core.designsystem.echoContrastOn(artworkColors.vibrantAccent)
                     )
                 ) {
                     Icon(imageVector = Icons.Filled.Share, contentDescription = null, modifier = Modifier.size(18.dp))

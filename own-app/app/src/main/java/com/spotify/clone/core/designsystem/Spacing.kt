@@ -1,11 +1,12 @@
 package com.spotify.clone.core.designsystem
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * ECHO Spacing & Geometry System
- * Strict 4pt-based grid aligning with Apple Human Interface Guidelines and reference geometry.
+ * ECHO — Material 3 Expressive Spacing & Geometry System
  */
 object EchoSpacing {
     // 4pt Base Spacing Scale
@@ -31,51 +32,62 @@ object EchoSpacing {
     // Screen Margins & Whitespace
     val screenHorizontalMargin: Dp = 20.dp
     val screenTopMargin: Dp = 16.dp
-    val sectionSpacing: Dp = 24.dp
+    val sectionSpacing: Dp = 26.dp
     val cardSpacing: Dp = 14.dp
     val itemSpacing: Dp = 10.dp
 
-    // Navigation & Persistent Bar Dimensions
-    val bottomNavHeight: Dp = 58.dp
-    val miniPlayerHeight: Dp = 60.dp
-    val topAppBarHeight: Dp = 56.dp
-    val searchBarHeight: Dp = 48.dp
-    val minTouchTarget: Dp = 44.dp
+    // Navigation & Floating M3 Expressive Bar Dimensions
+    val bottomNavHeight: Dp = 64.dp
+    val miniPlayerHeight: Dp = 64.dp
+    val topAppBarHeight: Dp = 60.dp
+    val searchBarHeight: Dp = 54.dp
+    val minTouchTarget: Dp = 48.dp
 
     // Artwork Standard Sizes
-    val artworkMini: Dp = 44.dp
-    val artworkRow: Dp = 50.dp
-    val artworkMedium: Dp = 72.dp
-    val artworkCard: Dp = 148.dp
-    val artworkCardLarge: Dp = 164.dp
-    val artworkHero: Dp = 300.dp
+    val artworkMini: Dp = 46.dp
+    val artworkRow: Dp = 52.dp
+    val artworkMedium: Dp = 76.dp
+    val artworkCard: Dp = 152.dp
+    val artworkCardLarge: Dp = 168.dp
+    val artworkHero: Dp = 308.dp
     val artistAvatarSmall: Dp = 44.dp
-    val artistAvatarMedium: Dp = 72.dp
-    val artistAvatarLarge: Dp = 96.dp
+    val artistAvatarMedium: Dp = 76.dp
+    val artistAvatarLarge: Dp = 98.dp
 
     // Button Sizes
-    val buttonSmall: Dp = 36.dp
-    val buttonMedium: Dp = 44.dp
-    val buttonLarge: Dp = 52.dp
-    val playFabSmall: Dp = 44.dp
+    val buttonSmall: Dp = 40.dp
+    val buttonMedium: Dp = 48.dp
+    val buttonLarge: Dp = 56.dp
+    val playFabSmall: Dp = 48.dp
     val playFabStandard: Dp = 56.dp
-    val playFabHero: Dp = 68.dp
+    val playFabHero: Dp = 72.dp
 }
 
 /**
- * ECHO Corner Radii Scale
- * Locked continuous corner scale with concentric nesting helper.
+ * ECHO — Material 3 Expressive Corner Radii Scale
+ * Boldly rounded organic corners supporting shape morphing on press/selection.
  */
 object EchoRadius {
     val none: Dp = 0.dp
-    val xs: Dp = 8.dp
-    val sm: Dp = 12.dp
-    val md: Dp = 16.dp
-    val lg: Dp = 20.dp
-    val xl: Dp = 26.dp
-    val xxl: Dp = 28.dp
+    val xs: Dp = 10.dp
+    val sm: Dp = 16.dp
+    val md: Dp = 20.dp
+    val lg: Dp = 24.dp
+    val xl: Dp = 28.dp
+    val xxl: Dp = 32.dp
     val pill: Dp = 999.dp
     val circular: Dp = 999.dp
 
     fun nested(outer: Dp, padding: Dp): Dp = (outer - padding).coerceAtLeast(xs)
 }
+
+/**
+ * Material 3 Expressive Shape Scale applied globally via MaterialTheme.shapes.
+ */
+val EchoExpressiveShapes = Shapes(
+    extraSmall = RoundedCornerShape(EchoRadius.xs),
+    small = RoundedCornerShape(EchoRadius.sm),
+    medium = RoundedCornerShape(EchoRadius.md),
+    large = RoundedCornerShape(EchoRadius.xl),
+    extraLarge = RoundedCornerShape(EchoRadius.xxl)
+)

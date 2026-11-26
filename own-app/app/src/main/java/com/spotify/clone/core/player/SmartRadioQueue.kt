@@ -27,12 +27,17 @@ object SmartRadioQueue {
     private const val MAX_RECENT_HISTORY = 80
     private val recentlyPlayedKeys = LinkedHashSet<String>()
 
+    private val ARTIST_SPLIT_REGEX =
+        Regex("""[,&/]|\b(?:feat\.?|ft\.?|featuring)\b""", RegexOption.IGNORE_CASE)
+    private val TITLE_CLEAN_REGEX =
+        Regex("(?i)\\((?:feat\\.|remaster|live|deluxe).*?\\)|\\[(?:feat\\.|remaster|live|deluxe).*?\\]|- remastered.*|- single.*")
+
     fun normalizedSongKey(title: String, artist: String): String {
         val cleanTitle = title.trim().lowercase(Locale.ROOT)
-            .replace(Regex("(?i)\\((?:feat\\.|remaster|live|deluxe).*?\\)|\\[(?:feat\\.|remaster|live|deluxe).*?\\]|- remastered.*|- single.*"), "")
+            .replace(TITLE_CLEAN_REGEX, "")
             .trim()
         val cleanArtist = artist.trim().lowercase(Locale.ROOT)
-            .split(',', '&', '/').firstOrNull()?.trim() ?: artist.trim().lowercase(Locale.ROOT)
+            .split(ARTIST_SPLIT_REGEX).firstOrNull()?.trim() ?: artist.trim().lowercase(Locale.ROOT)
         return "$cleanTitle|$cleanArtist"
     }
 

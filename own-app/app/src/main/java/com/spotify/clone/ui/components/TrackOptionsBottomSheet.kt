@@ -66,10 +66,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.spotify.clone.core.data.AudioRepository
-import com.spotify.clone.core.designsystem.LocalAppTheme
-import com.spotify.clone.core.designsystem.ThemeManager
-import com.spotify.clone.core.designsystem.echoContrastOn
-import com.spotify.clone.core.designsystem.resolvedBorder
 import com.spotify.clone.core.download.TrackDownloadManager
 import com.spotify.clone.core.model.Playlist
 import com.spotify.clone.core.model.Track
@@ -96,15 +92,14 @@ fun TrackOptionsBottomSheet(
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val repository = remember { AudioRepository(context.applicationContext) }
-    val activeTheme = LocalAppTheme.current
-    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val playbackSpeed by musicController.playbackSpeed.collectAsState()
     val sleepTimerRemaining by musicController.sleepTimerRemainingSeconds.collectAsState()
 
-    val sheetBg = MaterialTheme.colorScheme.surface
+    val sheetBg = MaterialTheme.colorScheme.surfaceContainerLow
     val textPrimary = MaterialTheme.colorScheme.onSurface
     val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
-    val dividerColor = activeTheme.resolvedBorder(isDarkMode)
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     var showPlaylistDialog by remember { mutableStateOf(false) }
     var userPlaylists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
@@ -170,7 +165,7 @@ fun TrackOptionsBottomSheet(
 
             TrackOptionRow(
                 icon = if (track.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                iconTint = if (track.isFavorite) activeTheme.primaryColor else textPrimary,
+                iconTint = if (track.isFavorite) primaryColor else textPrimary,
                 label = if (track.isFavorite) "Remove from Liked Songs" else "Add to Liked Songs",
                 onClick = {
                     musicController.toggleFavorite(track)
@@ -197,7 +192,7 @@ fun TrackOptionsBottomSheet(
             TrackOptionRow(
                 icon = Icons.AutoMirrored.Filled.QueueMusic,
                 label = "Play Next",
-                iconTint = activeTheme.primaryColor,
+                iconTint = primaryColor,
                 onClick = {
                     musicController.playNext(track)
                     Toast.makeText(context, "Playing next: \"${track.title}\"", Toast.LENGTH_SHORT).show()
@@ -215,11 +210,12 @@ fun TrackOptionsBottomSheet(
                 }
             )
 
-            val downloadManager = TrackDownloadManager.getInstance(context)
-            val isDownloaded = downloadManager.isTrackDownloaded(track.id)
+            val downloadManager = remember { TrackDownloadManager.getInstance(context) }
+            val downloadedTrackIds by downloadManager.downloadedTrackIds.collectAsState()
+            val isDownloaded = remember(track.id, downloadedTrackIds) { track.id in downloadedTrackIds }
             TrackOptionRow(
                 icon = if (isDownloaded) Icons.Filled.DownloadDone else Icons.Filled.Download,
-                iconTint = if (isDownloaded) activeTheme.primaryColor else textPrimary,
+                iconTint = if (isDownloaded) primaryColor else textPrimary,
                 label = if (isDownloaded) "Remove Download" else "Download Offline",
                 onClick = {
                     if (isDownloaded) {
@@ -290,7 +286,7 @@ fun TrackOptionsBottomSheet(
                     icon = Icons.Filled.Speed,
                     label = "Playback Speed",
                     trailingText = if (playbackSpeed != 1.0f) "${playbackSpeed}x" else null,
-                    trailingTint = activeTheme.primaryColor,
+                    trailingTint = primaryColor,
                     onClick = {
                         onDismiss()
                         onSpeedClick()
@@ -306,7 +302,7 @@ fun TrackOptionsBottomSheet(
                     icon = Icons.Outlined.Bedtime,
                     label = "Sleep Timer",
                     trailingText = timerBadge,
-                    trailingTint = activeTheme.primaryColor,
+                    trailingTint = primaryColor,
                     onClick = {
                         onDismiss()
                         onSleepTimerClick()
@@ -375,9 +371,9 @@ fun TrackOptionsBottomSheet(
                             .padding(vertical = 10.dp, horizontal = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, tint = activeTheme.primaryColor)
+                        Icon(Icons.Filled.Add, contentDescription = null, tint = primaryColor)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("New Playlist", fontWeight = FontWeight.SemiBold, color = activeTheme.primaryColor)
+                        Text("New Playlist", fontWeight = FontWeight.SemiBold, color = primaryColor)
                     }
                     HorizontalDivider(color = dividerColor, modifier = Modifier.padding(vertical = 6.dp))
                     if (userPlaylists.isEmpty()) {
@@ -393,7 +389,11 @@ fun TrackOptionsBottomSheet(
                                 .fillMaxWidth()
                                 .heightIn(max = 260.dp)
                         ) {
-                            items(userPlaylists) { pl ->
+                            items(
+                                items = userPlaylists,
+                                key = { "pl_${it.id}" },
+                                contentType = { "playlist_pick_row" }
+                            ) { pl ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -457,8 +457,8 @@ fun TrackOptionsBottomSheet(
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = activeTheme.primaryColor,
-                        contentColor = echoContrastOn(activeTheme.primaryColor)
+                        containerColor = primaryColor,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
                     Text("Create")

@@ -1,6 +1,6 @@
 package com.spotify.clone.ui.navigation
 
-import java.net.URLEncoder
+import android.net.Uri
 
 sealed class Screen(val route: String) {
     object Home : Screen("home")
@@ -10,10 +10,10 @@ sealed class Screen(val route: String) {
     object Onboarding : Screen("onboarding")
     object PlaylistDetail : Screen("playlist/{playlistId}") {
         fun createRoute(playlistId: String): String =
-            "playlist/${URLEncoder.encode(playlistId, "UTF-8")}"
+            "playlist/${Uri.encode(playlistId)}"
     }
     object ArtistDetail : Screen("artist/{artistName}") {
         fun createRoute(artistName: String): String =
-            "artist/${URLEncoder.encode(artistName, "UTF-8")}"
+            "artist/${Uri.encode(artistName)}"
     }
 }

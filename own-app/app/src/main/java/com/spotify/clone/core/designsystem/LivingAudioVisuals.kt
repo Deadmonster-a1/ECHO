@@ -37,11 +37,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -90,38 +92,46 @@ fun SpotifyJellyfishAura(
     intensity: Float = 1f
 ) {
     val isReducedMotion = LocalReducedMotion.current
-    val transition = rememberInfiniteTransition(label = "jellyfish_aura")
-
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 12_000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "jellyfish_phase"
-    )
-    val pulse by transition.animateFloat(
-        initialValue = 0.92f,
-        targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "jellyfish_pulse"
-    )
-    val activeMix by animateFloatAsState(
+    val staticZero = remember { mutableFloatStateOf(0f) }
+    val staticOne = remember { mutableFloatStateOf(1f) }
+    val phaseState: State<Float>
+    val pulseState: State<Float>
+    if (!isReducedMotion && isPlaying) {
+        val transition = rememberInfiniteTransition(label = "jellyfish_aura")
+        phaseState = transition.animateFloat(
+            initialValue = 0f,
+            targetValue = (2f * PI).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 12_000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "jellyfish_phase"
+        )
+        pulseState = transition.animateFloat(
+            initialValue = 0.92f,
+            targetValue = 1.12f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 2800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "jellyfish_pulse"
+        )
+    } else {
+        phaseState = staticZero
+        pulseState = staticOne
+    }
+    val activeMixState = animateFloatAsState(
         targetValue = if (isPlaying) 1f else 0.35f,
         animationSpec = tween(520, easing = EchoMotion.EncoreBoxEase),
         label = "jellyfish_active_mix"
     )
 
-    val primaryBlobColor by animateColorAsState(
+    val primaryBlobColorState = animateColorAsState(
         targetValue = artworkColors.vibrantAccent,
         animationSpec = tween(600),
         label = "jellyfish_primary"
     )
-    val secondaryBlobColor by animateColorAsState(
+    val secondaryBlobColorState = animateColorAsState(
         targetValue = artworkColors.ambientGlow,
         animationSpec = tween(600),
         label = "jellyfish_secondary"
@@ -131,6 +141,12 @@ fun SpotifyJellyfishAura(
         val w = size.width
         val h = size.height
         if (w <= 0f || h <= 0f) return@Canvas
+
+        val phase = phaseState.value
+        val pulse = pulseState.value
+        val activeMix = activeMixState.value
+        val primaryBlobColor = primaryBlobColorState.value
+        val secondaryBlobColor = secondaryBlobColorState.value
 
         val animFactor = if (isReducedMotion) 0f else activeMix
         val scale = if (isReducedMotion) 1f else (1f + (pulse - 1f) * animFactor)
@@ -184,17 +200,22 @@ fun LiveAudioSpectrum(
     height: Dp = 18.dp
 ) {
     val isReducedMotion = LocalReducedMotion.current
-    val transition = rememberInfiniteTransition(label = "live_spectrum")
-    val phase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1150, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "spectrum_phase"
-    )
-    val energy by animateFloatAsState(
+    val staticZero = remember { mutableFloatStateOf(0f) }
+    val phaseState: State<Float> = if (!isReducedMotion && isPlaying) {
+        val transition = rememberInfiniteTransition(label = "live_spectrum")
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = (2f * PI).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1150, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "spectrum_phase"
+        )
+    } else {
+        staticZero
+    }
+    val energyState = animateFloatAsState(
         targetValue = if (isPlaying) 1f else 0f,
         animationSpec = tween(220, easing = EchoMotion.EncoreButtonEase),
         label = "spectrum_energy"
@@ -216,6 +237,8 @@ fun LiveAudioSpectrum(
             .width(totalWidth)
             .height(height)
     ) {
+        val phase = phaseState.value
+        val energy = energyState.value
         val bw = barWidth.toPx()
         val gap = barSpacing.toPx()
         val maxH = size.height
@@ -302,18 +325,27 @@ fun WavyAudioScrubber(
     modifier: Modifier = Modifier
 ) {
     val isReducedMotion = LocalReducedMotion.current
-    val transition = rememberInfiniteTransition(label = "wavy_scrubber")
-    val wavePhase by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1600, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "wave_phase"
-    )
+    val currentOnScrubStart by rememberUpdatedState(onScrubStart)
+    val currentOnScrubMove by rememberUpdatedState(onScrubMove)
+    val currentOnScrubEnd by rememberUpdatedState(onScrubEnd)
 
-    val waveAmpMix by animateFloatAsState(
+    val staticZero = remember { mutableFloatStateOf(0f) }
+    val wavePhaseState: State<Float> = if (!isReducedMotion && isPlaying) {
+        val transition = rememberInfiniteTransition(label = "wavy_scrubber")
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = (2f * PI).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1600, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "wave_phase"
+        )
+    } else {
+        staticZero
+    }
+
+    val waveAmpMixState = animateFloatAsState(
         targetValue = when {
             isReducedMotion -> 0f
             isScrubbing -> 0.25f
@@ -323,12 +355,12 @@ fun WavyAudioScrubber(
         animationSpec = tween(260, easing = EchoMotion.EncoreBoxEase),
         label = "wave_amp_mix"
     )
-    val thumbRadiusDp by animateDpAsState(
+    val thumbRadiusDpState = animateDpAsState(
         targetValue = if (isScrubbing) 8.5.dp else 5.5.dp,
         animationSpec = EchoMotion.springMomentum(),
         label = "scrubber_thumb_r"
     )
-    val strokeWidthDp by animateDpAsState(
+    val strokeWidthDpState = animateDpAsState(
         targetValue = if (isScrubbing) 5.dp else 3.2.dp,
         animationSpec = EchoMotion.springMomentum(),
         label = "scrubber_stroke"
@@ -340,6 +372,15 @@ fun WavyAudioScrubber(
     }
 
     val clamped = progress.coerceIn(0f, 1f)
+    val wavePath = remember { Path() }
+    val density = LocalDensity.current
+    val idleStroke = remember(density) {
+        Stroke(
+            width = with(density) { 3.2.dp.toPx() },
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round
+        )
+    }
 
     Box(
         modifier = modifier
@@ -349,8 +390,8 @@ fun WavyAudioScrubber(
                 detectTapGestures { offset ->
                     val width = size.width.toFloat().coerceAtLeast(1f)
                     val p = (offset.x / width).coerceIn(0f, 1f)
-                    onScrubStart(p)
-                    onScrubEnd(p)
+                    currentOnScrubStart(p)
+                    currentOnScrubEnd(p)
                 }
             }
             .pointerInput(Unit) {
@@ -359,16 +400,16 @@ fun WavyAudioScrubber(
                         val width = size.width.toFloat().coerceAtLeast(1f)
                         val p = (offset.x / width).coerceIn(0f, 1f)
                         latestProgress = p
-                        onScrubStart(p)
+                        currentOnScrubStart(p)
                     },
-                    onDragCancel = { onScrubEnd(latestProgress) },
-                    onDragEnd = { onScrubEnd(latestProgress) },
+                    onDragCancel = { currentOnScrubEnd(latestProgress) },
+                    onDragEnd = { currentOnScrubEnd(latestProgress) },
                     onHorizontalDrag = { change, _ ->
                         change.consume()
                         val width = size.width.toFloat().coerceAtLeast(1f)
                         val p = (change.position.x / width).coerceIn(0f, 1f)
                         latestProgress = p
-                        onScrubMove(p)
+                        currentOnScrubMove(p)
                     }
                 )
             },
@@ -377,8 +418,10 @@ fun WavyAudioScrubber(
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val cy = size.height / 2f
-            val strokePx = strokeWidthDp.toPx()
-            val thumbPx = thumbRadiusDp.toPx()
+            val wavePhase = wavePhaseState.value
+            val waveAmpMix = waveAmpMixState.value
+            val strokePx = strokeWidthDpState.value.toPx()
+            val thumbPx = thumbRadiusDpState.value.toPx()
             val activeEndX = (w * clamped).coerceIn(0f, w)
 
             // Inactive background track
@@ -402,26 +445,27 @@ fun WavyAudioScrubber(
                         cap = StrokeCap.Round
                     )
                 } else {
-                    val path = Path()
+                    wavePath.reset()
                     val step = 4.dp.toPx().coerceAtLeast(3f)
                     val wavelength = 24.dp.toPx().coerceAtLeast(12f)
                     var x = 0f
-                    path.moveTo(0f, cy + sin(wavePhase) * maxAmpPx * 0.3f)
+                    wavePath.moveTo(0f, cy + sin(wavePhase) * maxAmpPx * 0.3f)
                     while (x <= activeEndX) {
                         val edgeFade = ((x / 20f).coerceIn(0f, 1f)) * (((activeEndX - x) / 14f).coerceIn(0f, 1f))
                         val y = cy + sin((x / wavelength) * 2f * PI.toFloat() - wavePhase) * maxAmpPx * edgeFade
-                        path.lineTo(x, y)
+                        wavePath.lineTo(x, y)
                         x += step
                     }
-                    path.lineTo(activeEndX, cy)
+                    wavePath.lineTo(activeEndX, cy)
+                    val strokeStyle = if (abs(strokePx - idleStroke.width) < 0.5f) {
+                        idleStroke
+                    } else {
+                        Stroke(width = strokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    }
                     drawPath(
-                        path = path,
+                        path = wavePath,
                         color = activeColor,
-                        style = Stroke(
-                            width = strokePx,
-                            cap = StrokeCap.Round,
-                            join = StrokeJoin.Round
-                        )
+                        style = strokeStyle
                     )
                 }
             }
@@ -469,6 +513,8 @@ fun SwipeableTrackRow(
     val haptic = LocalHapticFeedback.current
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+    val currentOnSwipeQueue by rememberUpdatedState(onSwipeQueue)
+    val currentOnSwipeFavorite by rememberUpdatedState(onSwipeFavorite)
 
     val triggerPx = with(density) { 74.dp.toPx() }
     val maxDragPx = with(density) { 104.dp.toPx() }
@@ -483,12 +529,12 @@ fun SwipeableTrackRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
     ) {
-        // Swipe Right Background -> Play Next
+        // Swipe Right Background -> Play Next (M3 Expressive primaryContainer)
         if (offsetX.value > 2f) {
             Row(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(activeTheme.primaryColor.copy(alpha = 0.16f + 0.14f * queueRevealAlpha))
+                    .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f + 0.50f * queueRevealAlpha))
                     .padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Start
@@ -496,7 +542,7 @@ fun SwipeableTrackRow(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.QueueMusic,
                     contentDescription = "Play Next",
-                    tint = activeTheme.primaryColor,
+                    tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier
                         .size(20.dp)
                         .graphicsLayer {
@@ -508,37 +554,36 @@ fun SwipeableTrackRow(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = if (queueRevealAlpha >= 0.98f) "Release to Play Next" else "Play Next",
-                    color = activeTheme.primaryColor,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
                     fontSize = 12.5.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.graphicsLayer { alpha = queueRevealAlpha }
                 )
             }
         }
 
-        // Swipe Left Background -> Favorite
+        // Swipe Left Background -> Favorite (M3 Expressive tertiaryContainer)
         if (onSwipeFavorite != null && offsetX.value < -2f) {
-            val rose = Color(0xFFFA2D48)
             Row(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(rose.copy(alpha = 0.16f + 0.14f * likeRevealAlpha))
+                    .background(androidx.compose.material3.MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f + 0.50f * likeRevealAlpha))
                     .padding(horizontal = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End
             ) {
                 Text(
                     text = if (isFavorite) "Unlike" else "Like",
-                    color = rose,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.onTertiaryContainer,
                     fontSize = 12.5.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Bold,
                     modifier = Modifier.graphicsLayer { alpha = likeRevealAlpha }
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Icon(
                     imageVector = if (isFavorite) Icons.Filled.FavoriteBorder else Icons.Filled.Favorite,
                     contentDescription = "Favorite",
-                    tint = rose,
+                    tint = androidx.compose.material3.MaterialTheme.colorScheme.onTertiaryContainer,
                     modifier = Modifier
                         .size(20.dp)
                         .graphicsLayer {
@@ -563,14 +608,15 @@ fun SwipeableTrackRow(
                         },
                         onDragEnd = {
                             val finalX = offsetX.value
+                            val favAction = currentOnSwipeFavorite
                             when {
                                 finalX >= triggerPx -> {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onSwipeQueue()
+                                    currentOnSwipeQueue()
                                 }
-                                onSwipeFavorite != null && finalX <= -triggerPx -> {
+                                favAction != null && finalX <= -triggerPx -> {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onSwipeFavorite()
+                                    favAction()
                                 }
                             }
                             crossedTrigger = false

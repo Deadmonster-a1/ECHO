@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -35,9 +34,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -50,10 +51,13 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -63,14 +67,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
@@ -81,84 +82,57 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import com.spotify.clone.core.data.SampleCatalog
+import com.spotify.clone.core.data.GlobalCatalogService
+import com.spotify.clone.core.data.OnboardingArtist
+import com.spotify.clone.core.data.WorldOnboardingCatalog
+import com.spotify.clone.core.data.WorldRegion
+import com.spotify.clone.core.designsystem.EchoArtistAvatar
+import com.spotify.clone.core.designsystem.EchoInsetCard
 import com.spotify.clone.core.designsystem.EchoMotion
-import com.spotify.clone.core.designsystem.EchoPrismPrimary
-import com.spotify.clone.core.designsystem.LocalAppTheme
+import com.spotify.clone.core.designsystem.EchoRadius
+import com.spotify.clone.core.designsystem.EchoSegmentedControl
 import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoPressable
-import com.spotify.clone.core.designsystem.resolvedBackground
-import com.spotify.clone.core.designsystem.resolvedBorder
-import com.spotify.clone.core.designsystem.resolvedCard
 import com.spotify.clone.core.designsystem.tabularFigures
 import com.spotify.clone.core.model.MusicGenre
 import com.spotify.clone.core.profile.PrismAvatarOption
 import com.spotify.clone.core.profile.UserProfileManager
 import com.spotify.clone.core.recommendation.EchoRecommendationEngine
 import com.spotify.clone.ui.splash.EchoAcousticLogoMark
+import kotlinx.coroutines.delay
 
-private data class OnboardingArtistItem(
-    val name: String,
-    val avatarUrl: String
-)
-
-private val ONBOARDING_LANGUAGES = listOf(
-    "Telugu",
-    "Hindi",
-    "English",
-    "Tamil",
-    "Punjabi",
-    "Global"
-)
-
-private val ONBOARDING_ARTISTS: List<OnboardingArtistItem> by lazy {
-    val fromCatalog = SampleCatalog.sampleArtists.map {
-        OnboardingArtistItem(name = it.name, avatarUrl = it.avatarUrl)
-    }
-    val extra = listOf(
-        OnboardingArtistItem("Shilpa Rao", "https://c.saavncdn.com/313/Devara-Part-1-Telugu-Telugu-2024-20240926171010-500x500.jpg"),
-        OnboardingArtistItem("Arijit Singh", "https://c.saavncdn.com/871/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155213-500x500.jpg"),
-        OnboardingArtistItem("The Weeknd", "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/49/3d/ab/493dab54-f920-9043-6181-80993b8116c9/19UMGIM53909.rgb.jpg/600x600bb.jpg"),
-        OnboardingArtistItem("Taylor Swift", "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&q=80"),
-        OnboardingArtistItem("Shreya Ghoshal", "https://c.saavncdn.com/366/Pushpa-2-The-Rule-Telugu-Telugu-2024-20241205211012-500x500.jpg"),
-        OnboardingArtistItem("Diljit Dosanjh", "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg"),
-        OnboardingArtistItem("Anuv Jain", "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400&q=80"),
-        OnboardingArtistItem("A.R. Rahman", "https://c.saavncdn.com/041/Sita-Ramam-Telugu-Original-Motion-Picture-Soundtrack-Telugu-2022-20220802140738-500x500.jpg"),
-        OnboardingArtistItem("Pritam", "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&q=80"),
-        OnboardingArtistItem("Santhosh Narayanan", "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg"),
-        OnboardingArtistItem("KSHMR", "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80"),
-        OnboardingArtistItem("Coldplay", "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=400&q=80")
-    )
-    (fromCatalog + extra).distinctBy { it.name.lowercase() }
+private enum class LanguageFilter(val label: String) {
+    ALL("All"),
+    INDIA("Indian"),
+    WORLD("Global")
 }
 
-// Emil Kowalski-inspired crisp, non-bouncy spring specs
-private val CrispMotionSpring = spring<Float>(
-    dampingRatio = 0.90f,
-    stiffness = 480f
-)
-
-private val CrispDpSpring = spring<androidx.compose.ui.unit.Dp>(
-    dampingRatio = 0.92f,
+private val AppleCrispFloatSpring = spring<Float>(
+    dampingRatio = 0.88f,
     stiffness = 460f
 )
 
+private val AppleCrispDpSpring = spring<androidx.compose.ui.unit.Dp>(
+    dampingRatio = 0.90f,
+    stiffness = 440f
+)
+
 /**
- * Minimalist Apple HIG + Emil Kowalski-inspired 3-step onboarding flow.
- * Prioritizes generous negative space, crisp typographic hierarchy, single-focus
- * steps, and restrained tactile motion without decorative clutter.
+ * Apple HIG-inspired 3-step onboarding flow paired with Material 3 Expressive surfaces:
+ * 1. Profile (name & badge color inside a clean grouped inset card)
+ * 2. Languages & Genres (segmented filter + tactile selection pills)
+ * 3. Favorite Artists (portrait grid with real photos for every artist + live related picks)
  */
 @Composable
 fun OnboardingScreen(
     onFinished: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val activeTheme = LocalAppTheme.current
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val isReducedMotion = LocalReducedMotion.current
     val focusManager = LocalFocusManager.current
+    val catalogService = remember { GlobalCatalogService() }
 
     val existingName by UserProfileManager.userName.collectAsState()
     val existingAvatar by UserProfileManager.avatarId.collectAsState()
@@ -172,30 +146,58 @@ fun OnboardingScreen(
     }
     var selectedAvatarId by remember { mutableStateOf(existingAvatar) }
     var selectedLanguages by remember {
-        mutableStateOf(existingLangs.ifEmpty { setOf("Telugu", "English") })
+        mutableStateOf(existingLangs.ifEmpty { setOf("English", "Hindi", "Telugu") })
     }
     var selectedGenreIds by remember {
         mutableStateOf(existingGenres.ifEmpty { setOf(MusicGenre.MELODIES.id, MusicGenre.GLOBAL_POP.id) })
     }
+
     var selectedArtists by remember { mutableStateOf(existingArtists) }
     var artistQuery by remember { mutableStateOf("") }
+    var artistRegionFilter by remember { mutableStateOf(WorldRegion.ALL) }
+    var liveArtistResults by remember { mutableStateOf<List<OnboardingArtist>>(emptyList()) }
+
+    // Debounced live catalog search for Artists step (surfaces any artist worldwide)
+    LaunchedEffect(artistQuery, currentStep) {
+        if (currentStep != 2) return@LaunchedEffect
+        val q = artistQuery.trim()
+        if (q.length < 2) {
+            liveArtistResults = emptyList()
+            return@LaunchedEffect
+        }
+        delay(280L)
+        val tracks = runCatching { catalogService.searchTracks(q, limit = 16) }
+            .getOrDefault(emptyList())
+        liveArtistResults = tracks
+            .flatMap { tr ->
+                WorldOnboardingCatalog.extractArtistTokens(tr.artistName).map { token ->
+                    OnboardingArtist(
+                        name = token,
+                        avatarUrl = tr.coverArtUrl,
+                        languages = selectedLanguages.ifEmpty { setOf("Global") },
+                        genreIds = setOf(MusicGenre.inferGenre(tr).id),
+                        region = WorldRegion.WORLD,
+                        popularityScore = 82
+                    )
+                }
+            }
+            .distinctBy { it.name.lowercase() }
+    }
 
     BackHandler(enabled = currentStep > 0) {
         focusManager.clearFocus()
         currentStep--
     }
 
-    val screenBg = activeTheme.resolvedBackground(isDarkMode)
-    val cardBg = activeTheme.resolvedCard(isDarkMode)
-    val borderColor = activeTheme.resolvedBorder(isDarkMode)
+    val screenBg = MaterialTheme.colorScheme.background
     val textPrimary = MaterialTheme.colorScheme.onBackground
     val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
-    val accent = activeTheme.primaryColor
+    val accent = MaterialTheme.colorScheme.primary
 
     val progressFraction by animateFloatAsState(
         targetValue = (currentStep + 1) / 3f,
-        animationSpec = if (isReducedMotion) tween(120) else CrispMotionSpring,
-        label = "onboarding_track"
+        animationSpec = if (isReducedMotion) tween(120) else EchoMotion.SpatialDefault,
+        label = "onboarding_progress"
     )
 
     fun saveAndFinish() {
@@ -206,12 +208,15 @@ fun OnboardingScreen(
             avatarId = selectedAvatarId,
             languages = selectedLanguages,
             genreIds = selectedGenreIds,
-            artists = selectedArtists
+            artists = selectedArtists,
+            songs = emptySet()
         )
         EchoRecommendationEngine.seedOnboardingPreferences(
             languages = selectedLanguages,
             genreIds = selectedGenreIds,
-            artists = selectedArtists
+            artists = selectedArtists,
+            songIds = emptySet(),
+            songTracks = emptyList()
         )
         onFinished()
     }
@@ -224,7 +229,7 @@ fun OnboardingScreen(
             .navigationBarsPadding()
             .imePadding()
     ) {
-        // Minimal Top Navigation Bar
+        // Apple HIG Top Navigation Bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -235,36 +240,37 @@ fun OnboardingScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .size(44.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         .echoPressable(scaleOnPress = 0.90f, hapticOnClick = true) {
                             focusManager.clearFocus()
                             currentStep--
                         },
-                    contentAlignment = Alignment.CenterStart
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = textPrimary,
-                        modifier = Modifier.size(22.dp)
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
 
-            // Hair-thin centered progress track
+            // Clean 3-step capsule progress bar
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .width(96.dp)
-                    .height(3.dp)
+                    .width(108.dp)
+                    .height(5.dp)
                     .clip(CircleShape)
-                    .background(borderColor)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(progressFraction)
-                        .height(3.dp)
+                        .height(5.dp)
                         .clip(CircleShape)
                         .background(accent)
                 )
@@ -273,13 +279,12 @@ fun OnboardingScreen(
             Text(
                 text = "Skip",
                 color = textSecondary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(CircleShape)
                     .echoPressable(scaleOnPress = 0.95f) { saveAndFinish() }
-                    .padding(horizontal = 6.dp, vertical = 6.dp)
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
             )
         }
 
@@ -288,11 +293,11 @@ fun OnboardingScreen(
             targetState = currentStep,
             transitionSpec = {
                 if (isReducedMotion) {
-                    fadeIn(tween(150)) togetherWith fadeOut(tween(120))
+                    fadeIn(tween(140)) togetherWith fadeOut(tween(110))
                 } else {
                     val forward = targetState >= initialState
-                    val slideDist = { full: Int -> if (forward) full / 12 else -full / 12 }
-                    val exitDist = { full: Int -> if (forward) -full / 16 else full / 16 }
+                    val slideDist = { full: Int -> if (forward) full / 10 else -full / 10 }
+                    val exitDist = { full: Int -> if (forward) -full / 14 else full / 14 }
                     (slideInHorizontally(tween(240, easing = EchoMotion.EaseOutStrong), slideDist) +
                         fadeIn(tween(200, easing = EchoMotion.EaseOutStrong))) togetherWith
                         (slideOutHorizontally(tween(180), exitDist) +
@@ -313,8 +318,6 @@ fun OnboardingScreen(
                         currentStep = 1
                     },
                     isDarkMode = isDarkMode,
-                    cardBg = cardBg,
-                    borderColor = borderColor,
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
                     accent = accent
@@ -336,17 +339,18 @@ fun OnboardingScreen(
                             selectedGenreIds + gid
                         }
                     },
-                    isDarkMode = isDarkMode,
-                    cardBg = cardBg,
-                    borderColor = borderColor,
                     textPrimary = textPrimary,
-                    textSecondary = textSecondary,
-                    accent = accent
+                    textSecondary = textSecondary
                 )
                 else -> ArtistsStep(
                     artistQuery = artistQuery,
                     onQueryChange = { artistQuery = it },
+                    regionFilter = artistRegionFilter,
+                    onRegionFilterChange = { artistRegionFilter = it },
+                    selectedLanguages = selectedLanguages,
+                    selectedGenreIds = selectedGenreIds,
                     selectedArtists = selectedArtists,
+                    liveExtraArtists = liveArtistResults,
                     onToggleArtist = { artistName ->
                         selectedArtists = if (artistName in selectedArtists) {
                             selectedArtists - artistName
@@ -355,8 +359,6 @@ fun OnboardingScreen(
                         }
                     },
                     isDarkMode = isDarkMode,
-                    cardBg = cardBg,
-                    borderColor = borderColor,
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
                     accent = accent
@@ -364,60 +366,67 @@ fun OnboardingScreen(
             }
         }
 
-        // Clean Apple-style Primary CTA Footer
+        // Apple HIG Clean Primary Action Footer
         val canProceed = when (currentStep) {
             0 -> true
             1 -> selectedLanguages.isNotEmpty() && selectedGenreIds.isNotEmpty()
             else -> selectedArtists.size >= 3
         }
         val ctaText = when (currentStep) {
-            0 -> "Continue"
-            1 -> "Continue"
-            else -> if (selectedArtists.size >= 3) "Done" else "Pick ${3 - selectedArtists.size} more"
+            0, 1 -> "Continue"
+            else -> if (selectedArtists.size >= 3) "Start Listening" else "Select ${3 - selectedArtists.size} more"
         }
         val ctaBg by animateColorAsState(
-            targetValue = if (canProceed) accent else borderColor.copy(alpha = 0.7f),
+            targetValue = if (canProceed) accent else MaterialTheme.colorScheme.surfaceContainerHighest,
             animationSpec = tween(180),
             label = "cta_bg"
         )
         val ctaFg by animateColorAsState(
-            targetValue = if (canProceed) Color.White else textSecondary,
+            targetValue = if (canProceed) MaterialTheme.colorScheme.onPrimary else textSecondary,
             animationSpec = tween(180),
             label = "cta_fg"
         )
 
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .background(screenBg)
         ) {
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                thickness = 0.5.dp
+            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(ctaBg)
-                    .echoPressable(
-                        scaleOnPress = if (canProceed) 0.975f else 1f,
-                        hapticOnClick = canProceed
-                    ) {
-                        if (!canProceed) return@echoPressable
-                        focusManager.clearFocus()
-                        if (currentStep < 2) {
-                            currentStep++
-                        } else {
-                            saveAndFinish()
-                        }
-                    },
-                contentAlignment = Alignment.Center
+                    .padding(horizontal = 24.dp, vertical = 14.dp)
             ) {
-                Text(
-                    text = ctaText,
-                    color = ctaFg,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = (-0.2).sp
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                        .clip(CircleShape)
+                        .background(ctaBg)
+                        .echoPressable(
+                            scaleOnPress = if (canProceed) 0.975f else 1f,
+                            hapticOnClick = canProceed
+                        ) {
+                            if (!canProceed) return@echoPressable
+                            focusManager.clearFocus()
+                            if (currentStep < 2) {
+                                currentStep++
+                            } else {
+                                saveAndFinish()
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = ctaText,
+                        color = ctaFg,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                }
             }
         }
     }
@@ -431,26 +440,14 @@ private fun ProfileStep(
     onAvatarSelect: (String) -> Unit,
     onSubmit: () -> Unit,
     isDarkMode: Boolean,
-    cardBg: Color,
-    borderColor: Color,
     textPrimary: Color,
     textSecondary: Color,
     accent: Color
 ) {
-    var isFocused by remember { mutableStateOf(false) }
     val activeAvatar = PrismAvatarOption.fromId(selectedAvatarId)
-    val initial = nameInput.trim().firstOrNull()?.uppercaseChar()?.toString()
-
-    val fieldBorderColor by animateColorAsState(
-        targetValue = if (isFocused) accent else borderColor,
-        animationSpec = tween(160),
-        label = "name_field_border"
-    )
-    val fieldBorderWidth by animateDpAsState(
-        targetValue = if (isFocused) 1.5.dp else 0.75.dp,
-        animationSpec = CrispDpSpring,
-        label = "name_field_width"
-    )
+    val initial = nameInput.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "E"
+    val isReducedMotion = LocalReducedMotion.current
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
 
     Column(
         modifier = Modifier
@@ -458,175 +455,156 @@ private fun ProfileStep(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp)
     ) {
-        Spacer(modifier = Modifier.height(20.dp))
-
-        // Crisp White ECHO Logo Tile
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .shadow(
-                    elevation = if (isDarkMode) 12.dp else 8.dp,
-                    shape = RoundedCornerShape(15.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.08f),
-                    spotColor = Color.Black.copy(alpha = 0.12f)
-                )
-                .clip(RoundedCornerShape(15.dp))
-                .background(Color.White)
-                .border(0.75.dp, borderColor, RoundedCornerShape(15.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            EchoAcousticLogoMark(modifier = Modifier.size(34.dp))
-        }
-
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Clean borderless floating ECHO acoustic mark
+        EchoAcousticLogoMark(modifier = Modifier.size(38.dp))
+
+        Spacer(modifier = Modifier.height(20.dp))
+
         Text(
-            text = "What’s your name?",
+            text = "Welcome to echo",
             color = textPrimary,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.7).sp,
-            lineHeight = 36.sp
+            style = MaterialTheme.typography.displayLarge
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "We’ll use this to personalize your home feed and mixes.",
+            text = "Add your name and pick a badge color to personalize your listening space.",
             color = textSecondary,
-            fontSize = 15.sp,
-            lineHeight = 21.sp
+            style = MaterialTheme.typography.bodyLarge
         )
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        // Minimalist Apple Input Row with subtle inline Avatar Badge
-        val inputShape = RoundedCornerShape(14.dp)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .clip(inputShape)
-                .background(cardBg)
-                .border(fieldBorderWidth, fieldBorderColor, inputShape)
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
+        // Apple HIG grouped inset card: Name input + Badge color in one unified surface
+        EchoInsetCard(shape = RoundedCornerShape(EchoRadius.xl)) {
+            Row(
                 modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(activeAvatar.startColor, activeAvatar.endColor))),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = initial ?: "E",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            BasicTextField(
-                value = nameInput,
-                onValueChange = onNameChange,
-                singleLine = true,
-                textStyle = TextStyle(
-                    color = textPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
-                ),
-                cursorBrush = SolidColor(accent),
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Words,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
-                modifier = Modifier
-                    .weight(1f)
-                    .onFocusChanged { isFocused = it.isFocused },
-                decorationBox = { inner ->
-                    if (nameInput.isEmpty()) {
-                        Text(
-                            text = "Your name",
-                            color = textSecondary.copy(alpha = 0.7f),
-                            fontSize = 16.sp
-                        )
-                    }
-                    inner()
-                }
-            )
-
-            if (nameInput.isNotEmpty()) {
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
-                        .echoPressable(scaleOnPress = 0.88f) { onNameChange("") },
+                        .background(Brush.linearGradient(listOf(activeAvatar.startColor, activeAvatar.endColor))),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = "Clear",
-                        tint = textSecondary,
-                        modifier = Modifier.size(16.dp)
+                    Text(
+                        text = initial,
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
-            }
-        }
 
-        Spacer(modifier = Modifier.height(22.dp))
+                Spacer(modifier = Modifier.width(14.dp))
 
-        // Quiet 1-Row Circular Badge Swatches
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Badge color",
-                color = textSecondary,
-                fontSize = 13.5.sp,
-                fontWeight = FontWeight.Medium
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PrismAvatarOption.entries.forEach { option ->
-                    val selected = option.id == selectedAvatarId
-                    val dotScale by animateFloatAsState(
-                        targetValue = if (selected) 1.12f else 1f,
-                        animationSpec = CrispMotionSpring,
-                        label = "dot_${option.id}"
-                    )
+                BasicTextField(
+                    value = nameInput,
+                    onValueChange = onNameChange,
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        color = textPrimary,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    cursorBrush = SolidColor(accent),
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                    modifier = Modifier.weight(1f),
+                    decorationBox = { inner ->
+                        if (nameInput.isEmpty()) {
+                            Text(
+                                text = "Your name",
+                                color = textSecondary.copy(alpha = 0.65f),
+                                fontSize = 17.sp
+                            )
+                        }
+                        inner()
+                    }
+                )
+
+                if (nameInput.isNotEmpty()) {
                     Box(
                         modifier = Modifier
                             .size(28.dp)
-                            .graphicsLayer {
-                                scaleX = dotScale
-                                scaleY = dotScale
-                            }
                             .clip(CircleShape)
-                            .background(Brush.linearGradient(listOf(option.startColor, option.endColor)))
-                            .then(
-                                if (selected) {
-                                    Modifier
-                                        .border(2.dp, screenBgForRing(isDarkMode), CircleShape)
-                                        .padding(2.dp)
-                                } else {
-                                    Modifier
-                                }
-                            )
-                            .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true) {
-                                onAvatarSelect(option.id)
-                            },
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .echoPressable(scaleOnPress = 0.88f) { onNameChange("") },
                         contentAlignment = Alignment.Center
                     ) {
-                        if (selected) {
-                            Icon(
-                                imageVector = Icons.Filled.Check,
-                                contentDescription = option.label,
-                                tint = Color.White,
-                                modifier = Modifier.size(13.dp)
-                            )
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Clear",
+                            tint = textSecondary,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(
+                color = dividerColor,
+                thickness = 0.6.dp,
+                modifier = Modifier.padding(start = 74.dp)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Badge color",
+                    color = textSecondary,
+                    style = MaterialTheme.typography.titleSmall
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PrismAvatarOption.entries.forEach { option ->
+                        val selected = option.id == selectedAvatarId
+                        val dotScale by animateFloatAsState(
+                            targetValue = if (selected && !isReducedMotion) 1.12f else 1f,
+                            animationSpec = if (isReducedMotion) tween(0) else AppleCrispFloatSpring,
+                            label = "dot_${option.id}"
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .graphicsLayer {
+                                    scaleX = dotScale
+                                    scaleY = dotScale
+                                }
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(option.startColor, option.endColor)))
+                                .then(
+                                    if (selected) {
+                                        Modifier.border(
+                                            2.dp,
+                                            if (isDarkMode) Color.White else Color(0xFF16161D),
+                                            CircleShape
+                                        )
+                                    } else Modifier
+                                )
+                                .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true) {
+                                    onAvatarSelect(option.id)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (selected) {
+                                Icon(
+                                    imageVector = Icons.Filled.Check,
+                                    contentDescription = option.label,
+                                    tint = Color.White,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -637,9 +615,6 @@ private fun ProfileStep(
     }
 }
 
-private fun screenBgForRing(isDarkMode: Boolean): Color =
-    if (isDarkMode) Color.White else Color(0xFF16161D)
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TasteStep(
@@ -647,13 +622,18 @@ private fun TasteStep(
     onToggleLanguage: (String) -> Unit,
     selectedGenreIds: Set<String>,
     onToggleGenre: (String) -> Unit,
-    isDarkMode: Boolean,
-    cardBg: Color,
-    borderColor: Color,
     textPrimary: Color,
-    textSecondary: Color,
-    accent: Color
+    textSecondary: Color
 ) {
+    var langFilter by remember { mutableStateOf(LanguageFilter.ALL) }
+    val visibleLanguages = remember(langFilter) {
+        when (langFilter) {
+            LanguageFilter.ALL -> WorldOnboardingCatalog.ALL_LANGUAGES
+            LanguageFilter.INDIA -> WorldOnboardingCatalog.INDIAN_LANGUAGES
+            LanguageFilter.WORLD -> WorldOnboardingCatalog.WORLD_LANGUAGES
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -665,42 +645,54 @@ private fun TasteStep(
         Text(
             text = "What do you listen to?",
             color = textPrimary,
-            fontSize = 30.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.6).sp,
-            lineHeight = 35.sp
+            style = MaterialTheme.typography.displayMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Choose languages and genres to shape your mixes.",
+            text = "Choose your languages and genres so we can recommend the right artists.",
             color = textSecondary,
-            fontSize = 15.sp,
-            lineHeight = 21.sp
+            style = MaterialTheme.typography.bodyLarge
         )
 
-        Spacer(modifier = Modifier.height(26.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
-        Text(
-            text = "Languages",
-            color = textPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
+        // Apple HIG Segmented Control for Languages
+        EchoSegmentedControl(
+            options = LanguageFilter.entries,
+            selectedOption = langFilter,
+            labelFor = { it.label },
+            onSelect = { langFilter = it }
         )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Languages",
+                color = textPrimary,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                text = "${selectedLanguages.size} selected",
+                color = textSecondary,
+                style = MaterialTheme.typography.labelMedium.tabularFigures()
+            )
+        }
         Spacer(modifier = Modifier.height(12.dp))
 
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            ONBOARDING_LANGUAGES.forEach { lang ->
+            visibleLanguages.forEach { lang ->
                 AppleSelectionPill(
                     label = lang,
                     selected = lang in selectedLanguages,
-                    accent = accent,
-                    cardBg = cardBg,
-                    borderColor = borderColor,
                     textPrimary = textPrimary,
-                    isDarkMode = isDarkMode,
                     onClick = { onToggleLanguage(lang) }
                 )
             }
@@ -708,12 +700,22 @@ private fun TasteStep(
 
         Spacer(modifier = Modifier.height(28.dp))
 
-        Text(
-            text = "Genres",
-            color = textPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Genres",
+                color = textPrimary,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+            )
+            Text(
+                text = "${selectedGenreIds.size} selected",
+                color = textSecondary,
+                style = MaterialTheme.typography.labelMedium.tabularFigures()
+            )
+        }
         Spacer(modifier = Modifier.height(12.dp))
 
         FlowRow(
@@ -724,62 +726,13 @@ private fun TasteStep(
                 AppleSelectionPill(
                     label = genre.shortLabel,
                     selected = genre.id in selectedGenreIds,
-                    accent = accent,
-                    cardBg = cardBg,
-                    borderColor = borderColor,
                     textPrimary = textPrimary,
-                    isDarkMode = isDarkMode,
                     onClick = { onToggleGenre(genre.id) }
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
-    }
-}
-
-@Composable
-private fun AppleSelectionPill(
-    label: String,
-    selected: Boolean,
-    accent: Color,
-    cardBg: Color,
-    borderColor: Color,
-    textPrimary: Color,
-    isDarkMode: Boolean,
-    onClick: () -> Unit
-) {
-    val bg by animateColorAsState(
-        targetValue = if (selected) accent else cardBg,
-        animationSpec = tween(160),
-        label = "pill_bg_$label"
-    )
-    val fg by animateColorAsState(
-        targetValue = if (selected) Color.White else textPrimary,
-        animationSpec = tween(160),
-        label = "pill_fg_$label"
-    )
-    val stroke by animateColorAsState(
-        targetValue = if (selected) accent else borderColor,
-        animationSpec = tween(160),
-        label = "pill_border_$label"
-    )
-
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(bg)
-            .border(0.75.dp, stroke, RoundedCornerShape(50))
-            .echoPressable(scaleOnPress = 0.95f, hapticOnClick = true, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            color = fg,
-            fontSize = 14.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
-        )
+        Spacer(modifier = Modifier.height(28.dp))
     }
 }
 
@@ -787,26 +740,62 @@ private fun AppleSelectionPill(
 private fun ArtistsStep(
     artistQuery: String,
     onQueryChange: (String) -> Unit,
+    regionFilter: WorldRegion,
+    onRegionFilterChange: (WorldRegion) -> Unit,
+    selectedLanguages: Set<String>,
+    selectedGenreIds: Set<String>,
     selectedArtists: Set<String>,
+    liveExtraArtists: List<OnboardingArtist>,
     onToggleArtist: (String) -> Unit,
     isDarkMode: Boolean,
-    cardBg: Color,
-    borderColor: Color,
     textPrimary: Color,
     textSecondary: Color,
     accent: Color
 ) {
     val haptic = LocalHapticFeedback.current
-    val filtered = remember(artistQuery) {
-        val q = artistQuery.trim().lowercase()
-        if (q.isBlank()) ONBOARDING_ARTISTS
-        else ONBOARDING_ARTISTS.filter { it.name.lowercase().contains(q) }
+    val isReducedMotion = LocalReducedMotion.current
+
+    val filtered = remember(
+        artistQuery,
+        regionFilter,
+        selectedLanguages,
+        selectedGenreIds,
+        liveExtraArtists
+    ) {
+        WorldOnboardingCatalog.optimizeArtistsForUser(
+            selectedLanguages = selectedLanguages,
+            selectedGenreIds = selectedGenreIds,
+            selectedSongTracks = emptyList(),
+            selectedArtists = emptySet(),
+            extraArtists = liveExtraArtists,
+            query = artistQuery,
+            regionFilter = regionFilter,
+            prioritizeSelectedInList = false
+        )
+    }
+
+    val similarStrip = remember(
+        selectedLanguages,
+        selectedGenreIds,
+        selectedArtists
+    ) {
+        if (selectedArtists.isEmpty()) {
+            emptyList()
+        } else {
+            WorldOnboardingCatalog.getSimilarArtistsStrip(
+                selectedLanguages = selectedLanguages,
+                selectedGenreIds = selectedGenreIds,
+                selectedSongTracks = emptyList(),
+                selectedArtists = selectedArtists,
+                limit = 8
+            )
+        }
     }
 
     val statusText = when {
-        selectedArtists.isEmpty() -> "Pick at least 3 to personalize your mixes"
+        selectedArtists.isEmpty() -> "Pick at least 3 artists to build your Home feed"
         selectedArtists.size < 3 -> "${3 - selectedArtists.size} more to go"
-        else -> "${selectedArtists.size} selected"
+        else -> "${selectedArtists.size} selected • Looking great"
     }
 
     Column(
@@ -814,15 +803,12 @@ private fun ArtistsStep(
             .fillMaxSize()
             .padding(horizontal = 24.dp)
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Text(
-            text = "Choose 3 or more artists",
+            text = "Choose your artists",
             color = textPrimary,
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.6).sp,
-            lineHeight = 33.sp
+            style = MaterialTheme.typography.displayMedium
         )
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -837,81 +823,87 @@ private fun ArtistsStep(
                 style = MaterialTheme.typography.bodyMedium.tabularFigures().copy(
                     fontSize = 14.5.sp,
                     fontWeight = if (selectedArtists.size >= 3) FontWeight.SemiBold else FontWeight.Normal
-                )
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        // iOS-style Minimal Search Field
-        val searchBg = if (isDarkMode) Color(0xFF1A1A24) else Color(0xFFF1F2F7)
-        val searchShape = RoundedCornerShape(12.dp)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(42.dp)
-                .clip(searchShape)
-                .background(searchBg)
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Search,
-                contentDescription = null,
-                tint = textSecondary,
-                modifier = Modifier.size(18.dp)
+        OnboardingSearchField(
+            query = artistQuery,
+            placeholder = "Search artists",
+            onQueryChange = onQueryChange,
+            textPrimary = textPrimary,
+            textSecondary = textSecondary,
+            accent = accent
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        EchoSegmentedControl(
+            options = WorldRegion.entries,
+            selectedOption = regionFilter,
+            labelFor = { if (it == WorldRegion.ALL) "For You" else it.label },
+            onSelect = onRegionFilterChange
+        )
+
+        if (artistQuery.isBlank() && similarStrip.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Text(
+                text = "Similar to your picks",
+                color = textSecondary,
+                style = MaterialTheme.typography.labelMedium
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            BasicTextField(
-                value = artistQuery,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = TextStyle(color = textPrimary, fontSize = 15.sp),
-                cursorBrush = SolidColor(accent),
-                modifier = Modifier.weight(1f),
-                decorationBox = { inner ->
-                    if (artistQuery.isEmpty()) {
-                        Text(
-                            text = "Search",
-                            color = textSecondary,
-                            fontSize = 15.sp
-                        )
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(similarStrip, key = { "rec_${it.artist.name}" }) { rec ->
+                    Surface(
+                        modifier = Modifier.echoPressable(scaleOnPress = 0.95f, hapticOnClick = false) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onToggleArtist(rec.artist.name)
+                        },
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(start = 5.dp, end = 14.dp, top = 5.dp, bottom = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            EchoArtistAvatar(
+                                name = rec.artist.name,
+                                avatarUrl = rec.artist.avatarUrl,
+                                size = 30.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = rec.artist.name,
+                                color = textPrimary,
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1
+                            )
+                        }
                     }
-                    inner()
-                }
-            )
-            if (artistQuery.isNotEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .echoPressable(scaleOnPress = 0.88f) { onQueryChange("") },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = "Clear",
-                        tint = textSecondary,
-                        modifier = Modifier.size(15.dp)
-                    )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(18.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
-            contentPadding = PaddingValues(bottom = 12.dp),
+            contentPadding = PaddingValues(bottom = 14.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(filtered, key = { it.name }) { artist ->
+            items(filtered, key = { it.artist.name }) { rec ->
+                val artist = rec.artist
                 val isSelected = artist.name in selectedArtists
                 val scale by animateFloatAsState(
-                    targetValue = if (isSelected) 1.02f else 1f,
-                    animationSpec = CrispMotionSpring,
+                    targetValue = if (isSelected && !isReducedMotion) 1.03f else 1f,
+                    animationSpec = if (isReducedMotion) tween(0) else AppleCrispFloatSpring,
                     label = "artist_scale_${artist.name}"
                 )
 
@@ -922,7 +914,7 @@ private fun ArtistsStep(
                             scaleX = scale
                             scaleY = scale
                         }
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .echoPressable(
                             scaleOnPress = 0.95f,
                             hapticOnClick = false
@@ -933,52 +925,30 @@ private fun ArtistsStep(
                         .padding(vertical = 2.dp)
                 ) {
                     Box(contentAlignment = Alignment.BottomEnd) {
-                        Box(
-                            modifier = Modifier
-                                .size(88.dp)
-                                .clip(CircleShape)
-                                .background(if (isDarkMode) Color(0xFF1F2030) else Color(0xFFECEEF6)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = artist.name.firstOrNull()?.uppercaseChar()?.toString() ?: "A",
-                                color = textSecondary,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            AsyncImage(
-                                model = artist.avatarUrl,
-                                contentDescription = artist.name,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                                    .then(
-                                        if (isSelected) {
-                                            Modifier.border(2.2.dp, accent, CircleShape)
-                                        } else {
-                                            Modifier.border(0.6.dp, borderColor, CircleShape)
-                                        }
-                                    )
-                            )
-                        }
+                        EchoArtistAvatar(
+                            name = artist.name,
+                            avatarUrl = artist.avatarUrl,
+                            size = 88.dp,
+                            borderColor = if (isSelected) accent else Color.Transparent,
+                            borderWidth = if (isSelected) 2.5.dp else 0.dp
+                        )
                         androidx.compose.animation.AnimatedVisibility(
                             visible = isSelected,
-                            enter = scaleIn(CrispMotionSpring) + fadeIn(tween(120)),
-                            exit = scaleOut(tween(90)) + fadeOut(tween(90))
+                            enter = if (isReducedMotion) fadeIn(tween(120)) else scaleIn(AppleCrispFloatSpring) + fadeIn(tween(120)),
+                            exit = if (isReducedMotion) fadeOut(tween(90)) else scaleOut(tween(90)) + fadeOut(tween(90))
                         ) {
                             Box(
                                 modifier = Modifier
                                     .size(24.dp)
                                     .clip(CircleShape)
                                     .background(accent)
-                                    .border(2.dp, if (isDarkMode) Color(0xFF09090E) else Color.White, CircleShape),
+                                    .border(2.dp, MaterialTheme.colorScheme.background, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Check,
                                     contentDescription = "Selected",
-                                    tint = Color.White,
+                                    tint = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.size(13.dp)
                                 )
                             }
@@ -988,8 +958,10 @@ private fun ArtistsStep(
                     Text(
                         text = artist.name,
                         color = if (isSelected) accent else textPrimary,
-                        fontSize = 12.5.sp,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                        style = MaterialTheme.typography.labelLarge.copy(
+                            fontSize = 12.5.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold
+                        ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center
@@ -997,5 +969,123 @@ private fun ArtistsStep(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun OnboardingSearchField(
+    query: String,
+    placeholder: String,
+    onQueryChange: (String) -> Unit,
+    textPrimary: Color,
+    textSecondary: Color,
+    accent: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.Search,
+            contentDescription = null,
+            tint = textSecondary,
+            modifier = Modifier.size(19.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        BasicTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            singleLine = true,
+            textStyle = TextStyle(color = textPrimary, fontSize = 15.5.sp, fontWeight = FontWeight.Medium),
+            cursorBrush = SolidColor(accent),
+            modifier = Modifier.weight(1f),
+            decorationBox = { inner ->
+                if (query.isEmpty()) {
+                    Text(
+                        text = placeholder,
+                        color = textSecondary,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                inner()
+            }
+        )
+        if (query.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                    .echoPressable(scaleOnPress = 0.88f) { onQueryChange("") },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Clear",
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(15.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppleSelectionPill(
+    label: String,
+    selected: Boolean,
+    textPrimary: Color,
+    onClick: () -> Unit
+) {
+    val corner by animateDpAsState(
+        targetValue = if (selected) 24.dp else 14.dp,
+        animationSpec = AppleCrispDpSpring,
+        label = "sel_corner_$label"
+    )
+    val bg by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        animationSpec = tween(160),
+        label = "pill_bg_$label"
+    )
+    val fg by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else textPrimary,
+        animationSpec = tween(160),
+        label = "pill_fg_$label"
+    )
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(corner))
+            .background(bg)
+            .echoPressable(scaleOnPress = 0.95f, hapticOnClick = true, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        if (selected) {
+            Icon(
+                imageVector = Icons.Filled.Check,
+                contentDescription = null,
+                tint = fg,
+                modifier = Modifier
+                    .padding(end = 6.dp)
+                    .size(14.dp)
+            )
+        }
+        Text(
+            text = label,
+            color = fg,
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontSize = 14.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+            )
+        )
     }
 }

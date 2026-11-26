@@ -25,12 +25,13 @@ object AudioCacheManager {
     @Synchronized
     fun getCache(context: Context): SimpleCache {
         if (cacheInstance == null) {
-            val cacheFolder = File(context.cacheDir, "spotify_chunk_cache")
+            val appContext = context.applicationContext
+            val cacheFolder = File(appContext.cacheDir, "spotify_chunk_cache")
             if (!cacheFolder.exists()) {
                 cacheFolder.mkdirs()
             }
             val evictor = LeastRecentlyUsedCacheEvictor(MAX_CACHE_SIZE_BYTES)
-            val dbProvider = StandaloneDatabaseProvider(context.applicationContext)
+            val dbProvider = StandaloneDatabaseProvider(appContext)
             cacheInstance = SimpleCache(cacheFolder, evictor, dbProvider)
         }
         return cacheInstance!!
@@ -40,8 +41,10 @@ object AudioCacheManager {
         context: Context,
         upstreamFactory: DefaultHttpDataSource.Factory
     ): DataSource.Factory {
-        val cache = getCache(context)
-        val defaultDataSourceFactory = DefaultDataSource.Factory(context, upstreamFactory)
+        val appContext = context.applicationContext
+        val cache = getCache(appContext)
+        // Local file:// and content:// URIs bypass HTTP upstream caching automatically
+        val defaultDataSourceFactory = DefaultDataSource.Factory(appContext, upstreamFactory)
 
         return CacheDataSource.Factory()
             .setCache(cache)
@@ -51,14 +54,7 @@ object AudioCacheManager {
 
     fun getCacheSizeBytes(context: Context): Long {
         return try {
-            val cache = getCache(context)
-            val space = cache.cacheSpace
-            if (space > 0L) space else {
-                val cacheFolder = File(context.cacheDir, "spotify_chunk_cache")
-                if (cacheFolder.exists()) {
-                    cacheFolder.walkTopDown().filter { it.isFile }.map { it.length() }.sum()
-                } else 0L
-            }
+            getCache(context.applicationContext).cacheSpace.coerceAtLeast(0L)
         } catch (e: Exception) {
             0L
         }
@@ -72,7 +68,7 @@ object AudioCacheManager {
                 cache.removeResource(key)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.w("AudioCacheManager", "Failed to clear audio cache: ${e.message}")
         }
     }
 }

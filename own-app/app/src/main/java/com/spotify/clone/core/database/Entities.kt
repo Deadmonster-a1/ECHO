@@ -34,7 +34,7 @@ data class TrackEntity(
         mediaUri = mediaUri,
         isExplicit = isExplicit,
         isFavorite = isFavorite,
-        lyrics = com.spotify.clone.core.data.SampleCatalog.sampleTracks.find { it.id == id }?.lyrics ?: emptyList()
+        lyrics = com.spotify.clone.core.data.SampleCatalog.sampleTracksById[id]?.lyrics ?: emptyList()
     )
 
     companion object {

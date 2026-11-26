@@ -12,6 +12,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,25 +33,23 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.FormatSize
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -58,6 +57,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,10 +85,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spotify.clone.core.designsystem.ArtworkColors
 import com.spotify.clone.core.designsystem.EchoMotion
-import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.ThemeManager
-import com.spotify.clone.core.designsystem.echoContrastOn
 import com.spotify.clone.core.designsystem.echoPressable
 import com.spotify.clone.core.designsystem.rememberAnimatedArtworkColors
 import com.spotify.clone.core.designsystem.updateSystemBarsAppearance
@@ -124,10 +122,12 @@ fun FullscreenLyricsSheet(
     val context = LocalContext.current
     BackHandler(onBack = onClose)
 
-    val activeTheme = LocalAppTheme.current
+    val primaryColor = MaterialTheme.colorScheme.primary
     val isReducedMotion = LocalReducedMotion.current
     val playbackState by musicController.playbackState.collectAsState()
-    val currentPos = playbackState.currentPositionMs
+    val positionState by musicController.positionState.collectAsState()
+    val currentPos = positionState.currentPositionMs
+    val trackDurationMs = if (positionState.durationMs > 0L) positionState.durationMs else playbackState.durationMs
 
     val resolvedArtworkColors = artworkColors ?: rememberAnimatedArtworkColors(track)
 
@@ -182,27 +182,47 @@ fun FullscreenLyricsSheet(
     }
 
     val listState = rememberLazyListState()
+    val fsScope = rememberCoroutineScope()
     var isUserScrolling by remember { mutableStateOf(false) }
+    val hasPrelude = isSynced && activeIndex == -1
 
-    // Automated smooth sync glide back after user scrolling
-    LaunchedEffect(listState.isScrollInProgress) {
-        if (listState.isScrollInProgress) {
-            isUserScrolling = true
-        } else if (isUserScrolling) {
-            delay(2200L)
-            isUserScrolling = false
-            if (isSynced && activeIndex in lines.indices) {
-                val target = (activeIndex - 1).coerceAtLeast(0)
-                if (isReducedMotion) listState.scrollToItem(target) else listState.animateScrollToItem(target)
+    suspend fun scrollToActive(animated: Boolean) {
+        if (!isSynced || activeIndex !in lines.indices) return
+        val listIdx = activeIndex + if (hasPrelude) 1 else 0
+        val viewportH = listState.layoutInfo.viewportSize.height
+        val offset = if (viewportH > 0) -(viewportH * 0.28f).toInt() else 0
+        if (animated && !isReducedMotion) {
+            listState.animateScrollToItem(listIdx, offset)
+        } else {
+            listState.scrollToItem(listIdx, offset)
+        }
+    }
+
+    // Track explicit drag interactions so auto-scroll pauses cleanly while browsing
+    LaunchedEffect(listState) {
+        var resumeJob: kotlinx.coroutines.Job? = null
+        listState.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> {
+                    resumeJob?.cancel()
+                    isUserScrolling = true
+                }
+                is DragInteraction.Stop, is DragInteraction.Cancel -> {
+                    resumeJob?.cancel()
+                    resumeJob = fsScope.launch {
+                        delay(3000L)
+                        isUserScrolling = false
+                        scrollToActive(animated = true)
+                    }
+                }
             }
         }
     }
 
-    // Auto-scroll when active line changes during playback
-    LaunchedEffect(activeIndex) {
+    // Auto-scroll centered when active line changes during playback
+    LaunchedEffect(activeIndex, track.id) {
         if (isSynced && activeIndex in lines.indices && !isUserScrolling) {
-            val target = (activeIndex - 1).coerceAtLeast(0)
-            if (isReducedMotion) listState.scrollToItem(target) else listState.animateScrollToItem(target)
+            scrollToActive(animated = true)
         }
     }
 
@@ -220,20 +240,55 @@ fun FullscreenLyricsSheet(
         }
     }
 
+    val bgVerticalGradient = remember(dominantTopColor) {
+        Brush.verticalGradient(
+            listOf(
+                dominantTopColor.copy(alpha = 0.90f),
+                Color(0xFF161420),
+                Color(0xFF0E0D14),
+                Color(0xFF09080D)
+            )
+        )
+    }
+    val topMaskGradient = remember(dominantTopColor) {
+        Brush.verticalGradient(
+            listOf(
+                dominantTopColor.copy(alpha = 0.9f),
+                Color.Transparent
+            )
+        )
+    }
+    val bottomMaskGradient = remember {
+        Brush.verticalGradient(
+            listOf(
+                Color.Transparent,
+                Color(0xFF14131B)
+            )
+        )
+    }
+    val activeLineBgBrush = remember(primaryColor) {
+        Brush.horizontalGradient(
+            listOf(
+                primaryColor.copy(alpha = 0.24f),
+                primaryColor.copy(alpha = 0.08f),
+                Color.Transparent
+            )
+        )
+    }
+    val activeLineBorderBrush = remember(primaryColor) {
+        Brush.horizontalGradient(
+            listOf(
+                primaryColor.copy(alpha = 0.45f),
+                Color.Transparent
+            )
+        )
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xFF0C0B10))
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        dominantTopColor.copy(alpha = 0.90f),
-                        Color(0xFF161420),
-                        Color(0xFF0E0D14),
-                        Color(0xFF09080D)
-                    )
-                )
-            )
+            .background(bgVerticalGradient)
     ) {
         Column(
             modifier = Modifier
@@ -261,7 +316,7 @@ fun FullscreenLyricsSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.KeyboardArrowDown,
+                            imageVector = Icons.Rounded.KeyboardArrowDown,
                             contentDescription = "Collapse",
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
@@ -307,10 +362,10 @@ fun FullscreenLyricsSheet(
                     if (hasRomanized) {
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = if (useEnglishScript) activeTheme.primaryColor.copy(alpha = 0.22f) else Color(0xFF262332),
+                            color = if (useEnglishScript) primaryColor.copy(alpha = 0.22f) else Color(0xFF262332),
                             border = BorderStroke(
                                 width = 1.dp,
-                                color = if (useEnglishScript) activeTheme.primaryColor.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.2f)
+                                color = if (useEnglishScript) primaryColor.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.2f)
                             ),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(20.dp))
@@ -322,7 +377,7 @@ fun FullscreenLyricsSheet(
                             ) {
                                 Text(
                                     text = if (useEnglishScript) "Aa English" else "Native",
-                                    color = if (useEnglishScript) activeTheme.primaryColor else Color.White,
+                                    color = if (useEnglishScript) primaryColor else Color.White,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -341,14 +396,14 @@ fun FullscreenLyricsSheet(
                                     .size(36.dp)
                                     .clip(CircleShape)
                                     .background(
-                                        if (lyricsOffsetMs != 0L) activeTheme.primaryColor else Color.White.copy(alpha = 0.10f)
+                                        if (lyricsOffsetMs != 0L) primaryColor else Color.White.copy(alpha = 0.10f)
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.Timer,
+                                    imageVector = Icons.Rounded.Timer,
                                     contentDescription = "Sync Offset Calibration",
-                                    tint = if (lyricsOffsetMs != 0L) echoContrastOn(activeTheme.primaryColor) else Color.White,
+                                    tint = if (lyricsOffsetMs != 0L) MaterialTheme.colorScheme.onPrimary else Color.White,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -368,7 +423,7 @@ fun FullscreenLyricsSheet(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.FormatSize,
+                                imageVector = Icons.Rounded.FormatSize,
                                 contentDescription = "Typography Scale",
                                 tint = Color.White,
                                 modifier = Modifier.size(18.dp)
@@ -390,7 +445,7 @@ fun FullscreenLyricsSheet(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.Share,
+                                    imageVector = Icons.Rounded.Share,
                                     contentDescription = "Share Quote Card",
                                     tint = Color.White,
                                     modifier = Modifier.size(18.dp)
@@ -416,20 +471,20 @@ fun FullscreenLyricsSheet(
                     ) {
                         // Song Intro / Prelude Banner when isSynced and vocal hasn't begun
                         if (isSynced && activeIndex == -1) {
-                            item {
+                            item(key = "lyrics_prelude", contentType = "lyrics_prelude") {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(16.dp))
-                                        .background(activeTheme.primaryColor.copy(alpha = 0.18f))
-                                        .border(1.dp, activeTheme.primaryColor.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                                        .background(primaryColor.copy(alpha = 0.18f))
+                                        .border(1.dp, primaryColor.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
                                         .padding(horizontal = 18.dp, vertical = 14.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
-                                            imageVector = Icons.Filled.MusicNote,
+                                            imageVector = Icons.Rounded.MusicNote,
                                             contentDescription = null,
-                                            tint = activeTheme.primaryColor,
+                                            tint = primaryColor,
                                             modifier = Modifier.size(20.dp)
                                         )
                                         Spacer(modifier = Modifier.width(12.dp))
@@ -451,7 +506,11 @@ fun FullscreenLyricsSheet(
                             }
                         }
 
-                        itemsIndexed(lines) { index, line ->
+                        itemsIndexed(
+                            items = lines,
+                            key = { index, line -> "${line.timestampMs}_$index" },
+                            contentType = { _, _ -> "lyric_line" }
+                        ) { index, line ->
                             val isActive = isSynced && index == activeIndex
                             val distance = if (activeIndex >= 0) abs(index - activeIndex) else (index + 1)
 
@@ -499,23 +558,10 @@ fun FullscreenLyricsSheet(
                                 Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(16.dp))
-                                    .background(
-                                        Brush.horizontalGradient(
-                                            listOf(
-                                                activeTheme.primaryColor.copy(alpha = 0.24f),
-                                                activeTheme.primaryColor.copy(alpha = 0.08f),
-                                                Color.Transparent
-                                            )
-                                        )
-                                    )
+                                    .background(activeLineBgBrush)
                                     .border(
                                         width = 1.dp,
-                                        brush = Brush.horizontalGradient(
-                                            listOf(
-                                                activeTheme.primaryColor.copy(alpha = 0.45f),
-                                                Color.Transparent
-                                            )
-                                        ),
+                                        brush = activeLineBorderBrush,
                                         shape = RoundedCornerShape(16.dp)
                                     )
                                     .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -551,7 +597,7 @@ fun FullscreenLyricsSheet(
                                                         drawContent()
                                                         val sweepWidth = size.width * lineProgress
                                                         drawRect(
-                                                            color = activeTheme.primaryColor.copy(alpha = 0.48f),
+                                                            color = primaryColor.copy(alpha = 0.48f),
                                                             size = Size(sweepWidth, size.height),
                                                             blendMode = BlendMode.SrcAtop
                                                         )
@@ -567,7 +613,7 @@ fun FullscreenLyricsSheet(
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(
                                             text = secondaryText,
-                                            color = activeTheme.primaryColor.copy(alpha = 0.95f),
+                                            color = primaryColor.copy(alpha = 0.95f),
                                             fontSize = (baseFontSize * 0.65f).sp,
                                             fontWeight = FontWeight.Medium,
                                             lineHeight = (baseFontSize * 0.95f).sp
@@ -584,14 +630,7 @@ fun FullscreenLyricsSheet(
                             .align(Alignment.TopCenter)
                             .fillMaxWidth()
                             .height(24.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        dominantTopColor.copy(alpha = 0.9f),
-                                        Color.Transparent
-                                    )
-                                )
-                            )
+                            .background(topMaskGradient)
                     )
 
                     // Bottom Fading Scrim
@@ -600,15 +639,43 @@ fun FullscreenLyricsSheet(
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .height(32.dp)
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color.Transparent,
-                                        Color(0xFF14131B)
-                                    )
-                                )
-                            )
+                            .background(bottomMaskGradient)
                     )
+
+                    // Floating Sync pill when user manually browses lyrics
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = isSynced && isUserScrolling && activeIndex in lines.indices,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .echoPressable(scaleOnPress = 0.94f, hapticOnClick = true) {
+                                    isUserScrolling = false
+                                    fsScope.launch { scrollToActive(animated = true) }
+                                }
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MyLocation,
+                                contentDescription = "Sync to current line",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Sync",
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+                    }
                 } else if (!isLoadingLyrics) {
                     // Respectful Honest Unavailable State
                     Box(
@@ -625,13 +692,13 @@ fun FullscreenLyricsSheet(
                                 modifier = Modifier
                                     .size(68.dp)
                                     .clip(CircleShape)
-                                    .background(activeTheme.primaryColor.copy(alpha = 0.16f)),
+                                    .background(primaryColor.copy(alpha = 0.16f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = Icons.Filled.GraphicEq,
+                                    imageVector = Icons.Rounded.GraphicEq,
                                     contentDescription = null,
-                                    tint = activeTheme.primaryColor,
+                                    tint = primaryColor,
                                     modifier = Modifier.size(34.dp)
                                 )
                             }
@@ -666,20 +733,32 @@ fun FullscreenLyricsSheet(
                     .background(Color(0xFF15141D))
                     .padding(horizontal = 20.dp, vertical = 12.dp)
             ) {
-                // Scrubber with Duration Counters
-                val progress = playbackState.progress
-                val remainingMs = (playbackState.durationMs - currentPos).coerceAtLeast(0L)
+                // Scrubber with Living Wavy Scrubber & Duration Counters
+                var isScrubbing by remember { mutableStateOf(false) }
+                var scrubProgress by remember { mutableFloatStateOf(0f) }
+                val progress = (if (isScrubbing) scrubProgress else positionState.progress).coerceIn(0f, 1f)
+                val displayedPosMs = if (isScrubbing) (scrubProgress * trackDurationMs).toLong() else currentPos
+                val remainingMs = (trackDurationMs - displayedPosMs).coerceAtLeast(0L)
 
-                Slider(
-                    value = progress,
-                    onValueChange = { frac ->
-                        musicController.seekTo((frac * playbackState.durationMs).toLong())
+                com.spotify.clone.core.designsystem.WavyAudioScrubber(
+                    progress = progress,
+                    isPlaying = playbackState.isPlaying,
+                    isScrubbing = isScrubbing,
+                    activeColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                    trackBgColor = Color.White.copy(alpha = 0.22f),
+                    onScrubStart = { frac ->
+                        isScrubbing = true
+                        scrubProgress = frac.coerceIn(0f, 1f)
                     },
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color.White,
-                        activeTrackColor = activeTheme.primaryColor,
-                        inactiveTrackColor = Color.White.copy(alpha = 0.2f)
-                    ),
+                    onScrubMove = { frac ->
+                        scrubProgress = frac.coerceIn(0f, 1f)
+                    },
+                    onScrubEnd = { frac ->
+                        if (trackDurationMs > 0L) {
+                            musicController.seekTo((frac.coerceIn(0f, 1f) * trackDurationMs).toLong())
+                        }
+                        isScrubbing = false
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -690,7 +769,7 @@ fun FullscreenLyricsSheet(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = formatTime(currentPos),
+                        text = formatTime(displayedPosMs),
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 11.sp
                     )
@@ -712,9 +791,9 @@ fun FullscreenLyricsSheet(
                     // Shuffle
                     IconButton(onClick = { musicController.toggleShuffle() }) {
                         Icon(
-                            imageVector = Icons.Filled.Shuffle,
+                            imageVector = Icons.Rounded.Shuffle,
                             contentDescription = "Shuffle",
-                            tint = if (playbackState.shuffleMode) activeTheme.primaryColor else Color.White.copy(alpha = 0.6f),
+                            tint = if (playbackState.shuffleMode) primaryColor else Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -722,36 +801,41 @@ fun FullscreenLyricsSheet(
                     // Skip Previous
                     IconButton(onClick = { musicController.skipPrevious() }) {
                         Icon(
-                            imageVector = Icons.Filled.SkipPrevious,
+                            imageVector = Icons.Rounded.SkipPrevious,
                             contentDescription = "Previous",
                             tint = Color.White,
                             modifier = Modifier.size(32.dp)
                         )
                     }
 
-                    // Play / Pause FAB
+                    // M3 Expressive Shape-Morphing Play / Pause FAB
+                    val lyricsPlayCorner by androidx.compose.animation.core.animateDpAsState(
+                        targetValue = if (playbackState.isPlaying) 28.dp else 16.dp,
+                        animationSpec = EchoMotion.spatialDefault(),
+                        label = "lyrics_play_morph"
+                    )
                     Box(
                         modifier = Modifier
                             .size(56.dp)
-                            .echoPressable(scaleOnPress = 0.92f) {
+                            .clip(RoundedCornerShape(lyricsPlayCorner))
+                            .background(androidx.compose.material3.MaterialTheme.colorScheme.primaryContainer)
+                            .echoPressable(scaleOnPress = 0.90f, hapticOnClick = true) {
                                 musicController.togglePlayPause()
-                            }
-                            .clip(CircleShape)
-                            .background(Color.White),
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = if (playbackState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            imageVector = if (playbackState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                            tint = Color.Black,
-                            modifier = Modifier.size(32.dp)
+                            tint = androidx.compose.material3.MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(30.dp)
                         )
                     }
 
                     // Skip Next
                     IconButton(onClick = { musicController.skipNext() }) {
                         Icon(
-                            imageVector = Icons.Filled.SkipNext,
+                            imageVector = Icons.Rounded.SkipNext,
                             contentDescription = "Next",
                             tint = Color.White,
                             modifier = Modifier.size(32.dp)
@@ -761,9 +845,9 @@ fun FullscreenLyricsSheet(
                     // Toggle Favorite / Like
                     IconButton(onClick = { musicController.toggleFavorite(track) }) {
                         Icon(
-                            imageVector = if (track.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                            imageVector = if (track.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                             contentDescription = "Favorite",
-                            tint = if (track.isFavorite) activeTheme.primaryColor else Color.White.copy(alpha = 0.6f),
+                            tint = if (track.isFavorite) primaryColor else Color.White.copy(alpha = 0.6f),
                             modifier = Modifier.size(24.dp)
                         )
                     }

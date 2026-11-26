@@ -43,11 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.spotify.clone.core.designsystem.LivingEqualizer
-import com.spotify.clone.core.designsystem.LocalAppTheme
-import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoPressable
-import com.spotify.clone.core.designsystem.resolvedBorder
-import com.spotify.clone.core.designsystem.resolvedCard
 import com.spotify.clone.core.model.MusicGenre
 import com.spotify.clone.core.model.PlaybackState
 import com.spotify.clone.core.model.Track
@@ -60,12 +56,10 @@ fun QueueSheetContent(
     onTrackClick: (Track) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val activeTheme = LocalAppTheme.current
-    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val textPrimary = MaterialTheme.colorScheme.onSurface
     val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
-    val borderColor = activeTheme.resolvedBorder(isDarkMode)
-    val cardBg = activeTheme.resolvedCard(isDarkMode)
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val cardBg = MaterialTheme.colorScheme.surfaceContainerHigh
     val activeGenreLock by musicController.activeGenreLock.collectAsState()
     val autoMatchGenre by musicController.autoMatchGenre.collectAsState()
     var showGenreSheet by remember { mutableStateOf(false) }
@@ -73,16 +67,20 @@ fun QueueSheetContent(
     val currentTrack = playbackState.currentTrack
     val queue = playbackState.queue
     val currentQueueIndex = playbackState.queueIndex
-    val effectiveGenre = musicController.getEffectiveGenre(currentTrack)
-    val orderSummary = buildString {
-        if (activeGenreLock != MusicGenre.ALL) {
-            append("Locked: ${activeGenreLock.shortLabel}")
-        } else if (autoMatchGenre && currentTrack != null) {
-            append("Auto-Genre: ${effectiveGenre.shortLabel}")
-        } else {
-            append("Smart Radio")
+    val effectiveGenre = remember(activeGenreLock, autoMatchGenre, currentTrack?.id) {
+        musicController.getEffectiveGenre(currentTrack)
+    }
+    val orderSummary = remember(activeGenreLock, autoMatchGenre, effectiveGenre, currentTrack?.id, playbackState.shuffleMode) {
+        buildString {
+            if (activeGenreLock != MusicGenre.ALL) {
+                append("Locked: ${activeGenreLock.shortLabel}")
+            } else if (autoMatchGenre && currentTrack != null) {
+                append("Auto-Genre: ${effectiveGenre.shortLabel}")
+            } else {
+                append("Smart Radio")
+            }
+            append(if (playbackState.shuffleMode) " • Unplayed-First Shuffle" else " • Artist-Balanced")
         }
-        append(if (playbackState.shuffleMode) " • Unplayed-First Shuffle" else " • Artist-Balanced")
     }
 
     Column(
@@ -115,28 +113,28 @@ fun QueueSheetContent(
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(activeTheme.primaryColor.copy(alpha = 0.14f))
+                    .background(MaterialTheme.colorScheme.primaryContainer)
                     .echoPressable(scaleOnPress = 0.94f, hapticOnClick = true) { showGenreSheet = true }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Filled.Radio,
                     contentDescription = "Genre Radio",
-                    tint = activeTheme.primaryColor,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     modifier = Modifier.size(14.dp)
                 )
                 Spacer(modifier = Modifier.width(5.dp))
                 Text(
                     text = effectiveGenre.shortLabel,
-                    color = activeTheme.primaryColor,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold
                 )
             }
         }
 
-        // Session modifier controls (inspired by Spotify layout_queue_controls SessionModifierContainerView)
+        // Session modifier controls
         if (queue.size > currentQueueIndex + 1) {
             Row(
                 modifier = Modifier
@@ -148,17 +146,16 @@ fun QueueSheetContent(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(cardBg)
-                        .border(0.75.dp, borderColor, RoundedCornerShape(50))
                         .echoPressable(scaleOnPress = 0.94f, hapticOnClick = true) {
                             musicController.shuffleUpcomingQueue()
                         }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = Icons.Filled.Shuffle,
                         contentDescription = null,
-                        tint = activeTheme.primaryColor,
+                        tint = primaryColor,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
@@ -173,11 +170,10 @@ fun QueueSheetContent(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
                         .background(cardBg)
-                        .border(0.75.dp, borderColor, RoundedCornerShape(50))
                         .echoPressable(scaleOnPress = 0.94f, hapticOnClick = true) {
                             musicController.clearUpcomingQueue()
                         }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -203,10 +199,10 @@ fun QueueSheetContent(
             modifier = Modifier.fillMaxWidth()
         ) {
             if (currentTrack != null) {
-                item(key = "now_playing_header") {
+                item(key = "now_playing_header", contentType = "now_playing_header") {
                     Text(
                         text = "NOW PLAYING",
-                        color = activeTheme.primaryColor,
+                        color = primaryColor,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.8.sp,
@@ -215,9 +211,8 @@ fun QueueSheetContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(activeTheme.primaryColor.copy(alpha = 0.1f))
-                            .border(0.75.dp, activeTheme.primaryColor.copy(alpha = 0.3f), RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f))
                             .padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -227,21 +222,21 @@ fun QueueSheetContent(
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .size(44.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(10.dp))
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = currentTrack.title,
-                                color = activeTheme.primaryColor,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 fontSize = 14.5.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = currentTrack.artistName,
-                                color = textSecondary,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f),
                                 fontSize = 12.5.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -250,7 +245,7 @@ fun QueueSheetContent(
                         LivingEqualizer(
                             isPlaying = playbackState.isPlaying,
                             barCount = 3,
-                            barColor = activeTheme.primaryColor,
+                            barColor = MaterialTheme.colorScheme.onPrimaryContainer,
                             maxHeight = 15.dp
                         )
                     }
@@ -258,7 +253,7 @@ fun QueueSheetContent(
                 }
             }
 
-            item(key = "up_next_header") {
+            item(key = "up_next_header", contentType = "section_header") {
                 Text(
                     text = "QUEUE",
                     color = textSecondary,
@@ -269,17 +264,21 @@ fun QueueSheetContent(
                 )
             }
 
-            itemsIndexed(queue, key = { index, track -> "${track.id}_$index" }) { index, track ->
-                val isCurrent = index == currentQueueIndex || track.id == currentTrack?.id
+            itemsIndexed(
+                items = queue,
+                key = { index, track -> "${track.id}_$index" },
+                contentType = { _, _ -> "queue_track_row" }
+            ) { index, track ->
+                val isCurrent = if (currentQueueIndex in queue.indices) {
+                    index == currentQueueIndex
+                } else {
+                    track.id == currentTrack?.id
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(if (isCurrent) cardBg else Color.Transparent)
-                        .then(
-                            if (isCurrent) Modifier.border(0.75.dp, borderColor, RoundedCornerShape(12.dp))
-                            else Modifier
-                        )
                         .echoPressable(scaleOnPress = 0.985f) {
                             musicController.playQueueIndex(index)
                         }
@@ -292,14 +291,14 @@ fun QueueSheetContent(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(42.dp)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(10.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = track.title,
-                            color = if (isCurrent) activeTheme.primaryColor else textPrimary,
+                            color = if (isCurrent) primaryColor else textPrimary,
                             fontSize = 14.sp,
                             fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Medium,
                             maxLines = 1,
@@ -354,7 +353,7 @@ fun QueueSheetContent(
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(24.dp)) }
+            item(key = "queue_bottom_spacer", contentType = "spacer") { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
 

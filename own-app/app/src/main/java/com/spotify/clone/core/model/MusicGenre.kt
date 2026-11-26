@@ -29,7 +29,8 @@ enum class MusicGenre(
             "telugu", "tollywood", "devara", "pushpa", "kalki", "guntur", "sita ramam",
             "vaikunthapurramuloo", "rrr", "hi nanna", "geetha govindam", "dasara",
             "chuttamalle", "samajavaragamana", "naatu", "kurchi", "sooseki", "daavudi",
-            "anirudh", "thaman", "devi sri prasad", "sid sriram", "keeravani", "ram miriyala"
+            "anirudh", "thaman", "devi sri prasad", "sid sriram", "keeravani", "ram miriyala",
+            "kollywood", "tamil", "jailer", "hukum", "yuvan", "ilaiyaraaja"
         )
     ),
     MELODIES(
@@ -40,7 +41,8 @@ enum class MusicGenre(
         keywords = listOf(
             "melod", "romance", "romantic", "love", "inthandham", "samayama", "chuttamalle",
             "samajavaragamana", "inkem", "kesariya", "tum hi ho", "apna bana le", "tera ban",
-            "sid sriram", "shreya ghoshal", "arijit singh", "hesham", "prema", "kaadhal"
+            "sid sriram", "shreya ghoshal", "arijit singh", "hesham", "prema", "kaadhal",
+            "munbe vaa", "darshana", "vaseegara", "belageddu", "apsara aali", "tamally maak"
         )
     ),
     MASS_BEATS(
@@ -51,7 +53,8 @@ enum class MusicGenre(
         keywords = listOf(
             "mass", "dance", "party", "anthem", "item", "fear song", "daavudi", "ayudha",
             "kurchi", "dum masala", "pushpa pushpa", "kissik", "peelings", "naatu",
-            "bhairava", "ta takkara", "dhoom", "rowdy", "butta bomma", "ramuloo"
+            "bhairava", "ta takkara", "dhoom", "rowdy", "butta bomma", "ramuloo",
+            "zingaat", "illuminati", "tauba tauba", "lover", "chaleya", "hukum", "lollypop"
         )
     ),
     GLOBAL_POP(
@@ -61,8 +64,10 @@ enum class MusicGenre(
         searchQueries = listOf("top pop hits 2026", "the weeknd taylor swift", "billboard pop"),
         keywords = listOf(
             "pop", "weeknd", "taylor swift", "dua lipa", "bruno mars", "billie eilish",
-            "sabrina carpenter", "ariana grande", "olivia rodrigo", "ed sheeran",
-            "blinding lights", "starboy", "espresso", "levitating", "die with a smile"
+            "sabrina carpenter", "ariana grande", "olivia rodrigo", "ed sheeran", "lady gaga",
+            "blinding lights", "starboy", "espresso", "levitating", "die with a smile",
+            "bts", "blackpink", "jung kook", "newjeans", "rosé", "yoasobi", "shakira",
+            "karol g", "rema", "calm down", "rihanna", "beyoncé", "justin bieber", "adele", "sza"
         )
     ),
     HIP_HOP(
@@ -72,7 +77,9 @@ enum class MusicGenre(
         searchQueries = listOf("hip hop rap hits", "kendrick lamar drake", "desi hip hop"),
         keywords = listOf(
             "hip hop", "hip-hop", "rap", "trap", "drill", "kendrick", "drake", "travis scott",
-            "kanye", "eminem", "metro boomin", "divine", "hanumankind", "kr\$na", "badshah"
+            "kanye", "eminem", "metro boomin", "divine", "hanumankind", "kr\$na", "badshah",
+            "sidhu moose wala", "karan aujla", "shubh", "ap dhillon", "bad bunny", "central cee",
+            "j. cole", "post malone", "not like us", "big dawgs", "excuses"
         )
     ),
     ELECTRONIC(
@@ -82,7 +89,8 @@ enum class MusicGenre(
         searchQueries = listOf("edm dance electronic", "house synthwave hits", "club mix"),
         keywords = listOf(
             "edm", "electronic", "house", "techno", "trance", "synth", "club", "dj",
-            "alan walker", "calvin harris", "david guetta", "marshmello", "fred again", "remix"
+            "alan walker", "calvin harris", "david guetta", "marshmello", "fred again", "remix",
+            "avicii", "martin garrix", "daft punk", "kshmr", "nucleya", "alok", "stromae"
         )
     ),
     ROCK(
@@ -92,7 +100,8 @@ enum class MusicGenre(
         searchQueries = listOf("rock alternative hits", "coldplay imagine dragons", "indie rock"),
         keywords = listOf(
             "rock", "alternative", "metal", "punk", "coldplay", "imagine dragons",
-            "linkin park", "arctic monkeys", "nirvana", "queen", "radiohead"
+            "linkin park", "arctic monkeys", "nirvana", "queen", "radiohead",
+            "metallica", "kenshi yonezu", "ado", "bohemian rhapsody", "believer"
         )
     ),
     BOLLYWOOD(
@@ -102,7 +111,9 @@ enum class MusicGenre(
         searchQueries = listOf("hindi top hits", "bollywood chartbusters", "pritam arijit hits"),
         keywords = listOf(
             "hindi", "bollywood", "brahmastra", "pathaan", "jawan", "animal", "stree",
-            "pritam", "a.r. rahman", "shankar", "vishal", "jubin nautiyal", "atif aslam"
+            "pritam", "a.r. rahman", "shankar", "vishal", "jubin nautiyal", "atif aslam",
+            "sonu nigam", "kishore kumar", "lata mangeshkar", "sachin-jigar", "amit trivedi",
+            "sunidhi chauhan", "mithoon", "kk", "mohit chauhan", "ajay-atul"
         )
     ),
     LO_FI(
@@ -112,7 +123,8 @@ enum class MusicGenre(
         searchQueries = listOf("chill lofi beats", "acoustic late night chill", "midnight chill"),
         keywords = listOf(
             "lo-fi", "lofi", "chill", "ambient", "midnight", "late night", "sleep",
-            "study", "rain", "reverie", "soft", "acoustic chill", "unplugged"
+            "study", "rain", "reverie", "soft", "acoustic chill", "unplugged",
+            "cigarettes after sex", "ludovico einaudi", "apocalypse", "experience"
         )
     ),
     INDIE(
@@ -122,7 +134,9 @@ enum class MusicGenre(
         searchQueries = listOf("indie acoustic folk", "telugu indie songs", "anuv jain prateek kuhad"),
         keywords = listOf(
             "indie", "folk", "acoustic", "singer-songwriter", "ram miriyala", "vivek sagar",
-            "balagam", "kancharapalem", "anuv jain", "prateek kuhad", "when chai met toast"
+            "balagam", "kancharapalem", "anuv jain", "prateek kuhad", "when chai met toast",
+            "fujii kaze", "ali sethi", "pasoori", "khalasi", "aditya gadhvi", "anupam roy",
+            "raghu dixit", "lana del rey", "tame impala"
         )
     ),
     DEVOTIONAL(
@@ -132,7 +146,8 @@ enum class MusicGenre(
         searchQueries = listOf("indian classical devotional", "suprabhatam peaceful", "carnatic instrumental"),
         keywords = listOf(
             "devotional", "classical", "carnatic", "hindustani", "mantra", "suprabhatam",
-            "annamayya", "bhajan", "shiva", "hanuman", "sitar", "flute", "raga"
+            "annamayya", "bhajan", "shiva", "hanuman", "sitar", "flute", "raga",
+            "nusrat fateh", "rahat fateh", "kun faya kun", "afreen", "yesudas", "joe hisaishi"
         )
     );
 
@@ -155,12 +170,15 @@ enum class MusicGenre(
         ALL -> listOf(GLOBAL_POP, TOL_TELUGU, MELODIES)
     }
 
+    val displayNameLower: String = displayName.lowercase(Locale.ROOT)
+    val shortLabelLower: String = shortLabel.lowercase(Locale.ROOT)
+
     fun matchesTrack(track: Track): Boolean {
         if (this == ALL) return true
         val declared = track.genre.trim().lowercase(Locale.ROOT)
         if (declared.isNotBlank() && declared != "all" && declared != "music") {
-            if (declared == id || declared == displayName.lowercase(Locale.ROOT) ||
-                declared == shortLabel.lowercase(Locale.ROOT)
+            if (declared == id || declared == displayNameLower ||
+                declared == shortLabelLower
             ) {
                 return true
             }
@@ -171,8 +189,7 @@ enum class MusicGenre(
     }
 
     companion object {
-        val selectableGenres: List<MusicGenre>
-            get() = entries.filter { it != ALL }
+        val selectableGenres: List<MusicGenre> = entries.filter { it != ALL }
 
         fun fromId(id: String?): MusicGenre {
             if (id.isNullOrBlank()) return ALL
@@ -189,12 +206,10 @@ enum class MusicGenre(
         fun inferGenre(track: Track): MusicGenre {
             val declared = track.genre.trim().lowercase(Locale.ROOT)
             if (declared.isNotBlank() && declared != "all" && declared != "music") {
-                entries.firstOrNull { g ->
-                    g != ALL && (
-                        declared == g.id ||
-                            declared == g.shortLabel.lowercase(Locale.ROOT) ||
-                            declared.contains(g.shortLabel.lowercase(Locale.ROOT))
-                        )
+                selectableGenres.firstOrNull { g ->
+                    declared == g.id ||
+                        declared == g.shortLabelLower ||
+                        declared.contains(g.shortLabelLower)
                 }?.let { return it }
             }
 

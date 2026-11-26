@@ -33,7 +33,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.tabularFigures
 import kotlin.math.roundToLong
 
@@ -49,7 +48,7 @@ fun LyricsOffsetDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val activeTheme = LocalAppTheme.current
+    val primaryColor = MaterialTheme.colorScheme.primary
     var draftOffsetMs by remember(currentOffsetMs) { mutableLongStateOf(currentOffsetMs) }
 
     AlertDialog(
@@ -60,7 +59,7 @@ fun LyricsOffsetDialog(
                 Icon(
                     imageVector = Icons.Filled.Timer,
                     contentDescription = null,
-                    tint = activeTheme.primaryColor,
+                    tint = primaryColor,
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
@@ -83,7 +82,7 @@ fun LyricsOffsetDialog(
 
                 Text(
                     text = if (draftOffsetMs == 0L) "0 ms (Original Sync)" else "${if (draftOffsetMs > 0) "+" else ""}$draftOffsetMs ms",
-                    color = activeTheme.primaryColor,
+                    color = primaryColor,
                     style = MaterialTheme.typography.headlineMedium.tabularFigures().copy(fontWeight = FontWeight.Bold)
                 )
 
@@ -96,8 +95,8 @@ fun LyricsOffsetDialog(
                     },
                     valueRange = -10000f..10000f,
                     colors = SliderDefaults.colors(
-                        thumbColor = activeTheme.primaryColor,
-                        activeTrackColor = activeTheme.primaryColor
+                        thumbColor = primaryColor,
+                        activeTrackColor = primaryColor
                     ),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -176,7 +175,7 @@ fun LyricsOffsetDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Done", color = activeTheme.primaryColor, fontWeight = FontWeight.Bold)
+                Text("Done", color = primaryColor, fontWeight = FontWeight.Bold)
             }
         }
     )

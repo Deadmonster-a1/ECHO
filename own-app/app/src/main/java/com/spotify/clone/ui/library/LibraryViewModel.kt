@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 
 data class LibraryState(
     val selectedFilter: String = "All",
+    val searchQuery: String = "",
     val isGridView: Boolean = false,
     val likedTracks: List<Track> = emptyList(),
     val playlists: List<Playlist> = emptyList(),
@@ -25,7 +26,9 @@ data class LibraryState(
 
 sealed interface LibraryEvent : UiEvent {
     data class SelectFilter(val filter: String) : LibraryEvent
+    data class SearchQueryChanged(val query: String) : LibraryEvent
     data class CreatePlaylist(val name: String) : LibraryEvent
+    data class RenamePlaylist(val playlistId: String, val name: String, val description: String = "") : LibraryEvent
     data class DeletePlaylist(val playlistId: String) : LibraryEvent
     data object ToggleViewMode : LibraryEvent
     data object ScanLocalAudio : LibraryEvent
@@ -74,6 +77,7 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
     fun dispatch(event: LibraryEvent) {
         when (event) {
             is LibraryEvent.SelectFilter -> _uiState.update { it.copy(selectedFilter = event.filter) }
+            is LibraryEvent.SearchQueryChanged -> _uiState.update { it.copy(searchQuery = event.query) }
             is LibraryEvent.ToggleViewMode -> _uiState.update { it.copy(isGridView = !it.isGridView) }
             is LibraryEvent.ScanLocalAudio -> scanLocalFiles(forceRefresh = true)
             is LibraryEvent.CreatePlaylist -> {
@@ -84,6 +88,13 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
                     _uiState.update { current ->
                         current.copy(playlists = (listOf(created) + current.playlists).distinctBy { it.id })
                     }
+                }
+            }
+            is LibraryEvent.RenamePlaylist -> {
+                val cleanName = event.name.trim()
+                if (cleanName.isBlank()) return
+                viewModelScope.launch {
+                    repository.updatePlaylistDetails(event.playlistId, cleanName, event.description)
                 }
             }
             is LibraryEvent.DeletePlaylist -> {

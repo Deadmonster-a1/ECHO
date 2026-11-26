@@ -326,6 +326,8 @@ object SampleCatalog {
         trackInkemInkem
     )
 
+    val sampleTracksById: Map<String, Track> by lazy { sampleTracks.associateBy { it.id } }
+
     val samplePlaylists = listOf(
         Playlist(
             id = "pl_devara",

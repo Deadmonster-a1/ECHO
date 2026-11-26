@@ -30,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.tabularFigures
 
 enum class LyricsSizeTier(val label: String, val fontSizeSp: Float, val subtitle: String) {
@@ -51,7 +50,7 @@ fun LyricsSizeDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val activeTheme = LocalAppTheme.current
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -61,7 +60,7 @@ fun LyricsSizeDialog(
                 Icon(
                     imageVector = Icons.Filled.FormatSize,
                     contentDescription = null,
-                    tint = activeTheme.primaryColor,
+                    tint = primaryColor,
                     modifier = Modifier.size(22.dp)
                 )
                 Spacer(modifier = Modifier.width(10.dp))
@@ -80,22 +79,22 @@ fun LyricsSizeDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(14.dp))
                             .clickable { onSizeSelected(tier) }
-                            .background(if (isSelected) activeTheme.primaryColor.copy(alpha = 0.12f) else Color.Transparent)
+                            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else Color.Transparent)
                             .padding(horizontal = 8.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
                             selected = isSelected,
                             onClick = { onSizeSelected(tier) },
-                            colors = RadioButtonDefaults.colors(selectedColor = activeTheme.primaryColor)
+                            colors = RadioButtonDefaults.colors(selectedColor = primaryColor)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
                                 text = tier.label,
-                                color = if (isSelected) activeTheme.primaryColor else MaterialTheme.colorScheme.onSurface,
+                                color = if (isSelected) primaryColor else MaterialTheme.colorScheme.onSurface,
                                 fontSize = 15.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                             )
@@ -130,7 +129,7 @@ fun LyricsSizeDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Done", color = activeTheme.primaryColor, fontWeight = FontWeight.Bold)
+                Text("Done", color = primaryColor, fontWeight = FontWeight.Bold)
             }
         }
     )

@@ -5,6 +5,12 @@ import android.content.SharedPreferences
 import com.spotify.clone.core.model.MusicGenre
 import com.spotify.clone.core.model.Track
 import com.spotify.clone.core.player.SmartRadioQueue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
@@ -63,8 +69,13 @@ object EchoTasteMlModel {
     private const val KEY_STATE_JSON = "ml_state_json"
     private const val DECAY_LAMBDA_PER_DAY = 0.085
     private const val MS_PER_DAY = 86_400_000.0
+    private const val MAX_ARTIST_SCORES = 100
+    private const val MAX_CO_GRAPH_SOURCES = 60
+    private const val PERSIST_DEBOUNCE_MS = 500L
 
     private var prefs: SharedPreferences? = null
+    private val persistScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var persistJob: Job? = null
 
     // 12D continuous user taste vector
     private val userTasteVector = FloatArray(EMBEDDING_DIM)
@@ -106,6 +117,8 @@ object EchoTasteMlModel {
 
     @Synchronized
     fun resetForTests() {
+        persistJob?.cancel()
+        persistJob = null
         userTasteVector.fill(0f)
         artistScores.clear()
         artistTimestamps.clear()
@@ -212,11 +225,16 @@ object EchoTasteMlModel {
         var normB = 0f
         val n = minOf(a.size, b.size)
         for (i in 0 until n) {
-            dot += a[i] * b[i]
-            normA += a[i] * a[i]
-            normB += b[i] * b[i]
+            val ai = a[i]
+            val bi = b[i]
+            if (!ai.isFinite() || !bi.isFinite()) continue
+            dot += ai * bi
+            normA += ai * ai
+            normB += bi * bi
         }
-        if (normA <= 1e-6f || normB <= 1e-6f) return 0f
+        if (normA <= 1e-6f || normB <= 1e-6f || !dot.isFinite() || !normA.isFinite() || !normB.isFinite()) {
+            return 0f
+        }
         return (dot / (sqrt(normA) * sqrt(normB))).coerceIn(-1f, 1f)
     }
 
@@ -229,46 +247,54 @@ object EchoTasteMlModel {
         genreIds: Set<String>,
         languages: Set<String>,
         catalogSeedTracks: List<Track>,
+        selectedSongTracks: List<Track> = emptyList(),
         nowMs: Long = System.currentTimeMillis()
     ) {
-        val matched = catalogSeedTracks.filter { track ->
+        val artistLower = artists.mapTo(HashSet()) { it.lowercase(Locale.ROOT) }
+        val matched = (selectedSongTracks + catalogSeedTracks.filter { track ->
             val ak = EchoRecommendationEngine.primaryArtistOf(track.artistName).lowercase(Locale.ROOT)
             val gId = MusicGenre.inferGenre(track).id
-            ak in artists.map { it.lowercase(Locale.ROOT) } || gId in genreIds
-        }
-        matched.take(8).forEach { track ->
+            ak in artistLower || gId in genreIds
+        }).distinctBy { SmartRadioQueue.normalizedSongKey(it.title, it.artistName) }
+
+        matched.take(16).forEach { track ->
             val vec = embedTrack(track)
+            val weight = if (track in selectedSongTracks) 0.40f else 0.25f
             for (i in 0 until EMBEDDING_DIM) {
-                userTasteVector[i] += vec[i] * 0.25f
+                userTasteVector[i] += vec[i] * weight
             }
         }
         val norm = l2Normalize(userTasteVector)
         norm.copyInto(userTasteVector)
 
-        artists.forEach { a ->
+        val allSeedArtists = LinkedHashSet<String>(artists)
+        selectedSongTracks.forEach { track ->
+            val primary = EchoRecommendationEngine.primaryArtistOf(track.artistName)
+            if (primary.isNotBlank()) allSeedArtists.add(primary)
+        }
+
+        allSeedArtists.forEach { a ->
             val key = EchoRecommendationEngine.primaryArtistOf(a).lowercase(Locale.ROOT)
             if (key.isNotBlank()) {
                 artistScores[key] = max(artistScores[key] ?: 0f, 3.5f)
                 artistTimestamps[key] = nowMs
             }
         }
+        trimArtistScoresIfNeeded()
         genreIds.forEach { gid ->
             if (gid.isNotBlank()) {
                 genreScores[gid] = max(genreScores[gid] ?: 0f, 3.5f)
                 genreTimestamps[gid] = nowMs
             }
         }
-        if ("Telugu" in languages) {
-            genreScores[MusicGenre.TOL_TELUGU.id] = max(genreScores[MusicGenre.TOL_TELUGU.id] ?: 0f, 2.5f)
-            genreTimestamps[MusicGenre.TOL_TELUGU.id] = nowMs
+        languages.forEach { lang ->
+            com.spotify.clone.core.data.WorldOnboardingCatalog.genresForLanguage(lang).forEach { gid ->
+                genreScores[gid] = max(genreScores[gid] ?: 0f, 2.5f)
+                genreTimestamps[gid] = nowMs
+            }
         }
-        if ("Hindi" in languages) {
-            genreScores[MusicGenre.BOLLYWOOD.id] = max(genreScores[MusicGenre.BOLLYWOOD.id] ?: 0f, 2.5f)
-            genreTimestamps[MusicGenre.BOLLYWOOD.id] = nowMs
-        }
-        if ("English" in languages) {
-            genreScores[MusicGenre.GLOBAL_POP.id] = max(genreScores[MusicGenre.GLOBAL_POP.id] ?: 0f, 2.5f)
-            genreTimestamps[MusicGenre.GLOBAL_POP.id] = nowMs
+        if (selectedSongTracks.size >= 2) {
+            syncLikedCoOccurrence(selectedSongTracks)
         }
         persistState()
     }
@@ -308,6 +334,7 @@ object EchoTasteMlModel {
             }
             artistScores[artistKey] = (decayed + delta).coerceIn(0f, 25f)
             artistTimestamps[artistKey] = nowMs
+            trimArtistScoresIfNeeded()
         }
 
         val decayedGenre = decayedScore(genreScores[genre.id] ?: 0f, genreTimestamps[genre.id], nowMs)
@@ -367,8 +394,8 @@ object EchoTasteMlModel {
         }.filter { it.isNotBlank() }.distinct()
         for (i in artists.indices) {
             for (j in i + 1 until artists.size) {
-                recordArtistEdge(artists[i], artists[j], 0.5f)
-                recordArtistEdge(artists[j], artists[i], 0.5f)
+                ensureArtistEdgeFloor(artists[i], artists[j], 0.5f)
+                ensureArtistEdgeFloor(artists[j], artists[i], 0.5f)
             }
         }
     }
@@ -454,9 +481,12 @@ object EchoTasteMlModel {
         val hasUserVector = userTasteVector.any { it != 0f }
 
         val embeddings = HashMap<String, FloatArray>(cleanPool.size)
+        val anchorEmbeddings = HashMap<String, FloatArray>(anchorTracks.size)
+        for (anchor in anchorTracks) {
+            anchorEmbeddings[anchor.id] = embeddings.getOrPut(anchor.id) { embedTrack(anchor) }
+        }
         val rawPredictions = cleanPool.map { track ->
-            val trackVec = embedTrack(track)
-            embeddings[track.id] = trackVec
+            val trackVec = embeddings.getOrPut(track.id) { embedTrack(track) }
 
             val sim = if (hasUserVector) {
                 ((cosineSimilarity(userTasteVector, trackVec) + 1f) * 0.5f).coerceIn(0f, 1f)
@@ -469,6 +499,7 @@ object EchoTasteMlModel {
                 trackVec = trackVec,
                 likedArtistKeys = likedArtistKeys,
                 anchorTracks = anchorTracks,
+                anchorEmbeddings = anchorEmbeddings,
                 timeBucket = timeBucket,
                 nowMs = nowMs
             )
@@ -525,6 +556,7 @@ object EchoTasteMlModel {
         k: Int = 3,
         maxIterations: Int = 6
     ): List<TasteCluster> {
+        if (k <= 0) return emptyList()
         val cleanPool = pool
             .filter { !EchoRecommendationEngine.isJunkTitle(it.title) }
             .distinctBy { SmartRadioQueue.normalizedSongKey(it.title, it.artistName) }
@@ -618,7 +650,8 @@ object EchoTasteMlModel {
         limit: Int,
         lambda: Float = 0.74f
     ): List<MlTrackPrediction> {
-        if (predictions.size <= 1 || limit <= 0) return predictions.take(limit)
+        if (limit <= 0) return emptyList()
+        if (predictions.size <= 1) return predictions
         val remaining = predictions.toMutableList()
         val selected = ArrayList<MlTrackPrediction>(limit)
         val artistCounts = HashMap<String, Int>()
@@ -665,8 +698,22 @@ object EchoTasteMlModel {
     @Synchronized
     fun getCoOccurrenceBoost(candidate: Track, anchorTracks: List<Track>): Float {
         if (anchorTracks.isEmpty()) return 0f
+        return getCoOccurrenceBoostInternal(
+            candidate = candidate,
+            candVec = embedTrack(candidate),
+            anchorTracks = anchorTracks,
+            anchorEmbeddings = null
+        )
+    }
+
+    private fun getCoOccurrenceBoostInternal(
+        candidate: Track,
+        candVec: FloatArray,
+        anchorTracks: List<Track>,
+        anchorEmbeddings: Map<String, FloatArray>?
+    ): Float {
+        if (anchorTracks.isEmpty()) return 0f
         val candArtist = EchoRecommendationEngine.primaryArtistOf(candidate.artistName).lowercase(Locale.ROOT)
-        val candVec = embedTrack(candidate)
         var maxEdge = 0f
         var maxCos = 0f
 
@@ -677,7 +724,8 @@ object EchoTasteMlModel {
             if (anchorArtist == candArtist && anchor.id != candidate.id) {
                 maxEdge = max(maxEdge, 1.8f)
             }
-            val cos = cosineSimilarity(candVec, embedTrack(anchor))
+            val anchorVec = anchorEmbeddings?.get(anchor.id) ?: embedTrack(anchor)
+            val cos = cosineSimilarity(candVec, anchorVec)
             if (cos > maxCos) maxCos = cos
         }
         val normalizedGraph = (maxEdge / 4.0f).coerceIn(0f, 1f)
@@ -695,6 +743,7 @@ object EchoTasteMlModel {
         trackVec: FloatArray,
         likedArtistKeys: Set<String>,
         anchorTracks: List<Track>,
+        anchorEmbeddings: Map<String, FloatArray>? = null,
         timeBucket: TimeOfDayBucket,
         nowMs: Long
     ): FloatArray {
@@ -710,7 +759,7 @@ object EchoTasteMlModel {
         val timeMatch = if (matchesTimeBucket(genre, timeBucket)) 1f else 0.25f
         val freshness = trackVec[11].coerceIn(0f, 1f)
         val likedAff = if (track.isFavorite || artistKey in likedArtistKeys) 1f else 0f
-        val coBoost = getCoOccurrenceBoost(track, anchorTracks)
+        val coBoost = getCoOccurrenceBoostInternal(track, trackVec, anchorTracks, anchorEmbeddings)
         val qualityPrior = if (!com.spotify.clone.core.data.FullTrackStreamResolver.needsResolution(track)) 1f else 0.45f
 
         return floatArrayOf(cosSim, artistAff, genreAff, timeMatch, freshness, likedAff, coBoost, qualityPrior)
@@ -735,6 +784,34 @@ object EchoTasteMlModel {
         sgdBias = (sgdBias + lr * error).coerceIn(-3f, 3f)
     }
 
+    private fun trimArtistScoresIfNeeded() {
+        while (artistScores.size > MAX_ARTIST_SCORES) {
+            val weakest = artistScores.minByOrNull { it.value }?.key ?: break
+            artistScores.remove(weakest)
+            artistTimestamps.remove(weakest)
+        }
+    }
+
+    private fun trimCoGraphIfNeeded() {
+        while (artistCoGraph.size > MAX_CO_GRAPH_SOURCES) {
+            val weakest = artistCoGraph.minByOrNull { entry -> entry.value.values.sum() }?.key ?: break
+            artistCoGraph.remove(weakest)
+        }
+    }
+
+    private fun ensureArtistEdgeFloor(fromArtist: String, toArtist: String, minWeight: Float) {
+        val neighbors = artistCoGraph.getOrPut(fromArtist) { HashMap() }
+        val current = neighbors[toArtist] ?: 0f
+        if (current < minWeight) {
+            neighbors[toArtist] = minWeight.coerceIn(0f, 15f)
+            if (neighbors.size > 24) {
+                val minKey = neighbors.minByOrNull { it.value }?.key
+                if (minKey != null) neighbors.remove(minKey)
+            }
+        }
+        trimCoGraphIfNeeded()
+    }
+
     private fun recordArtistEdge(fromArtist: String, toArtist: String, delta: Float) {
         val neighbors = artistCoGraph.getOrPut(fromArtist) { HashMap() }
         neighbors[toArtist] = ((neighbors[toArtist] ?: 0f) + delta).coerceIn(0f, 15f)
@@ -742,6 +819,7 @@ object EchoTasteMlModel {
             val minKey = neighbors.minByOrNull { it.value }?.key
             if (minKey != null) neighbors.remove(minKey)
         }
+        trimCoGraphIfNeeded()
     }
 
     private fun buildExplainableReason(
@@ -769,10 +847,10 @@ object EchoTasteMlModel {
     }
 
     private fun matchesTimeBucket(genre: MusicGenre, bucket: TimeOfDayBucket): Boolean = when (bucket) {
-        TimeOfDayBucket.MORNING -> genre in setOf(MusicGenre.MELODIES, MusicGenre.DEVOTIONAL, MusicGenre.INDIE)
-        TimeOfDayBucket.AFTERNOON -> genre in setOf(MusicGenre.GLOBAL_POP, MusicGenre.INDIE, MusicGenre.BOLLYWOOD, MusicGenre.TOL_TELUGU)
-        TimeOfDayBucket.EVENING -> genre in setOf(MusicGenre.MASS_BEATS, MusicGenre.HIP_HOP, MusicGenre.ELECTRONIC, MusicGenre.TOL_TELUGU)
-        TimeOfDayBucket.NIGHT -> genre in setOf(MusicGenre.LO_FI, MusicGenre.MELODIES, MusicGenre.INDIE)
+        TimeOfDayBucket.MORNING -> genre == MusicGenre.MELODIES || genre == MusicGenre.DEVOTIONAL || genre == MusicGenre.INDIE
+        TimeOfDayBucket.AFTERNOON -> genre == MusicGenre.GLOBAL_POP || genre == MusicGenre.INDIE || genre == MusicGenre.BOLLYWOOD || genre == MusicGenre.TOL_TELUGU
+        TimeOfDayBucket.EVENING -> genre == MusicGenre.MASS_BEATS || genre == MusicGenre.HIP_HOP || genre == MusicGenre.ELECTRONIC || genre == MusicGenre.TOL_TELUGU
+        TimeOfDayBucket.NIGHT -> genre == MusicGenre.LO_FI || genre == MusicGenre.MELODIES || genre == MusicGenre.INDIE
     }
 
     private fun decayedScore(score: Float, lastMs: Long?, nowMs: Long): Float {
@@ -783,12 +861,17 @@ object EchoTasteMlModel {
     }
 
     private fun l2Normalize(vec: FloatArray): FloatArray {
+        val sanitized = FloatArray(vec.size)
         var sumSq = 0f
-        for (v in vec) sumSq += v * v
-        if (sumSq <= 1e-6f) return vec
+        for (i in vec.indices) {
+            val v = if (vec[i].isFinite()) vec[i] else 0f
+            sanitized[i] = v
+            sumSq += v * v
+        }
+        if (sumSq <= 1e-6f || !sumSq.isFinite()) return sanitized
         val inv = 1f / sqrt(sumSq)
         val out = FloatArray(vec.size)
-        for (i in vec.indices) out[i] = vec[i] * inv
+        for (i in vec.indices) out[i] = sanitized[i] * inv
         return out
     }
 
@@ -797,40 +880,58 @@ object EchoTasteMlModel {
 
     private fun persistState() {
         val p = prefs ?: return
-        runCatching {
-            val root = JSONObject()
-            root.put("tasteVec", JSONArray(userTasteVector.map { it.toDouble() }))
-            root.put("weights", JSONArray(sgdWeights.map { it.toDouble() }))
-            root.put("bias", sgdBias.toDouble())
-            root.put("totalPulls", totalBanditPulls)
+        // Snapshot immutable state synchronously while under caller's lock, serialize & commit off Main thread.
+        val tasteCopy = userTasteVector.copyOf()
+        val weightsCopy = sgdWeights.copyOf()
+        val biasCopy = sgdBias
+        val pullsCopy = totalBanditPulls
+        val artistsSnapshot = artistScores.entries.sortedByDescending { it.value }.take(40)
+            .map { Triple(it.key, it.value, artistTimestamps[it.key] ?: 0L) }
+        val genresSnapshot = genreScores.entries.map { (k, v) ->
+            Triple(k, v, Pair(genreTimestamps[k] ?: 0L, genrePullCounts[k] ?: 0))
+        }
+        val coSnapshot = artistCoGraph.entries.take(30).map { (src, map) ->
+            src to map.toMap()
+        }
 
-            val artistObj = JSONObject()
-            artistScores.entries.sortedByDescending { it.value }.take(40).forEach { (k, v) ->
-                artistObj.put(k, JSONObject().put("s", v.toDouble()).put("t", artistTimestamps[k] ?: 0L))
+        persistJob?.cancel()
+        persistJob = persistScope.launch {
+            delay(PERSIST_DEBOUNCE_MS)
+            runCatching {
+                val root = JSONObject()
+                root.put("tasteVec", JSONArray(tasteCopy.map { it.toDouble() }))
+                root.put("weights", JSONArray(weightsCopy.map { it.toDouble() }))
+                root.put("bias", biasCopy.toDouble())
+                root.put("totalPulls", pullsCopy)
+
+                val artistObj = JSONObject()
+                artistsSnapshot.forEach { (k, s, t) ->
+                    artistObj.put(k, JSONObject().put("s", s.toDouble()).put("t", t))
+                }
+                root.put("artists", artistObj)
+
+                val genreObj = JSONObject()
+                genresSnapshot.forEach { (k, v, meta) ->
+                    genreObj.put(
+                        k,
+                        JSONObject()
+                            .put("s", v.toDouble())
+                            .put("t", meta.first)
+                            .put("p", meta.second)
+                    )
+                }
+                root.put("genres", genreObj)
+
+                val coObj = JSONObject()
+                coSnapshot.forEach { (src, map) ->
+                    val inner = JSONObject()
+                    map.forEach { (dst, w) -> inner.put(dst, w.toDouble()) }
+                    coObj.put(src, inner)
+                }
+                root.put("coGraph", coObj)
+
+                p.edit().putString(KEY_STATE_JSON, root.toString()).apply()
             }
-            root.put("artists", artistObj)
-
-            val genreObj = JSONObject()
-            genreScores.forEach { (k, v) ->
-                genreObj.put(
-                    k,
-                    JSONObject()
-                        .put("s", v.toDouble())
-                        .put("t", genreTimestamps[k] ?: 0L)
-                        .put("p", genrePullCounts[k] ?: 0)
-                )
-            }
-            root.put("genres", genreObj)
-
-            val coObj = JSONObject()
-            artistCoGraph.entries.take(30).forEach { (src, map) ->
-                val inner = JSONObject()
-                map.forEach { (dst, w) -> inner.put(dst, w.toDouble()) }
-                coObj.put(src, inner)
-            }
-            root.put("coGraph", coObj)
-
-            p.edit().putString(KEY_STATE_JSON, root.toString()).apply()
         }
     }
 

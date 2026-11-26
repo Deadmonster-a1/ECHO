@@ -3,6 +3,8 @@ package com.spotify.clone.core.recommendation
 import android.content.Context
 import android.content.SharedPreferences
 import com.spotify.clone.core.data.SampleCatalog
+import com.spotify.clone.core.data.WorldOnboardingCatalog
+import com.spotify.clone.core.model.Artist
 import com.spotify.clone.core.model.EditorialBanner
 import com.spotify.clone.core.model.MusicGenre
 import com.spotify.clone.core.model.Playlist
@@ -50,10 +52,13 @@ object EchoRecommendationEngine {
     private const val KEY_SEED_ARTISTS = "onboarded_artists"
     private const val KEY_SEED_GENRES = "onboarded_genres"
     private const val KEY_SEED_LANGUAGES = "onboarded_languages"
+    private const val KEY_SEED_SONGS = "onboarded_songs"
 
     @Volatile private var inMemorySeedArtists: Set<String> = emptySet()
     @Volatile private var inMemorySeedGenres: Set<String> = emptySet()
     @Volatile private var inMemorySeedLanguages: Set<String> = emptySet()
+    @Volatile private var inMemorySeedSongs: Set<String> = emptySet()
+    @Volatile private var inMemorySeedSongTracks: List<Track> = emptyList()
 
     private const val PLAY_WEIGHT = 2.0f
     private const val SKIP_PENALTY = 3.0f
@@ -83,26 +88,42 @@ object EchoRecommendationEngine {
             inMemorySeedArtists = p.getStringSet(KEY_SEED_ARTISTS, emptySet())?.toSet() ?: emptySet()
             inMemorySeedGenres = p.getStringSet(KEY_SEED_GENRES, emptySet())?.toSet() ?: emptySet()
             inMemorySeedLanguages = p.getStringSet(KEY_SEED_LANGUAGES, emptySet())?.toSet() ?: emptySet()
+            inMemorySeedSongs = p.getStringSet(KEY_SEED_SONGS, emptySet())?.toSet() ?: emptySet()
+            inMemorySeedSongTracks = inMemorySeedSongs.mapNotNull { WorldOnboardingCatalog.findSongById(it)?.toTrack() }
         }
     }
 
+    @JvmOverloads
     fun seedOnboardingPreferences(
         languages: Set<String>,
         genreIds: Set<String>,
-        artists: Set<String>
+        artists: Set<String>,
+        songIds: Set<String> = emptySet(),
+        songTracks: List<Track> = emptyList()
     ) {
-        val cleanArtists = artists.map { primaryArtistOf(it).lowercase(Locale.ROOT) }.filter { it.isNotBlank() }.toSet()
+        val resolvedTracks = (songTracks + songIds.mapNotNull { WorldOnboardingCatalog.findSongById(it)?.toTrack() })
+            .distinctBy { SmartRadioQueue.normalizedSongKey(it.title, it.artistName) }
+        val songDerivedArtists = resolvedTracks.flatMap { WorldOnboardingCatalog.extractArtistTokens(it.artistName) }
+        val cleanArtists = (artists + songDerivedArtists)
+            .map { primaryArtistOf(it).lowercase(Locale.ROOT) }
+            .filter { it.isNotBlank() }
+            .toSet()
         val cleanGenres = genreIds.map { it.trim() }.filter { it.isNotBlank() }.toSet()
         val cleanLangs = languages.map { it.trim() }.filter { it.isNotBlank() }.toSet()
+        val cleanSongIds = (songIds + resolvedTracks.map { it.id }).map { it.trim() }.filter { it.isNotBlank() }.toSet()
 
         inMemorySeedArtists = cleanArtists
         inMemorySeedGenres = cleanGenres
         inMemorySeedLanguages = cleanLangs
+        inMemorySeedSongs = cleanSongIds
+        inMemorySeedSongTracks = resolvedTracks
         EchoTasteMlModel.seedFromPreferences(
             artists = cleanArtists,
             genreIds = cleanGenres,
             languages = cleanLangs,
-            catalogSeedTracks = SampleCatalog.sampleTracks
+            catalogSeedTracks = (resolvedTracks + WorldOnboardingCatalog.allOnboardingTracks() + SampleCatalog.sampleTracks)
+                .distinctBy { SmartRadioQueue.normalizedSongKey(it.title, it.artistName) },
+            selectedSongTracks = resolvedTracks
         )
 
         val p = prefs ?: return
@@ -110,6 +131,7 @@ object EchoRecommendationEngine {
             .putStringSet(KEY_SEED_ARTISTS, cleanArtists)
             .putStringSet(KEY_SEED_GENRES, cleanGenres)
             .putStringSet(KEY_SEED_LANGUAGES, cleanLangs)
+            .putStringSet(KEY_SEED_SONGS, cleanSongIds)
 
         cleanArtists.forEach { ak ->
             val current = p.getInt("$KEY_ARTIST_PREFIX$ak", 0)
@@ -119,22 +141,25 @@ object EchoRecommendationEngine {
             val current = p.getInt("$KEY_GENRE_PREFIX$gid", 0)
             if (current < 4) editor.putInt("$KEY_GENRE_PREFIX$gid", 4)
         }
-        if ("Telugu" in cleanLangs) {
-            val gid = MusicGenre.TOL_TELUGU.id
-            if (p.getInt("$KEY_GENRE_PREFIX$gid", 0) < 3) editor.putInt("$KEY_GENRE_PREFIX$gid", 3)
+        cleanLangs.forEach { lang ->
+            WorldOnboardingCatalog.genresForLanguage(lang).forEach { gid ->
+                if (p.getInt("$KEY_GENRE_PREFIX$gid", 0) < 3) editor.putInt("$KEY_GENRE_PREFIX$gid", 3)
+            }
         }
-        if ("Hindi" in cleanLangs) {
-            val gid = MusicGenre.BOLLYWOOD.id
-            if (p.getInt("$KEY_GENRE_PREFIX$gid", 0) < 3) editor.putInt("$KEY_GENRE_PREFIX$gid", 3)
-        }
-        if ("English" in cleanLangs) {
-            val gid = MusicGenre.GLOBAL_POP.id
-            if (p.getInt("$KEY_GENRE_PREFIX$gid", 0) < 3) editor.putInt("$KEY_GENRE_PREFIX$gid", 3)
+        resolvedTracks.forEach { tr ->
+            val sk = SmartRadioQueue.normalizedSongKey(tr.title, tr.artistName)
+            if (p.getInt("$KEY_PLAY_PREFIX$sk", 0) < 2) editor.putInt("$KEY_PLAY_PREFIX$sk", 2)
+            val gk = MusicGenre.inferGenre(tr).id
+            if (p.getInt("$KEY_GENRE_PREFIX$gk", 0) < 3) editor.putInt("$KEY_GENRE_PREFIX$gk", 3)
         }
         editor.apply()
     }
 
     fun getOnboardedArtists(): Set<String> = inMemorySeedArtists
+
+    fun getOnboardedSongs(): Set<String> = inMemorySeedSongs
+
+    fun getOnboardedSongTracks(): List<Track> = inMemorySeedSongTracks
 
     fun getOnboardedGenres(): Set<MusicGenre> =
         inMemorySeedGenres.map { MusicGenre.fromId(it) }.filter { it != MusicGenre.ALL }.toSet()
@@ -155,8 +180,11 @@ object EchoRecommendationEngine {
         return JUNK_TITLE_KEYWORDS.any { lower.contains(it) }
     }
 
+    private val PRIMARY_ARTIST_SPLIT_REGEX =
+        Regex("""[,&•/]|\b(?:feat\.?|ft\.?|featuring)\b""", RegexOption.IGNORE_CASE)
+
     fun primaryArtistOf(artistName: String): String =
-        artistName.split(',', '&', '•', '/')
+        artistName.split(PRIMARY_ARTIST_SPLIT_REGEX)
             .firstOrNull()
             ?.trim()
             .orEmpty()
@@ -196,6 +224,8 @@ object EchoRecommendationEngine {
         inMemorySeedArtists = emptySet()
         inMemorySeedGenres = emptySet()
         inMemorySeedLanguages = emptySet()
+        inMemorySeedSongs = emptySet()
+        inMemorySeedSongTracks = emptyList()
         EchoTasteMlModel.resetForTests()
         prefs?.edit()?.clear()?.apply()
     }
@@ -205,7 +235,7 @@ object EchoRecommendationEngine {
         favorites: List<Track>,
         limit: Int = 4
     ): List<String> {
-        val combined = favorites + recentlyPlayed
+        val combined = favorites + recentlyPlayed + inMemorySeedSongTracks
         val fromHistory = combined
             .map { primaryArtistOf(it.artistName) }
             .filter { it.isNotBlank() }
@@ -223,6 +253,39 @@ object EchoRecommendationEngine {
     }
 
     /**
+     * Returns a personalized, world-aware list of [Artist]s optimized for the current user
+     * based on their selected onboarding songs, selected artists, preferred languages/genres,
+     * and ongoing listening/favorite history.
+     */
+    fun getOptimizedHomeArtists(
+        recentlyPlayed: List<Track>,
+        favorites: List<Track>,
+        limit: Int = 16
+    ): List<Artist> {
+        val songPool = (favorites + recentlyPlayed + inMemorySeedSongTracks)
+            .distinctBy { SmartRadioQueue.normalizedSongKey(it.title, it.artistName) }
+        val learnedArtists = getTopLearnedArtists(recentlyPlayed, favorites, limit = 12).toSet()
+        val combinedArtists = (learnedArtists + inMemorySeedArtists).toSet()
+        val genreIds = (getOnboardedGenres().map { it.id } +
+            EchoTasteMlModel.getRankedPreferredGenres(favorites, recentlyPlayed).take(3).map { it.id }).toSet()
+
+        val optimized = WorldOnboardingCatalog.optimizeArtistsForUser(
+            selectedLanguages = inMemorySeedLanguages,
+            selectedGenreIds = genreIds,
+            selectedSongTracks = songPool,
+            selectedArtists = combinedArtists,
+            prioritizeSelectedInList = true
+        )
+        return optimized.take(limit).map { rec ->
+            val base = rec.artist.toArtist()
+            val sampleMatch = SampleCatalog.sampleArtists.firstOrNull {
+                it.name.equals(base.name, ignoreCase = true)
+            }
+            sampleMatch ?: base
+        }
+    }
+
+    /**
      * Algorithm 10 (Spotify Daily Mix + Spherical K-Means Clustering):
      * Uses 12D K-Means clustering + genre clustering to build cohesive Daily Mixes,
      * Discover Daily, and Release Radar playlists ordered with Opener-Closer Energy Arc.
@@ -234,7 +297,7 @@ object EchoRecommendationEngine {
         catalogPool: List<Track>,
         dailySeed: Long = DailyFeedCoordinator.dailySeed()
     ): List<Playlist> {
-        val allTracks = SongUpgradeEngine.upgradeCatalogFast(catalogPool + SampleCatalog.sampleTracks)
+        val allTracks = SongUpgradeEngine.upgradeCatalogFast(catalogPool + inMemorySeedSongTracks + SampleCatalog.sampleTracks)
         if (allTracks.isEmpty()) return emptyList()
 
         val preferred = getTopPreferredGenre(recentlyPlayed, favorites)
@@ -371,10 +434,10 @@ object EchoRecommendationEngine {
 
         val genre = MusicGenre.inferGenre(track)
         val matchesTimeContext = when (timeBucket) {
-            TimeOfDayBucket.MORNING -> genre in setOf(MusicGenre.MELODIES, MusicGenre.DEVOTIONAL, MusicGenre.INDIE) || isRecent
-            TimeOfDayBucket.AFTERNOON -> genre in setOf(MusicGenre.GLOBAL_POP, MusicGenre.INDIE, MusicGenre.BOLLYWOOD, MusicGenre.TOL_TELUGU)
-            TimeOfDayBucket.EVENING -> genre in setOf(MusicGenre.MASS_BEATS, MusicGenre.HIP_HOP, MusicGenre.ELECTRONIC, MusicGenre.TOL_TELUGU)
-            TimeOfDayBucket.NIGHT -> genre in setOf(MusicGenre.LO_FI, MusicGenre.MELODIES, MusicGenre.INDIE) || isLiked
+            TimeOfDayBucket.MORNING -> genre == MusicGenre.MELODIES || genre == MusicGenre.DEVOTIONAL || genre == MusicGenre.INDIE || isRecent
+            TimeOfDayBucket.AFTERNOON -> genre == MusicGenre.GLOBAL_POP || genre == MusicGenre.INDIE || genre == MusicGenre.BOLLYWOOD || genre == MusicGenre.TOL_TELUGU
+            TimeOfDayBucket.EVENING -> genre == MusicGenre.MASS_BEATS || genre == MusicGenre.HIP_HOP || genre == MusicGenre.ELECTRONIC || genre == MusicGenre.TOL_TELUGU
+            TimeOfDayBucket.NIGHT -> genre == MusicGenre.LO_FI || genre == MusicGenre.MELODIES || genre == MusicGenre.INDIE || isLiked
         }
         if (matchesTimeContext) {
             score *= TIME_OF_DAY_MULTIPLIER
@@ -542,11 +605,13 @@ object EchoRecommendationEngine {
         var lastGenre: MusicGenre? = null
 
         while (out.size < tracks.size) {
-            val pickedIdx = labels.indexOfFirst { g -> buckets[g]!!.isNotEmpty() && g != lastGenre }
-                .takeIf { it != -1 }
-                ?: labels.indexOfFirst { g -> buckets[g]!!.isNotEmpty() }
-            if (pickedIdx == -1) break
-            val g = labels[pickedIdx]
+            // Pick the largest remaining bucket different from the previous genre so
+            // multi-genre queues alternate evenly instead of starving later genres.
+            val g = labels.filter { genre -> buckets[genre]!!.isNotEmpty() && genre != lastGenre }
+                .maxByOrNull { genre -> buckets[genre]!!.size }
+                ?: labels.filter { genre -> buckets[genre]!!.isNotEmpty() }
+                    .maxByOrNull { genre -> buckets[genre]!!.size }
+                ?: break
             out.add(buckets[g]!!.removeFirst())
             lastGenre = g
         }
@@ -661,9 +726,11 @@ object EchoRecommendationEngine {
             }
             .sortedByDescending { it.second }
 
+        if (limit <= 0) return emptyList()
+        if (limit == 1) return listOf(seedTrack)
         val selected = selectWithDiversityCaps(
             scoredTracks = scored,
-            limit = (limit - 1).coerceAtLeast(1),
+            limit = limit - 1,
             enforceGenreCap = false // Same-genre radio stays strictly within the target genre
         )
         return listOf(seedTrack) + spotifyArtistInterleave(selected)
@@ -715,7 +782,11 @@ object EchoRecommendationEngine {
         val preferredGenre = getTopPreferredGenre(recentlyPlayed, favorites)
         val seededGenres = getOnboardedGenres()
 
-        val mergedPool = SongUpgradeEngine.upgradeCatalogFast(catalogPool + SampleCatalog.sampleTracks)
+        val mergedPool = SongUpgradeEngine.upgradeCatalogFast(catalogPool + inMemorySeedSongTracks + SampleCatalog.sampleTracks)
+        val catalogTrackIds = catalogPool.mapTo(HashSet()) { it.id }
+        val catalogSongKeys = catalogPool.mapTo(HashSet()) {
+            SmartRadioQueue.normalizedSongKey(it.title, it.artistName)
+        }
 
         // Blend heuristic multi-source ranker + ML predictions
         val mlRanked = EchoTasteMlModel.rankCandidatesWithMl(
@@ -723,7 +794,7 @@ object EchoRecommendationEngine {
             favorites = favorites,
             recentlyPlayed = recentlyPlayed,
             timeBucket = timeBucket,
-            limit = (limit * 2).coerceAtLeast(16),
+            limit = mergedPool.size.coerceAtLeast(16),
             dailySeed = dailySeed
         ).associateBy { SmartRadioQueue.normalizedSongKey(it.track.title, it.track.artistName) }
 
@@ -737,7 +808,7 @@ object EchoRecommendationEngine {
             var sourceCount = 0
             if (artistKey in topArtists) sourceCount++
             if (isPrimary || isNeighbor) sourceCount++
-            if (track in catalogPool) sourceCount++
+            if (track.id in catalogTrackIds || key in catalogSongKeys) sourceCount++
 
             val weight = when {
                 artistKey in topArtists && isPrimary -> 4
@@ -899,10 +970,116 @@ object EchoRecommendationEngine {
         return list.distinctBy { it.id }
     }
 
+    fun toggleFollowedArtist(artistName: String, nowFollowed: Boolean) {
+        val ak = primaryArtistOf(artistName).lowercase(Locale.ROOT)
+        if (ak.isBlank()) return
+        inMemorySeedArtists = if (nowFollowed) {
+            inMemorySeedArtists + ak
+        } else {
+            inMemorySeedArtists - ak
+        }
+        val p = prefs ?: return
+        val editor = p.edit().putStringSet(KEY_SEED_ARTISTS, inMemorySeedArtists)
+        if (nowFollowed) {
+            val current = p.getInt("$KEY_ARTIST_PREFIX$ak", 0)
+            if (current < 5) editor.putInt("$KEY_ARTIST_PREFIX$ak", 5)
+        }
+        editor.apply()
+    }
+
     /**
-     * Time-of-day editorial hero recommendation (ported from TeluguMusicRecommender).
+     * Time-of-day & user-taste editorial hero recommendation.
+     * Adapts automatically to the user's onboarded Indian, English, and global preferences.
      */
     fun getContextualBanner(timeBucket: TimeOfDayBucket = getTimeOfDayBucket()): EditorialBanner {
+        val langs = inMemorySeedLanguages.map { it.lowercase(Locale.ROOT) }.toSet()
+        val prefersHindi = "hindi" in langs || "punjabi" in langs || "urdu" in langs
+        val prefersGlobal = "english" in langs || "korean" in langs || "spanish" in langs ||
+            "japanese" in langs || "global" in langs
+        val prefersTelugu = "telugu" in langs || langs.isEmpty()
+
+        if (!prefersTelugu && prefersHindi) {
+            return when (timeBucket) {
+                TimeOfDayBucket.MORNING -> EditorialBanner(
+                    id = "ctx_morning_hi",
+                    eyebrow = "MORNING FLOW",
+                    title = "Soulful Bollywood & Indie",
+                    subtitle = "Warm acoustic melodies by Arijit Singh, Anuv Jain & A.R. Rahman",
+                    coverArtUrl = "https://c.saavncdn.com/871/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155213-500x500.jpg",
+                    targetPlaylistId = null,
+                    targetQuery = "arijit singh melodies"
+                )
+                TimeOfDayBucket.AFTERNOON -> EditorialBanner(
+                    id = "ctx_afternoon_hi",
+                    eyebrow = "AFTERNOON FOCUS",
+                    title = "Bollywood & Desi Pop",
+                    subtitle = "Crisp hits from Pritam, Shilpa Rao & Sachin-Jigar",
+                    coverArtUrl = "https://c.saavncdn.com/871/Brahmastra-Original-Motion-Picture-Soundtrack-Hindi-2022-20221006155213-500x500.jpg",
+                    targetPlaylistId = null,
+                    targetQuery = "hindi top hits"
+                )
+                TimeOfDayBucket.EVENING -> EditorialBanner(
+                    id = "ctx_evening_hi",
+                    eyebrow = "EVENING ENERGY",
+                    title = "Punjabi & Party Anthems",
+                    subtitle = "High-energy drops from Diljit Dosanjh, Karan Aujla & Badshah",
+                    coverArtUrl = "https://c.saavncdn.com/888/Kalki-2898-Ad-Telugu-Telugu-2024-20240712063717-500x500.jpg",
+                    targetPlaylistId = null,
+                    targetQuery = "punjabi party hits"
+                )
+                TimeOfDayBucket.NIGHT -> EditorialBanner(
+                    id = "ctx_night_hi",
+                    eyebrow = "LATE NIGHT",
+                    title = "Midnight Acoustic & Sufi",
+                    subtitle = "Unplugged calm from Anuv Jain, Prateek Kuhad & Ali Sethi",
+                    coverArtUrl = "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80",
+                    targetPlaylistId = null,
+                    targetQuery = "anuv jain acoustic"
+                )
+            }
+        }
+
+        if (!prefersTelugu && prefersGlobal) {
+            return when (timeBucket) {
+                TimeOfDayBucket.MORNING -> EditorialBanner(
+                    id = "ctx_morning_en",
+                    eyebrow = "MORNING FLOW",
+                    title = "Global Acoustic & Chill",
+                    subtitle = "Gentle starts with Ed Sheeran, Billie Eilish & Fujii Kaze",
+                    coverArtUrl = "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600&q=80",
+                    targetPlaylistId = null,
+                    targetQuery = "chill acoustic pop"
+                )
+                TimeOfDayBucket.AFTERNOON -> EditorialBanner(
+                    id = "ctx_afternoon_en",
+                    eyebrow = "AFTERNOON FOCUS",
+                    title = "Global Pop & K-Pop Hits",
+                    subtitle = "Today's biggest worldwide chart-toppers",
+                    coverArtUrl = "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/49/3d/ab/493dab54-f920-9043-6181-80993b8116c9/19UMGIM53909.rgb.jpg/600x600bb.jpg",
+                    targetPlaylistId = null,
+                    targetQuery = "top pop hits 2026"
+                )
+                TimeOfDayBucket.EVENING -> EditorialBanner(
+                    id = "ctx_evening_en",
+                    eyebrow = "EVENING ENERGY",
+                    title = "Hip-Hop, Rock & EDM",
+                    subtitle = "The Weeknd, Kendrick Lamar, Coldplay & Calvin Harris",
+                    coverArtUrl = "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80",
+                    targetPlaylistId = null,
+                    targetQuery = "the weeknd kendrick lamar"
+                )
+                TimeOfDayBucket.NIGHT -> EditorialBanner(
+                    id = "ctx_night_en",
+                    eyebrow = "LATE NIGHT",
+                    title = "After Hours & Midnight Lo-Fi",
+                    subtitle = "Dreamy late-night soundscapes and R&B",
+                    coverArtUrl = "https://images.unsplash.com/photo-1498038432885-c6f3f1b912ee?w=600&q=80",
+                    targetPlaylistId = null,
+                    targetQuery = "after hours midnight chill"
+                )
+            }
+        }
+
         return when (timeBucket) {
             TimeOfDayBucket.MORNING -> EditorialBanner(
                 id = "ctx_morning",

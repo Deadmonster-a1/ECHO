@@ -31,43 +31,71 @@ object FullTrackStreamResolver {
     private const val SAAVN_REFERER = "https://www.jiosaavn.com/"
 
     private const val STREAM_CACHE_TTL_MS = 20L * 60L * 1000L // 20 minutes
+    private const val MAX_STREAM_CACHE_ENTRIES = 200
+    private const val MAX_DETAILS_CACHE_ENTRIES = 200
+
+    private val WORDS_SPLIT_REGEX = Regex("[^a-zA-Z0-9]+")
+    private val BRACKET_STRIP_REGEX = Regex("[\\[(].*?[\\])]")
+    private val MOVIE_FROM_PATTERN = Pattern.compile("[\\[(]From [\"']?([^\"'()\\]]+)", Pattern.CASE_INSENSITIVE)
 
     private data class CachedStreamEntry(
         val url: String,
         val cachedAtMs: Long
     )
 
-    // In-memory TTL cache mapping normalized "title_artist_album" -> full stream URL
-    private val streamCache = ConcurrentHashMap<String, CachedStreamEntry>()
+    // Bounded in-memory LRU+TTL caches mapping normalized "title_artist_album" -> full stream URL / details
+    private val streamCache: MutableMap<String, CachedStreamEntry> = java.util.Collections.synchronizedMap(
+        object : LinkedHashMap<String, CachedStreamEntry>(64, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedStreamEntry>?): Boolean =
+                size > MAX_STREAM_CACHE_ENTRIES
+        }
+    )
+    private val detailsCache: MutableMap<String, Pair<StreamResolution, Long>> = java.util.Collections.synchronizedMap(
+        object : LinkedHashMap<String, Pair<StreamResolution, Long>>(64, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Pair<StreamResolution, Long>>?): Boolean =
+                size > MAX_DETAILS_CACHE_ENTRIES
+        }
+    )
 
     fun needsResolution(track: Track): Boolean {
-        val uri = track.mediaUri
+        val uri = track.mediaUri.trim()
         return uri.isBlank() ||
+                uri.equals("null", ignoreCase = true) ||
                 uri.contains("preview") ||
                 uri.contains("apple.com") ||
                 uri.contains("mzstatic") ||
                 uri.contains("codeskulptor") ||
                 uri.contains("googleapis.com") ||
-                uri.startsWith("saavn_enc:")
+                uri.startsWith("saavn_enc:") ||
+                uri.startsWith("spotify:")
     }
 
     internal fun getCachedStreamIfFresh(key: String, nowMs: Long = System.currentTimeMillis()): String? {
         val entry = streamCache[key] ?: return null
         if (nowMs - entry.cachedAtMs > STREAM_CACHE_TTL_MS) {
-            streamCache.remove(key, entry)
+            synchronized(streamCache) {
+                if (streamCache[key] == entry) streamCache.remove(key)
+            }
             return null
         }
         return entry.url
     }
 
     internal fun putCachedStream(key: String, url: String, nowMs: Long = System.currentTimeMillis()) {
-        if (url.isNotBlank()) {
+        if (url.isNotBlank() && !url.equals("null", ignoreCase = true)) {
             streamCache[key] = CachedStreamEntry(url = url, cachedAtMs = nowMs)
         }
     }
 
     internal fun clearStreamCache() {
         streamCache.clear()
+        detailsCache.clear()
+    }
+
+    private fun JSONObject.safeOptString(key: String, fallback: String = ""): String {
+        if (isNull(key)) return fallback
+        val value = optString(key, fallback).trim()
+        return if (value.isEmpty() || value.equals("null", ignoreCase = true)) fallback else value
     }
 
     /**
@@ -92,6 +120,16 @@ object FullTrackStreamResolver {
      * Resolves full studio stream URL along with authentic album art and title metadata.
      */
     suspend fun resolveTrackDetails(title: String, artistName: String, albumName: String = ""): StreamResolution? = withContext(Dispatchers.IO) {
+        val cacheKey = "${cleanTitle(title).lowercase()}_${cleanArtist(artistName).lowercase()}_${cleanAlbum(albumName).lowercase()}"
+        val now = System.currentTimeMillis()
+        detailsCache[cacheKey]?.let { (cachedDetails, cachedAt) ->
+            if (now - cachedAt <= STREAM_CACHE_TTL_MS) {
+                return@withContext cachedDetails
+            } else {
+                detailsCache.remove(cacheKey)
+            }
+        }
+
         val candidates = generateCandidates(title, artistName, albumName)
         Log.d(TAG, "Resolving full track details for '$title' ($artistName) across ${candidates.size} candidates: $candidates")
 
@@ -102,7 +140,10 @@ object FullTrackStreamResolver {
                     ?: resolveAuthToken(match.streamUrl, bitrate = "160")
                 if (!fullUrl.isNullOrBlank()) {
                     Log.d(TAG, "Successfully resolved full studio stream for '$title' via candidate '$candidate': $fullUrl")
-                    return@withContext match.copy(streamUrl = fullUrl)
+                    val resolved = match.copy(streamUrl = fullUrl)
+                    detailsCache[cacheKey] = resolved to System.currentTimeMillis()
+                    putCachedStream(cacheKey, fullUrl)
+                    return@withContext resolved
                 }
             }
         }
@@ -110,7 +151,10 @@ object FullTrackStreamResolver {
         // Secondary fallback: query Audius decentralized network for private/indie songs
         val audiusStream = resolveAudiusStream(title, artistName)
         if (!audiusStream.isNullOrBlank()) {
-            return@withContext StreamResolution(streamUrl = audiusStream)
+            val resolved = StreamResolution(streamUrl = audiusStream)
+            detailsCache[cacheKey] = resolved to System.currentTimeMillis()
+            putCachedStream(cacheKey, audiusStream)
+            return@withContext resolved
         }
 
         null
@@ -123,7 +167,7 @@ object FullTrackStreamResolver {
             val searchUrl = "https://www.jiosaavn.com/api.php?__call=search.getResults&_format=json&_marker=0&api_version=4&ctx=web6dot0&n=10&p=1&q=$encodedQuery"
             conn = openConnection(searchUrl)
             if (conn.responseCode == 200) {
-                val respText = conn.inputStream.bufferedReader().use { it.readText() }
+                val respText = NetworkSecurity.readBoundedText(conn.inputStream)
                 val json = JSONObject(respText)
                 val results = json.optJSONArray("results")
                 if (results != null && results.length() > 0) {
@@ -135,14 +179,14 @@ object FullTrackStreamResolver {
                     for (i in 0 until results.length()) {
                         val item = results.optJSONObject(i) ?: continue
                         val moreInfo = item.optJSONObject("more_info")
-                        val enc = moreInfo?.optString("encrypted_media_url", "") ?: ""
+                        val enc = moreInfo?.safeOptString("encrypted_media_url") ?: ""
                         if (enc.isBlank()) continue
 
-                        val rawTitle = item.optString("title", "")
+                        val rawTitle = item.safeOptString("title")
                         val itemTitle = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString()
                         val cleanItem = cleanTitle(itemTitle).lowercase()
 
-                        val rawAlbum = moreInfo?.optString("album", "") ?: ""
+                        val rawAlbum = moreInfo?.safeOptString("album") ?: ""
                         val itemAlbum = Html.fromHtml(rawAlbum, Html.FROM_HTML_MODE_LEGACY).toString().lowercase()
 
                         val isTitleMatch = cleanExp.isBlank() ||
@@ -176,15 +220,16 @@ object FullTrackStreamResolver {
 
                     if (bestItem != null) {
                         val moreInfo = bestItem.optJSONObject("more_info")
-                        val enc = moreInfo?.optString("encrypted_media_url", "") ?: ""
-                        val rawCover = bestItem.optString("image", "").replace("150x150", "500x500")
-                        val rawAlbum = moreInfo?.optString("album", "") ?: ""
+                        val enc = moreInfo?.safeOptString("encrypted_media_url") ?: ""
+                        val rawCover = bestItem.safeOptString("image").replace("150x150", "500x500")
+                        val safeCover = NetworkSecurity.enforceHttpsOrUpgradeKnownCdn(rawCover)
+                        val rawAlbum = moreInfo?.safeOptString("album") ?: ""
                         val resolvedAlbum = Html.fromHtml(rawAlbum, Html.FROM_HTML_MODE_LEGACY).toString().trim()
                         val durationSec = moreInfo?.optLong("duration", 210L) ?: 210L
 
                         return StreamResolution(
                             streamUrl = enc,
-                            coverArtUrl = rawCover.ifBlank { null },
+                            coverArtUrl = safeCover,
                             albumName = resolvedAlbum.ifBlank { null },
                             durationMs = durationSec * 1000L
                         )
@@ -200,8 +245,8 @@ object FullTrackStreamResolver {
     }
 
     private fun hasWordOverlap(a: String, b: String): Boolean {
-        val wordsA = a.split(Regex("[^a-zA-Z0-9]+")).filter { it.length >= 3 }
-        val wordsB = b.split(Regex("[^a-zA-Z0-9]+")).filter { it.length >= 3 }
+        val wordsA = a.split(WORDS_SPLIT_REGEX).filter { it.length >= 3 }
+        val wordsB = b.split(WORDS_SPLIT_REGEX).filter { it.length >= 3 }
         if (wordsA.isEmpty() || wordsB.isEmpty()) return false
         return wordsA.any { wa -> wordsB.any { wb -> wa == wb || wa.contains(wb) || wb.contains(wa) } }
     }
@@ -217,11 +262,11 @@ object FullTrackStreamResolver {
                 readTimeout = 7000
             }
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+                val json = JSONObject(NetworkSecurity.readBoundedText(conn.inputStream))
                 val data = json.optJSONArray("data")
                 if (data != null && data.length() > 0) {
-                    val first = data.getJSONObject(0)
-                    val trackId = first.optString("id", "")
+                    val first = data.optJSONObject(0)
+                    val trackId = first?.safeOptString("id").orEmpty()
                     if (trackId.isNotBlank()) {
                         return "https://api.audius.co/v1/tracks/$trackId/stream?app_name=Echo"
                     }
@@ -245,10 +290,13 @@ object FullTrackStreamResolver {
             val tokenUrl = "https://www.jiosaavn.com/api.php?__call=song.generateAuthToken&url=$encEncoded&bitrate=$bitrate&api_version=4&_format=json&ctx=web6dot0&_marker=0"
             conn = openConnection(tokenUrl)
             if (conn.responseCode == 200) {
-                val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                val authUrl = json.optString("auth_url", "")
+                val json = JSONObject(NetworkSecurity.readBoundedText(conn.inputStream))
+                val authUrl = json.safeOptString("auth_url")
                 if (authUrl.isNotBlank() && authUrl != "false") {
-                    return@withContext authUrl
+                    val safeAuthUrl = NetworkSecurity.enforceHttpsOrUpgradeKnownCdn(authUrl)
+                    if (!safeAuthUrl.isNullOrBlank()) {
+                        return@withContext safeAuthUrl
+                    }
                 }
             }
         } catch (e: Exception) {
@@ -260,7 +308,9 @@ object FullTrackStreamResolver {
     }
 
     private fun openConnection(urlStr: String): HttpURLConnection {
-        val url = URL(urlStr)
+        val safeUrl = NetworkSecurity.enforceHttpsOrUpgradeKnownCdn(urlStr)
+            ?: throw SecurityException("Blocked non-HTTPS request")
+        val url = URL(safeUrl)
         val conn = url.openConnection() as HttpURLConnection
         conn.connectTimeout = 6000
         conn.readTimeout = 8000
@@ -295,8 +345,7 @@ object FullTrackStreamResolver {
     }
 
     private fun extractMovie(title: String): String {
-        val pattern = Pattern.compile("[\\[(]From [\"']?([^\"'()\\]]+)", Pattern.CASE_INSENSITIVE)
-        val matcher = pattern.matcher(title)
+        val matcher = MOVIE_FROM_PATTERN.matcher(title)
         if (matcher.find()) {
             val group = matcher.group(1) ?: return ""
             return group.split("-")[0].split(":")[0].trim()
@@ -306,8 +355,8 @@ object FullTrackStreamResolver {
 
     private fun cleanTitle(title: String): String {
         var clean = Html.fromHtml(title, Html.FROM_HTML_MODE_LEGACY).toString()
-        clean = clean.replace(Regex("[\\[(].*?[\\])]"), "")
-        clean = clean.split("-")[0].trim()
+        clean = clean.replace(BRACKET_STRIP_REGEX, "")
+        clean = clean.split(" - ")[0].trim()
         return clean.ifBlank { title.trim() }
     }
 
@@ -319,8 +368,8 @@ object FullTrackStreamResolver {
 
     private fun cleanAlbum(album: String): String {
         var clean = Html.fromHtml(album, Html.FROM_HTML_MODE_LEGACY).toString()
-        clean = clean.replace(Regex("[\\[(].*?[\\])]"), "")
-        clean = clean.split("-")[0].split(":")[0].trim()
+        clean = clean.replace(BRACKET_STRIP_REGEX, "")
+        clean = clean.split(" - ")[0].split(":")[0].trim()
         return clean
     }
 }

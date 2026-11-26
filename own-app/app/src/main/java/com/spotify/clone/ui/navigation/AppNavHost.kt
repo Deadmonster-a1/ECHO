@@ -59,6 +59,8 @@ import com.spotify.clone.core.update.UpdateInfo
 import com.spotify.clone.ui.artist.ArtistDetailScreen
 import com.spotify.clone.ui.components.AppUpdateDialog
 import com.spotify.clone.ui.components.EchoBottomNavBar
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import com.spotify.clone.ui.components.MiniPlayerBar
 import com.spotify.clone.ui.components.NavigationTab
@@ -145,20 +147,36 @@ fun AppNavHost(
             }
             return
         }
-        if (tab == NavigationTab.HOME) {
-            val popped = navController.popBackStack(Screen.Home.route, inclusive = false)
-            if (!popped) {
-                navController.navigate(Screen.Home.route) {
-                    popUpTo(navController.graph.startDestinationId) { inclusive = false }
-                    launchSingleTop = true
-                }
+        val hasHomeInGraph = runCatching { navController.getBackStackEntry(Screen.Home.route) }.isSuccess
+        if (!hasHomeInGraph) {
+            navController.navigate(Screen.Home.route) {
+                popUpTo(navController.graph.id) { inclusive = true }
+                launchSingleTop = true
             }
-            return
+            if (tab == NavigationTab.HOME) return
         }
         navController.navigate(tab.route) {
             popUpTo(Screen.Home.route) { saveState = true }
             launchSingleTop = true
             restoreState = true
+        }
+    }
+
+    fun navigateToPlaylist(id: String) {
+        val cleanId = id.trim()
+        if (cleanId.isNotEmpty()) {
+            navController.navigate(Screen.PlaylistDetail.createRoute(cleanId)) {
+                launchSingleTop = true
+            }
+        }
+    }
+
+    fun navigateToArtist(name: String) {
+        val cleanName = name.trim()
+        if (cleanName.isNotEmpty()) {
+            navController.navigate(Screen.ArtistDetail.createRoute(cleanName)) {
+                launchSingleTop = true
+            }
         }
     }
 
@@ -173,19 +191,24 @@ fun AppNavHost(
 
             val dataUri = intent.data
             if (dataUri != null && dataUri.scheme == "echo") {
-                val (linkType, linkArg) = if (!dataUri.host.isNullOrBlank()) {
+                val (linkType, decodedArg) = if (!dataUri.host.isNullOrBlank()) {
                     val host = dataUri.host!!.lowercase()
-                    val seg = dataUri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
-                        ?: dataUri.schemeSpecificPart.substringAfter(':', "").substringAfter('/', "")
+                    val firstSeg = dataUri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
+                    val seg = firstSeg ?: run {
+                        val raw = dataUri.schemeSpecificPart.substringAfter(':', "").substringAfter('/', "")
+                        runCatching { URLDecoder.decode(raw, "UTF-8") }.getOrDefault(raw)
+                    }
                     host to seg
                 } else {
                     val parts = dataUri.schemeSpecificPart.trimStart('/').split(":", limit = 2)
-                    (parts.getOrNull(0)?.lowercase() ?: "") to (parts.getOrNull(1) ?: "")
+                    val rawType = parts.getOrNull(0)?.lowercase() ?: ""
+                    val rawArg = parts.getOrNull(1) ?: ""
+                    val arg = runCatching { URLDecoder.decode(rawArg, "UTF-8") }.getOrDefault(rawArg)
+                    rawType to arg
                 }
-                val decodedArg = runCatching { URLDecoder.decode(linkArg, "UTF-8") }.getOrDefault(linkArg)
                 when (linkType) {
                     "track" -> if (decodedArg.isNotBlank()) {
-                        val track = SampleCatalog.sampleTracks.find { it.id == decodedArg }
+                        val track = repository.getTrackById(decodedArg)
                             ?: repository.search(decodedArg.replace("_", " ")).firstOrNull()
                         if (track != null) {
                             musicController.playTrack(track)
@@ -196,11 +219,11 @@ fun AppNavHost(
                     }
                     "artist" -> if (decodedArg.isNotBlank()) {
                         isPlayerExpanded = false
-                        navController.navigate(Screen.ArtistDetail.createRoute(decodedArg))
+                        navigateToArtist(decodedArg)
                     }
                     "playlist" -> if (decodedArg.isNotBlank()) {
                         isPlayerExpanded = false
-                        navController.navigate(Screen.PlaylistDetail.createRoute(decodedArg))
+                        navigateToPlaylist(decodedArg)
                     }
                     "library" -> navigateToTab(NavigationTab.LIBRARY)
                     "search" -> navigateToTab(NavigationTab.SEARCH)
@@ -266,12 +289,8 @@ fun AppNavHost(
             composable(Screen.Home.route) {
                 HomeScreen(
                     viewModel = homeViewModel,
-                    onPlaylistClick = { id ->
-                        navController.navigate(Screen.PlaylistDetail.createRoute(id))
-                    },
-                    onArtistClick = { name ->
-                        navController.navigate(Screen.ArtistDetail.createRoute(name))
-                    },
+                    onPlaylistClick = { id -> navigateToPlaylist(id) },
+                    onArtistClick = { name -> navigateToArtist(name) },
                     onSettingsClick = {
                         navController.navigate(Screen.Settings.route) { launchSingleTop = true }
                     },
@@ -282,12 +301,8 @@ fun AppNavHost(
             composable(Screen.Search.route) {
                 SearchScreen(
                     viewModel = searchViewModel,
-                    onArtistClick = { name ->
-                        navController.navigate(Screen.ArtistDetail.createRoute(name))
-                    },
-                    onPlaylistClick = { id ->
-                        navController.navigate(Screen.PlaylistDetail.createRoute(id))
-                    },
+                    onArtistClick = { name -> navigateToArtist(name) },
+                    onPlaylistClick = { id -> navigateToPlaylist(id) },
                     scrollToTopTrigger = searchScrollTrigger
                 )
             }
@@ -295,15 +310,11 @@ fun AppNavHost(
             composable(Screen.Library.route) {
                 LibraryScreen(
                     viewModel = libraryViewModel,
-                    onPlaylistClick = { id ->
-                        navController.navigate(Screen.PlaylistDetail.createRoute(id))
-                    },
+                    onPlaylistClick = { id -> navigateToPlaylist(id) },
                     onSettingsClick = {
                         navController.navigate(Screen.Settings.route) { launchSingleTop = true }
                     },
-                    onArtistClick = { name ->
-                        navController.navigate(Screen.ArtistDetail.createRoute(name))
-                    },
+                    onArtistClick = { name -> navigateToArtist(name) },
                     scrollToTopTrigger = libraryScrollTrigger
                 )
             }
@@ -313,7 +324,7 @@ fun AppNavHost(
                     onFinished = {
                         homeViewModel.dispatch(HomeEvent.Refresh)
                         navController.navigate(Screen.Home.route) {
-                            popUpTo(Screen.Onboarding.route) { inclusive = true }
+                            popUpTo(navController.graph.id) { inclusive = true }
                             launchSingleTop = true
                         }
                     }
@@ -324,7 +335,6 @@ fun AppNavHost(
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
                     onRestartOnboarding = {
-                        UserProfileManager.resetOnboarding()
                         navController.navigate(Screen.Onboarding.route) { launchSingleTop = true }
                     }
                 )
@@ -334,16 +344,13 @@ fun AppNavHost(
                 route = Screen.PlaylistDetail.route,
                 arguments = listOf(navArgument("playlistId") { type = NavType.StringType })
             ) { backStackEntry ->
-                val rawId = backStackEntry.arguments?.getString("playlistId").orEmpty()
-                val playlistId = runCatching { URLDecoder.decode(rawId, "UTF-8") }.getOrDefault(rawId)
+                val playlistId = backStackEntry.arguments?.getString("playlistId").orEmpty()
                 PlaylistDetailScreen(
                     playlistId = playlistId,
                     onBack = { navController.popBackStack() },
                     repository = repository,
                     musicController = musicController,
-                    onArtistClick = { name ->
-                        navController.navigate(Screen.ArtistDetail.createRoute(name))
-                    }
+                    onArtistClick = { name -> navigateToArtist(name) }
                 )
             }
 
@@ -351,58 +358,65 @@ fun AppNavHost(
                 route = Screen.ArtistDetail.route,
                 arguments = listOf(navArgument("artistName") { type = NavType.StringType })
             ) { backStackEntry ->
-                val rawName = backStackEntry.arguments?.getString("artistName").orEmpty()
-                val artistName = runCatching { URLDecoder.decode(rawName, "UTF-8") }.getOrDefault(rawName)
+                val artistName = backStackEntry.arguments?.getString("artistName").orEmpty()
                 ArtistDetailScreen(
                     artistName = artistName,
                     onBack = { navController.popBackStack() },
                     repository = repository,
-                    musicController = musicController
+                    musicController = musicController,
+                    onArtistClick = { name -> navigateToArtist(name) }
                 )
             }
         }
 
         // Scroll edge fade under unified floating glass dock
-        val hasMiniPlayer = musicController.playbackState.collectAsState().value.currentTrack != null &&
-            currentRoute != Screen.Onboarding.route
+        val initialHasTrack = remember(musicController) { musicController.hasActiveTrackSnapshot() }
+        val hasCurrentTrack by remember(musicController) {
+            musicController.playbackState
+                .map { it.currentTrack != null }
+                .distinctUntilChanged()
+        }.collectAsState(initial = initialHasTrack)
+        val hasMiniPlayer = hasCurrentTrack && currentRoute != Screen.Onboarding.route
         val bottomScrimHeight = when {
             currentRoute == Screen.Onboarding.route -> 0.dp
-            currentRoute == Screen.Settings.route -> if (hasMiniPlayer) 88.dp else 0.dp
-            hasMiniPlayer -> 142.dp
-            else -> 78.dp
+            currentRoute == Screen.Settings.route -> if (hasMiniPlayer) 92.dp else 0.dp
+            hasMiniPlayer -> 158.dp
+            else -> 92.dp
         }
         if (bottomScrimHeight > 0.dp) {
+            val scrimBrush = remember(screenBg) {
+                Brush.verticalGradient(
+                    0.0f to Color.Transparent,
+                    0.35f to screenBg.copy(alpha = 0.80f),
+                    0.65f to screenBg.copy(alpha = 0.96f),
+                    1.0f to screenBg
+                )
+            }
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .background(scrimBrush)
+                    .navigationBarsPadding()
                     .height(bottomScrimHeight)
-                    .background(
-                        Brush.verticalGradient(
-                            0.0f to Color.Transparent,
-                            0.30f to screenBg.copy(alpha = 0.85f),
-                            0.58f to screenBg,
-                            1.0f to screenBg
-                        )
-                    )
             )
         }
 
-        // Floating MiniPlayer sitting cleanly above the docked Translucent Bottom Bar
+        // Material 3 Expressive Floating MiniPlayer + Floating Navigation Pill Dock
         if (currentRoute != Screen.Onboarding.route) {
             val dockBottomInset = if (currentRoute == Screen.Settings.route) {
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(bottom = 8.dp)
+                    .padding(bottom = 10.dp)
             } else {
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
             }
             Column(modifier = dockBottomInset) {
-                Box(modifier = Modifier.padding(bottom = if (currentRoute == Screen.Settings.route) 0.dp else 6.dp)) {
+                Box(modifier = Modifier.padding(bottom = 2.dp)) {
                     MiniPlayerBarHost(
                         musicController = musicController,
                         onExpand = { isPlayerExpanded = true }
@@ -426,16 +440,16 @@ fun AppNavHost(
             }
         }
 
-        // Continuous Glass Expand: Fullscreen Now Playing Sheet
+        // Material 3 Expressive Container Expand: Fullscreen Now Playing Sheet
         AnimatedVisibility(
             visible = isPlayerExpanded,
             enter = if (isReducedMotion) {
                 fadeIn(tween(180))
             } else {
                 slideInVertically(
-                    animationSpec = EchoMotion.springCriticallyDamped()
+                    animationSpec = EchoMotion.spatialDefault()
                 ) { it / 2 } +
-                    scaleIn(initialScale = 0.95f, animationSpec = EchoMotion.springCriticallyDamped()) +
+                    scaleIn(initialScale = 0.94f, animationSpec = EchoMotion.spatialDefault()) +
                     fadeIn(tween(220, easing = EchoMotion.EaseOutStrong))
             },
             exit = if (isReducedMotion) {
@@ -451,7 +465,7 @@ fun AppNavHost(
                 onCollapse = { isPlayerExpanded = false },
                 onViewArtist = { artistName ->
                     isPlayerExpanded = false
-                    navController.navigate(Screen.ArtistDetail.createRoute(artistName))
+                    navigateToArtist(artistName)
                 }
             )
         }
@@ -498,6 +512,7 @@ private fun MiniPlayerBarHost(
             onToggleFavorite = {
                 playbackState.currentTrack?.let { musicController.toggleFavorite(it) }
             },
+            positionStateFlow = musicController.positionState,
             onClick = onExpand
         )
     }

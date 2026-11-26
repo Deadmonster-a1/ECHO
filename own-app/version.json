@@ -1,10 +1,10 @@
 {
-  "versionCode": 6,
-  "versionName": "2.1.0",
-  "releaseTitle": "echo v2.1.0 - Redesigned UI & Synced English Lyrics",
-  "releaseNotes": "• Simplified Home, Search, Library, Profile & Settings\n• Animated echo header with personalized greeting & zero duplicate songs\n• Docked translucent bottom navigation bar\n• Scroll down on Now Playing for live synced English lyrics on every song\n• Redesigned Liquid Glass update popup",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.1.0/echo.apk",
-  "apkSize": 5867095,
+  "versionCode": 7,
+  "versionName": "2.2.0",
+  "releaseTitle": "echo v2.2.0 - Material 3 Expressive Redesign",
+  "releaseNotes": "• Full Material 3 Expressive redesign across Home, Search, Library, Player, and Settings\n• Apple-style 3-step onboarding with portrait images for every artist\n• Cleaner borderless animated logo in Home and organized Settings sections\n• Redesigned Now Playing with rounded icons and dedicated smooth-scrolling Lyrics page\n• Fixed unliked heart button background and lyrics sync scrolling",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.2.0/echo.apk",
+  "apkSize": 5982656,
   "mandatory": false,
-  "publishedAt": "2026-11-26T07:45:00Z"
+  "publishedAt": "2026-11-26T18:01:00Z"
 }

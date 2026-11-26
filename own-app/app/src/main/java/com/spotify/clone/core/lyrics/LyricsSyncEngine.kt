@@ -18,6 +18,10 @@ import kotlin.math.roundToLong
  */
 object LyricsSyncEngine {
 
+    private val NON_ALNUM_REGEX = Regex("[^a-z0-9\\s]")
+    private val WHITESPACE_REGEX = Regex("\\s+")
+    private val VOWEL_GROUP_REGEX = Regex("[aeiouy]+")
+
     /**
      * Normalizes a [LyricsResult] so every line has English text and synchronized timestamps.
      */
@@ -150,7 +154,8 @@ object LyricsSyncEngine {
 
         val introMs = (effectiveDuration * 0.075).roundToLong().coerceIn(5_000L, 17_000L)
         val outroMs = (effectiveDuration * 0.065).roundToLong().coerceIn(4_000L, 14_000L)
-        val vocalWindowMs = (effectiveDuration - introMs - outroMs).coerceAtLeast(cleanLines.size * 1_100L)
+        val vocalWindowMs = (effectiveDuration - introMs - outroMs).coerceAtLeast(cleanLines.size * 450L)
+        val minSliceMs = (vocalWindowMs.toDouble() / cleanLines.size.coerceAtLeast(1)).coerceAtMost(1_050.0)
 
         val weights = cleanLines.map { line ->
             val text = line.romanized?.takeIf { it.isNotBlank() } ?: line.words
@@ -168,10 +173,10 @@ object LyricsSyncEngine {
         var cursorMs = introMs.toDouble()
 
         return cleanLines.mapIndexed { idx, line ->
-            val ts = cursorMs.roundToLong().coerceIn(0L, effectiveDuration - 1_000L)
-            val sliceMs = ((weights[idx] / totalWeight) * vocalWindowMs).coerceAtLeast(1_050.0)
+            val ts = cursorMs.roundToLong().coerceIn(0L, (effectiveDuration - 1_000L).coerceAtLeast(0L))
+            val sliceMs = ((weights[idx] / totalWeight) * vocalWindowMs).coerceAtLeast(minSliceMs)
             cursorMs += sliceMs
-            val activeSingMs = (sliceMs * 0.88).roundToLong().coerceIn(950L, 8_500L)
+            val activeSingMs = (sliceMs * 0.88).roundToLong().coerceIn(400L, 8_500L)
             line.copy(timestampMs = ts, durationMs = activeSingMs)
         }
     }
@@ -207,12 +212,12 @@ object LyricsSyncEngine {
     }
 
     private fun estimateSyllables(text: String): Int {
-        val cleaned = text.lowercase().replace(Regex("[^a-z0-9\\s]"), " ")
-        val words = cleaned.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val cleaned = text.lowercase().replace(NON_ALNUM_REGEX, " ")
+        val words = cleaned.split(WHITESPACE_REGEX).filter { it.isNotBlank() }
         if (words.isEmpty()) return 4
         var total = 0
         for (word in words) {
-            val vowelGroups = Regex("[aeiouy]+").findAll(word).count()
+            val vowelGroups = VOWEL_GROUP_REGEX.findAll(word).count()
             total += max(1, vowelGroups)
         }
         return total.coerceAtLeast(2)
@@ -233,6 +238,8 @@ object LyricsSyncEngine {
  * from external providers always render in readable English phonetics.
  */
 internal object IndicRomanizer {
+
+    private val MULTI_SPACE_REGEX = Regex(" {2,}")
 
     fun transliterate(input: String): String {
         if (input.isBlank()) return input
@@ -281,7 +288,7 @@ internal object IndicRomanizer {
             }
         }
         return sb.toString()
-            .replace(Regex(" {2,}"), " ")
+            .replace(MULTI_SPACE_REGEX, " ")
             .trim()
             .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
     }

@@ -6,11 +6,14 @@ import android.net.Uri
 import android.os.Environment
 import android.util.Log
 import com.spotify.clone.core.data.FullTrackStreamResolver
+import com.spotify.clone.core.data.NetworkSecurity
 import com.spotify.clone.core.model.Playlist
 import com.spotify.clone.core.model.Track
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +26,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * High-performance, offline audio download manager for ECHO.
@@ -34,6 +38,7 @@ class TrackDownloadManager private constructor(context: Context) {
     private val appContext = context.applicationContext
     private val stateLock = Any()
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val inFlightDownloads = ConcurrentHashMap<String, Deferred<Boolean>>()
     private val prefs: SharedPreferences =
         appContext.getSharedPreferences("echo_offline_downloads", Context.MODE_PRIVATE)
 
@@ -78,29 +83,39 @@ class TrackDownloadManager private constructor(context: Context) {
 
     private fun loadPersistedState() {
         val tracksSet = prefs.getStringSet(KEY_DOWNLOADED_TRACK_IDS, emptySet())?.toSet() ?: emptySet()
-        // Verify files actually exist on disk
-        val validTrackIds = tracksSet.filter { trackId ->
-            findTrackFileOnDisk(trackId) != null
-        }.toSet()
-
-        if (validTrackIds.size != tracksSet.size) {
-            prefs.edit().putStringSet(KEY_DOWNLOADED_TRACK_IDS, validTrackIds).apply()
-        }
-        _downloadedTrackIds.value = validTrackIds
+        _downloadedTrackIds.value = tracksSet
 
         val playlistSet = prefs.getStringSet(KEY_DOWNLOADED_PLAYLIST_IDS, emptySet())?.toSet() ?: emptySet()
         _downloadedPlaylistIds.value = playlistSet
 
         val persistedStandalone = prefs.getStringSet(KEY_STANDALONE_TRACK_IDS, null)?.toSet()
         if (persistedStandalone != null) {
-            _standaloneTrackIds.value = persistedStandalone.intersect(validTrackIds)
-        } else {
-            val playlistTrackIds = playlistSet.flatMap { pid ->
-                getDownloadedPlaylist(pid)?.tracks?.map { it.id }.orEmpty()
+            _standaloneTrackIds.value = persistedStandalone.intersect(tracksSet)
+        }
+
+        // Verify files actually exist on disk off the caller thread
+        scope.launch {
+            val validTrackIds = tracksSet.filter { trackId ->
+                findTrackFileOnDisk(trackId) != null
             }.toSet()
-            val inferredStandalone = validTrackIds - playlistTrackIds
-            _standaloneTrackIds.value = inferredStandalone
-            prefs.edit().putStringSet(KEY_STANDALONE_TRACK_IDS, inferredStandalone).apply()
+
+            synchronized(stateLock) {
+                if (validTrackIds.size != tracksSet.size) {
+                    prefs.edit().putStringSet(KEY_DOWNLOADED_TRACK_IDS, validTrackIds).apply()
+                }
+                _downloadedTrackIds.value = validTrackIds
+
+                if (persistedStandalone != null) {
+                    _standaloneTrackIds.value = persistedStandalone.intersect(validTrackIds)
+                } else {
+                    val playlistTrackIds = playlistSet.flatMap { pid ->
+                        getDownloadedPlaylist(pid)?.tracks?.map { it.id }.orEmpty()
+                    }.toSet()
+                    val inferredStandalone = validTrackIds - playlistTrackIds
+                    _standaloneTrackIds.value = inferredStandalone
+                    prefs.edit().putStringSet(KEY_STANDALONE_TRACK_IDS, inferredStandalone).apply()
+                }
+            }
         }
     }
 
@@ -136,40 +151,89 @@ class TrackDownloadManager private constructor(context: Context) {
     }
 
     fun downloadTrack(track: Track, onComplete: ((Boolean) -> Unit)? = null) {
-        synchronized(stateLock) {
-            val updatedStandalone = _standaloneTrackIds.value + track.id
-            _standaloneTrackIds.value = updatedStandalone
-            prefs.edit().putStringSet(KEY_STANDALONE_TRACK_IDS, updatedStandalone.toSet()).apply()
-        }
         if (isTrackDownloaded(track.id)) {
+            synchronized(stateLock) {
+                val updatedStandalone = _standaloneTrackIds.value + track.id
+                _standaloneTrackIds.value = updatedStandalone
+                prefs.edit().putStringSet(KEY_STANDALONE_TRACK_IDS, updatedStandalone.toSet()).apply()
+            }
             onComplete?.invoke(true)
             return
         }
 
         scope.launch {
-            val success = performTrackDownload(track)
+            val success = performTrackDownloadDeduplicated(track)
+            if (success) {
+                synchronized(stateLock) {
+                    val updatedStandalone = _standaloneTrackIds.value + track.id
+                    _standaloneTrackIds.value = updatedStandalone
+                    prefs.edit().putStringSet(KEY_STANDALONE_TRACK_IDS, updatedStandalone.toSet()).apply()
+                }
+            }
             withContext(Dispatchers.Main) {
                 onComplete?.invoke(success)
             }
         }
     }
 
-    private fun openDownloadConnection(urlStr: String): HttpURLConnection {
-        val url = URL(urlStr)
-        val conn = (url.openConnection() as HttpURLConnection).apply {
-            connectTimeout = 15000
-            readTimeout = 30000
-            instanceFollowRedirects = true
-            setRequestProperty(
-                "User-Agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-            )
-            if (urlStr.contains("saavncdn.com") || urlStr.contains("jiosaavn.com")) {
-                setRequestProperty("Referer", "https://www.jiosaavn.com/")
-            }
-            setRequestProperty("Accept", "*/*")
+    private suspend fun performTrackDownloadDeduplicated(track: Track): Boolean {
+        val deferred = synchronized(inFlightDownloads) {
+            inFlightDownloads[track.id] ?: scope.async {
+                try {
+                    performTrackDownload(track)
+                } finally {
+                    inFlightDownloads.remove(track.id)
+                }
+            }.also { inFlightDownloads[track.id] = it }
         }
-        return conn
+        return deferred.await()
+    }
+
+    private fun openDownloadConnection(urlStr: String): HttpURLConnection? {
+        var currentUrl = NetworkSecurity.enforceHttpsOrUpgradeKnownCdn(urlStr) ?: return null
+        val maxRedirects = 5
+        for (hop in 0..maxRedirects) {
+            val url = URL(currentUrl)
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 15000
+                readTimeout = 30000
+                instanceFollowRedirects = false
+                setRequestProperty(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+                )
+                if (currentUrl.contains("saavncdn.com") || currentUrl.contains("jiosaavn.com")) {
+                    setRequestProperty("Referer", "https://www.jiosaavn.com/")
+                }
+                setRequestProperty("Accept", "*/*")
+            }
+
+            val code = conn.responseCode
+            if (code == HttpURLConnection.HTTP_MOVED_TEMP ||
+                code == HttpURLConnection.HTTP_MOVED_PERM ||
+                code == HttpURLConnection.HTTP_SEE_OTHER ||
+                code == 307 || code == 308
+            ) {
+                val location = conn.getHeaderField("Location")
+                conn.disconnect()
+                if (location.isNullOrBlank()) return null
+                val resolvedNext = if (location.startsWith("http", ignoreCase = true)) {
+                    location
+                } else {
+                    URL(url, location).toString()
+                }
+                currentUrl = NetworkSecurity.enforceHttpsOrUpgradeKnownCdn(resolvedNext) ?: return null
+                continue
+            }
+
+            if (code in 200..299) {
+                return conn
+            } else {
+                conn.disconnect()
+                return null
+            }
+        }
+        return null
     }
 
     private suspend fun performTrackDownload(track: Track): Boolean = withContext(Dispatchers.IO) {
@@ -211,22 +275,19 @@ class TrackDownloadManager private constructor(context: Context) {
                 candidateUrls.add(streamUrl)
             }
 
-            // 3. Connect to working URL
+            // 3. Connect to working HTTPS URL
             var activeConnection: HttpURLConnection? = null
             var chosenCandidate: String? = null
             for (candidate in candidateUrls.distinct()) {
                 try {
                     val conn = openDownloadConnection(candidate)
-                    val code = conn.responseCode
-                    if (code in 200..299) {
+                    if (conn != null) {
                         activeConnection = conn
-                        chosenCandidate = candidate
+                        chosenCandidate = conn.url?.toString() ?: candidate
                         break
-                    } else {
-                        conn.disconnect()
                     }
                 } catch (e: Exception) {
-                    Log.w(TAG, "Download connection attempt failed for $candidate: ${e.message}")
+                    Log.w(TAG, "Download connection attempt failed: ${e.message}")
                 }
             }
 
@@ -251,53 +312,69 @@ class TrackDownloadManager private constructor(context: Context) {
             val totalSize = connection.contentLength.toLong()
 
             try {
-                connection.inputStream.use { input ->
-                    FileOutputStream(tempFile).use { output ->
-                        val buffer = ByteArray(32768)
-                        var bytesRead: Int
-                        var totalRead = 0L
+                try {
+                    connection.inputStream.use { input ->
+                        FileOutputStream(tempFile).use { output ->
+                            val buffer = ByteArray(32768)
+                            var bytesRead: Int
+                            var totalRead = 0L
+                            var lastEmittedProgress = 0f
+                            var lastEmitTimeMs = 0L
 
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            output.write(buffer, 0, bytesRead)
-                            totalRead += bytesRead
-                            if (totalSize > 0) {
-                                val progress = (totalRead.toFloat() / totalSize.toFloat()).coerceIn(0f, 1f)
-                                _activeDownloads.update { it + (track.id to progress) }
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                output.write(buffer, 0, bytesRead)
+                                totalRead += bytesRead
+                                if (totalSize > 0) {
+                                    val progress = (totalRead.toFloat() / totalSize.toFloat()).coerceIn(0f, 1f)
+                                    val nowMs = System.currentTimeMillis()
+                                    if (kotlin.math.abs(progress - lastEmittedProgress) >= 0.02f ||
+                                        nowMs - lastEmitTimeMs >= 200L ||
+                                        progress >= 1f
+                                    ) {
+                                        lastEmittedProgress = progress
+                                        lastEmitTimeMs = nowMs
+                                        _activeDownloads.update { it + (track.id to progress) }
+                                    }
+                                }
                             }
+                            output.flush()
                         }
-                        output.flush()
                     }
+                } finally {
+                    connection.disconnect()
                 }
-            } finally {
-                connection.disconnect()
-            }
 
-            if (tempFile.exists() && tempFile.length() > 50_000L) {
-                if (targetFile.exists()) targetFile.delete()
-                val renamed = tempFile.renameTo(targetFile)
-                if (!renamed) {
-                    tempFile.copyTo(targetFile, overwrite = true)
+                if (tempFile.exists() && tempFile.length() > 50_000L) {
+                    if (targetFile.exists()) targetFile.delete()
+                    val renamed = tempFile.renameTo(targetFile)
+                    if (!renamed) {
+                        tempFile.copyTo(targetFile, overwrite = true)
+                        tempFile.delete()
+                    }
+
+                    // Save metadata
+                    saveTrackMetadata(track)
+
+                    // Atomically update downloaded set
+                    synchronized(stateLock) {
+                        val updated = _downloadedTrackIds.value + track.id
+                        _downloadedTrackIds.value = updated
+                        prefs.edit().putStringSet(KEY_DOWNLOADED_TRACK_IDS, updated.toSet()).apply()
+                    }
+
+                    _activeDownloads.update { it - track.id }
+                    Log.d(TAG, "Successfully downloaded: ${track.title} (${targetFile.length()} bytes) from $chosenCandidate")
+                    true
+                } else {
+                    val actualLength = tempFile.length()
                     tempFile.delete()
+                    _activeDownloads.update { it - track.id }
+                    Log.e(TAG, "Downloaded track too small or corrupt: $actualLength bytes")
+                    false
                 }
-
-                // Save metadata
-                saveTrackMetadata(track)
-
-                // Atomically update downloaded set
-                synchronized(stateLock) {
-                    val updated = _downloadedTrackIds.value + track.id
-                    _downloadedTrackIds.value = updated
-                    prefs.edit().putStringSet(KEY_DOWNLOADED_TRACK_IDS, updated.toSet()).apply()
-                }
-
-                _activeDownloads.update { it - track.id }
-                Log.d(TAG, "Successfully downloaded: ${track.title} (${targetFile.length()} bytes) from $chosenCandidate")
-                true
-            } else {
-                tempFile.delete()
-                _activeDownloads.update { it - track.id }
-                Log.e(TAG, "Downloaded track too small or corrupt: ${tempFile.length()} bytes")
-                false
+            } catch (e: Exception) {
+                if (tempFile.exists()) tempFile.delete()
+                throw e
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error downloading track ${track.title}: ${e.message}", e)
@@ -343,7 +420,7 @@ class TrackDownloadManager private constructor(context: Context) {
             val total = playlist.tracks.size
 
             playlist.tracks.forEachIndexed { index, track ->
-                val ok = if (isTrackDownloaded(track.id)) true else performTrackDownload(track)
+                val ok = if (isTrackDownloaded(track.id)) true else performTrackDownloadDeduplicated(track)
                 if (ok) successCount++
                 withContext(Dispatchers.Main) {
                     onProgress?.invoke(index + 1, total)

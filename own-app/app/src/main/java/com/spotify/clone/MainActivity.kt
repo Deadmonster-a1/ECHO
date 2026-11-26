@@ -74,7 +74,9 @@ class MainActivity : ComponentActivity() {
         ThemeManager.init(this)
         SettingsManager.init(this)
         UserProfileManager.init(this)
-        pendingIntent = intent
+        if (savedInstanceState == null) {
+            pendingIntent = intent
+        }
         val initialDark = ThemeManager.isDarkMode.value
         enableEdgeToEdge(
             statusBarStyle = if (initialDark) {
@@ -95,7 +97,6 @@ class MainActivity : ComponentActivity() {
             }
         )
         updateSystemBarsAppearance(window.decorView, lightBars = !initialDark)
-        requestAppPermissions()
 
         val hasDeepLink = intent?.data != null || intent?.hasExtra("nav_tab") == true
 
@@ -104,12 +105,20 @@ class MainActivity : ComponentActivity() {
                 var showSplash by rememberSaveable { mutableStateOf(!hasDeepLink) }
                 var splashPlaybackDone by rememberSaveable { mutableStateOf(hasDeepLink) }
                 var mountAppContent by rememberSaveable { mutableStateOf(hasDeepLink || !showSplash) }
+                var permissionsRequested by rememberSaveable { mutableStateOf(false) }
 
                 LaunchedEffect(splashPlaybackDone) {
                     if (splashPlaybackDone && showSplash) {
                         mountAppContent = true
                         kotlinx.coroutines.delay(60L)
                         showSplash = false
+                    }
+                }
+
+                LaunchedEffect(showSplash) {
+                    if (!showSplash && !permissionsRequested) {
+                        permissionsRequested = true
+                        requestAppPermissions()
                     }
                 }
 

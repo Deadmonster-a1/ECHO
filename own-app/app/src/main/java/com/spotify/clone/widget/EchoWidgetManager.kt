@@ -6,12 +6,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
-import android.graphics.Rect
-import android.graphics.RectF
 import android.net.Uri
 import android.util.Log
 import android.view.View
@@ -20,6 +14,7 @@ import androidx.core.graphics.drawable.toBitmap
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
+import coil.transform.RoundedCornersTransformation
 import com.spotify.clone.MainActivity
 import com.spotify.clone.R
 import com.spotify.clone.core.model.PlaybackState
@@ -47,39 +42,45 @@ object EchoWidgetManager {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var updateJob: Job? = null
+    @Volatile private var lastCachedArtUrl: String? = null
+    @Volatile private var lastCachedBitmap: Bitmap? = null
+    @Volatile private var lastPersistedSignature: String? = null
 
     fun updateAll(context: Context, state: PlaybackState) {
         val appContext = context.applicationContext
-        // Persist state so widgets retain context across reboots and process recreation
-        persistState(appContext, state)
+        val track = state.currentTrack
+        val sig = "${track?.id}|${track?.coverArtUrl}|${state.isPlaying}|${(state.progress * 50).toInt()}"
+        if (sig != lastPersistedSignature) {
+            lastPersistedSignature = sig
+            // Persist state so widgets retain context across reboots and process recreation
+            persistState(appContext, state)
+        }
+
+        val appWidgetManager = AppWidgetManager.getInstance(appContext) ?: return
+        val compactComponent = ComponentName(appContext, EchoCompactWidgetProvider::class.java)
+        val expandedComponent = ComponentName(appContext, EchoExpandedWidgetProvider::class.java)
+        val compactIds = appWidgetManager.getAppWidgetIds(compactComponent)
+        val expandedIds = appWidgetManager.getAppWidgetIds(expandedComponent)
+        if (compactIds.isEmpty() && expandedIds.isEmpty()) {
+            return
+        }
 
         updateJob?.cancel()
         updateJob = scope.launch {
-            val appWidgetManager = AppWidgetManager.getInstance(appContext) ?: return@launch
-            val compactComponent = ComponentName(appContext, EchoCompactWidgetProvider::class.java)
-            val expandedComponent = ComponentName(appContext, EchoExpandedWidgetProvider::class.java)
-
-            val compactIds = appWidgetManager.getAppWidgetIds(compactComponent)
-            val expandedIds = appWidgetManager.getAppWidgetIds(expandedComponent)
-
-            if (compactIds.isEmpty() && expandedIds.isEmpty()) {
-                return@launch
-            }
-
-            val track = state.currentTrack ?: getPersistedTrack(appContext)
+            val resolvedTrack = track ?: getPersistedTrack(appContext)
             val isPlaying = state.isPlaying
             val progress = state.progress
 
-            // Asynchronously resolve album art bitmap with rounded corners
-            val artBitmap = loadRoundedArtwork(appContext, track?.coverArtUrl)
+            // Asynchronously resolve album art bitmap with rounded corners (cached by URL)
+            val artBitmap = loadRoundedArtwork(appContext, resolvedTrack?.coverArtUrl)
 
             if (compactIds.isNotEmpty()) {
-                val compactViews = buildCompactRemoteViews(appContext, track, isPlaying, artBitmap)
+                val compactViews = buildCompactRemoteViews(appContext, resolvedTrack, isPlaying, artBitmap)
                 appWidgetManager.updateAppWidget(compactComponent, compactViews)
             }
 
             if (expandedIds.isNotEmpty()) {
-                val expandedViews = buildExpandedRemoteViews(appContext, track, isPlaying, progress, artBitmap)
+                val expandedViews = buildExpandedRemoteViews(appContext, resolvedTrack, isPlaying, progress, artBitmap)
                 appWidgetManager.updateAppWidget(expandedComponent, expandedViews)
             }
         }
@@ -207,37 +208,28 @@ object EchoWidgetManager {
 
     private suspend fun loadRoundedArtwork(context: Context, url: String?): Bitmap? = withContext(Dispatchers.IO) {
         if (url.isNullOrBlank()) return@withContext null
+        if (url == lastCachedArtUrl) {
+            lastCachedBitmap?.takeIf { !it.isRecycled }?.let { return@withContext it }
+        }
         try {
             val loader = context.imageLoader
             val request = ImageRequest.Builder(context)
                 .data(url)
                 .size(300, 300)
                 .allowHardware(false)
+                .transformations(RoundedCornersTransformation(24f))
                 .build()
             val result = loader.execute(request)
             if (result is SuccessResult) {
-                val original = result.drawable.toBitmap()
-                return@withContext getRoundedCornerBitmap(original, 24f)
+                val rounded = result.drawable.toBitmap()
+                lastCachedArtUrl = url
+                lastCachedBitmap = rounded
+                return@withContext rounded
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to load artwork for widget: ${e.message}")
         }
         null
-    }
-
-    private fun getRoundedCornerBitmap(bitmap: Bitmap, cornerRadius: Float): Bitmap {
-        val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(output)
-        val paint = Paint().apply {
-            isAntiAlias = true
-            color = -0x1
-        }
-        val rect = Rect(0, 0, bitmap.width, bitmap.height)
-        val rectF = RectF(rect)
-        canvas.drawRoundRect(rectF, cornerRadius, cornerRadius, paint)
-        paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
-        canvas.drawBitmap(bitmap, rect, rect, paint)
-        return output
     }
 
     private fun persistState(context: Context, state: PlaybackState) {
@@ -258,7 +250,7 @@ object EchoWidgetManager {
         }
     }
 
-    private fun getPersistedTrack(context: Context): Track? {
+    fun getPersistedTrack(context: Context): Track? {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val id = prefs.getString("track_id", null) ?: return null
         return Track(

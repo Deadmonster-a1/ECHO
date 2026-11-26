@@ -3,7 +3,6 @@ package com.spotify.clone.core.designsystem
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -30,87 +29,58 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 /**
- * ECHO Motion Architecture
- * Synthesizes Apple's Fluid Interfaces (interruptible springs, velocity handoff, rubber-banding)
- * with Emil Kowalski's Design Engineering principles (strong ease-out, under-300ms UI budgets,
- * asymmetric press/release, GPU-only transforms, and non-uniform organic staggers).
+ * ECHO — Material 3 Expressive Motion Architecture
+ * Implements M3 Expressive's Spatial vs. Effects spring physics system:
+ * - Spatial springs: lively, bouncy physical motion (dampingRatio 0.72–0.82) for position, scale, and shape morphing
+ * - Effects springs: critically damped (dampingRatio 1.0) for opacity, color, and elevation without overshoot
  */
 object EchoMotion {
-    // Timing Tokens (in ms) — UI stays under 300ms; sheets/major transitions 320-480ms
-    const val DurationPress = 110        // Instant pointer-down tactile compression
-    const val DurationMicro = 160        // Micro-interactions (taps, icon fills, badges)
-    const val DurationStandard = 240     // Standard transitions (cards, tabs, state swaps)
-    const val DurationExpressive = 360   // Expressive transitions (sheets, modal reveals)
-    const val DurationMajor = 460        // Major player transitions (mini-to-full expansion)
+    // Timing Tokens (in ms)
+    const val DurationPress = 95
+    const val DurationMicro = 160
+    const val DurationStandard = 260
+    const val DurationExpressive = 380
+    const val DurationMajor = 480
 
-    // Emil Kowalski's custom easing curves (stronger than platform defaults)
-    val EaseOutStrong = CubicBezierEasing(0.23f, 1.0f, 0.32f, 1.0f)
+    // M3 Expressive Easing & Legacy Compatibility
+    val EaseOutStrong = CubicBezierEasing(0.20f, 1.0f, 0.30f, 1.0f)
     val EaseInOutStrong = CubicBezierEasing(0.77f, 0.0f, 0.175f, 1.0f)
     val EaseDrawer = CubicBezierEasing(0.32f, 0.72f, 0.0f, 1.0f)
 
-    // Reverse-engineered Spotify Encore & MotionScene interpolator curves (from Spotify.apk)
-    // res/anim/encore_button_animation_interpolator.xml: controlX1=0.3, controlY1=0.0, controlX2=0.0, controlY2=1.0
     val EncoreButtonEase = CubicBezierEasing(0.3f, 0.0f, 0.0f, 1.0f)
-    // res/anim/encore_box_animation_interpolator.xml: controlX1=0.3, controlY1=0.0, controlX2=0.4, controlY2=1.0
     val EncoreBoxEase = CubicBezierEasing(0.3f, 0.0f, 0.4f, 1.0f)
-    // res/xml/header_content_motion_layout_scene.xml: cubic(0.6, 0, 0.7, 1)
     val HeaderMotionEase = CubicBezierEasing(0.6f, 0.0f, 0.7f, 1.0f)
 
-    // Compatibility aliases
     val EaseEmphasized = EaseOutStrong
     val EaseStandard = FastOutSlowInEasing
     val EaseDecelerate = LinearOutSlowInEasing
 
-    // Apple-inspired Spring Specifications (critically damped default + subtle momentum bounce)
-    val SpringCriticallyDamped = spring<Float>(
-        dampingRatio = 1.0f,
-        stiffness = 420f
-    )
+    // M3 Expressive Spatial Springs (with physical overshoot)
+    val SpatialFast = spring<Float>(dampingRatio = 0.72f, stiffness = 700f)
+    val SpatialDefault = spring<Float>(dampingRatio = 0.76f, stiffness = 380f)
+    val SpatialSlow = spring<Float>(dampingRatio = 0.80f, stiffness = 200f)
 
-    val SpringMomentum = spring<Float>(
-        dampingRatio = 0.82f,
-        stiffness = 380f
-    )
+    // M3 Expressive Effects Springs (critically damped, zero overshoot)
+    val EffectsFast = spring<Float>(dampingRatio = 1.0f, stiffness = 800f)
+    val EffectsDefault = spring<Float>(dampingRatio = 1.0f, stiffness = 420f)
 
-    val SpringBouncy = spring<Float>(
-        dampingRatio = 0.74f,
-        stiffness = 360f
-    )
+    // Retained Spring Aliases backed by M3 Expressive Physics
+    val SpringCriticallyDamped = EffectsDefault
+    val SpringMomentum = SpatialDefault
+    val SpringBouncy = SpatialFast
+    val SpringGentle = SpatialSlow
+    val SpringSnappy = SpatialFast
 
-    val SpringGentle = spring<Float>(
-        dampingRatio = 0.90f,
-        stiffness = 220f
-    )
+    fun <T> spatialFast() = spring<T>(dampingRatio = 0.72f, stiffness = 700f)
+    fun <T> spatialDefault() = spring<T>(dampingRatio = 0.76f, stiffness = 380f)
+    fun <T> spatialSlow() = spring<T>(dampingRatio = 0.80f, stiffness = 200f)
+    fun <T> effectsDefault() = spring<T>(dampingRatio = 1.0f, stiffness = 420f)
 
-    val SpringSnappy = spring<Float>(
-        dampingRatio = 0.85f,
-        stiffness = 460f
-    )
-
-    fun <T> springCriticallyDamped() = spring<T>(
-        dampingRatio = 1.0f,
-        stiffness = 420f
-    )
-
-    fun <T> springMomentum() = spring<T>(
-        dampingRatio = 0.82f,
-        stiffness = 380f
-    )
-
-    fun <T> springBouncy() = spring<T>(
-        dampingRatio = 0.74f,
-        stiffness = 360f
-    )
-
-    fun <T> springGentle() = spring<T>(
-        dampingRatio = 0.90f,
-        stiffness = 220f
-    )
-
-    fun <T> springSnappy() = spring<T>(
-        dampingRatio = 0.85f,
-        stiffness = 460f
-    )
+    fun <T> springCriticallyDamped() = effectsDefault<T>()
+    fun <T> springMomentum() = spatialDefault<T>()
+    fun <T> springBouncy() = spatialFast<T>()
+    fun <T> springGentle() = spatialSlow<T>()
+    fun <T> springSnappy() = spatialFast<T>()
 
     // Standard Tween Specs
     fun <T> tweenMicro() = tween<T>(DurationMicro, easing = EaseOutStrong)
@@ -118,17 +88,10 @@ object EchoMotion {
     fun <T> tweenExpressive() = tween<T>(DurationExpressive, easing = EaseDrawer)
     fun <T> tweenMajor() = tween<T>(DurationMajor, easing = EaseDrawer)
 
-    /**
-     * Apple's WWDC Fluid Interfaces exponential momentum projection.
-     * Predicts where a flick gesture is going rather than snapping to the nearest edge.
-     */
     fun projectMomentum(velocityPxPerSec: Float, decelerationRate: Float = 0.996f): Float {
         return (velocityPxPerSec / 1000f) * decelerationRate / (1f - decelerationRate)
     }
 
-    /**
-     * Apple's progressive rubber-banding resistance past natural boundaries.
-     */
     fun rubberBand(overshoot: Float, dimension: Float, constant: Float = 0.55f): Float {
         if (dimension <= 0f) return 0f
         return (overshoot * dimension * constant) / (dimension + constant * abs(overshoot))
@@ -138,12 +101,10 @@ object EchoMotion {
 val LocalReducedMotion = compositionLocalOf { false }
 
 /**
- * Adds an instant, interruptible physical press response on pointer-down
- * with asymmetric release spring and optional subtle haptic feedback.
- * Automatically respects LocalReducedMotion.
+ * Material 3 Expressive physical press response with SpatialDefault spring overshoot on release.
  */
 fun Modifier.echoPressable(
-    scaleOnPress: Float = 0.97f,
+    scaleOnPress: Float = 0.96f,
     enabled: Boolean = true,
     hapticOnClick: Boolean = false,
     onClick: () -> Unit
@@ -160,7 +121,7 @@ fun Modifier.echoPressable(
         animationSpec = if (isPressed) {
             tween(durationMillis = EchoMotion.DurationPress, easing = EchoMotion.EaseOutStrong)
         } else {
-            EchoMotion.SpringMomentum
+            EchoMotion.SpatialDefault
         },
         label = "echo_press_scale"
     )
@@ -184,27 +145,24 @@ fun Modifier.echoPressable(
 }
 
 /**
- * Non-uniform organic staggered entrance for curated sections/cards.
- * Caps total stagger budget under ~240ms and never blocks user interaction.
- * Under reduced motion, skips translation and keeps a crisp opacity fade.
+ * Staggered expressive entrance using spring translation and crisp opacity reveal.
  */
 fun Modifier.echoStaggeredEntrance(
     index: Int,
-    riseDistance: Dp = 10.dp
+    riseDistance: Dp = 14.dp
 ): Modifier = composed {
     val isReducedMotion = LocalReducedMotion.current
     val density = LocalDensity.current
     val risePx = with(density) { riseDistance.toPx() }
 
-    // Non-uniform shrinking stagger delays (0, 45, 80, 110, 135, 155ms)
     val delayMs = remember(index) {
         when (index.coerceAtLeast(0)) {
             0 -> 0L
-            1 -> 45L
-            2 -> 80L
-            3 -> 110L
-            4 -> 135L
-            else -> 155L
+            1 -> 40L
+            2 -> 75L
+            3 -> 105L
+            4 -> 130L
+            else -> 150L
         }
     }
 
@@ -227,10 +185,7 @@ fun Modifier.echoStaggeredEntrance(
 
     val translationY by animateFloatAsState(
         targetValue = if (visible || isReducedMotion) 0f else risePx,
-        animationSpec = tween(
-            durationMillis = EchoMotion.DurationStandard,
-            easing = EchoMotion.EaseOutStrong
-        ),
+        animationSpec = if (isReducedMotion) tween(140) else EchoMotion.SpatialDefault,
         label = "stagger_y"
     )
 

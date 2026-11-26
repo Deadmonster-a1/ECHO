@@ -15,6 +15,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 
 data class SongUpgradeStats(
     val totalScanned: Int = 0,
@@ -38,8 +39,15 @@ data class SongUpgradeStats(
  */
 object SongUpgradeEngine {
 
-    private val upgradedTrackCache = ConcurrentHashMap<String, Track>()
+    private const val MAX_UPGRADED_CACHE_ENTRIES = 200
+    private val upgradedTrackCache: MutableMap<String, Track> = java.util.Collections.synchronizedMap(
+        object : LinkedHashMap<String, Track>(64, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Track>?): Boolean =
+                size > MAX_UPGRADED_CACHE_ENTRIES
+        }
+    )
     private val streamSemaphore = Semaphore(permits = 3)
+    private val activeUpgradeCount = AtomicInteger(0)
 
     private val _upgradeStats = MutableStateFlow(SongUpgradeStats())
     val upgradeStats: StateFlow<SongUpgradeStats> = _upgradeStats.asStateFlow()
@@ -50,7 +58,10 @@ object SongUpgradeEngine {
      */
     fun upgradeMetadataFast(track: Track): Track {
         upgradedTrackCache[track.id]?.let { cached ->
-            return cached.copy(isFavorite = track.isFavorite || cached.isFavorite)
+            return cached.copy(
+                isFavorite = track.isFavorite,
+                lyrics = cached.lyrics.ifEmpty { track.lyrics }
+            )
         }
 
         val cleanTitle = decodeBasicHtml(track.title).trim()
@@ -106,26 +117,28 @@ object SongUpgradeEngine {
         onTrackUpgraded: (suspend (Track) -> Unit)? = null
     ): List<Track> = withContext(Dispatchers.IO) {
         if (tracks.isEmpty()) return@withContext emptyList()
+        activeUpgradeCount.incrementAndGet()
         _upgradeStats.value = _upgradeStats.value.copy(isUpgrading = true)
 
-        var metadataChanged = 0
-        var streamUpgraded = 0
-        val fastUpgraded = tracks.map { raw ->
-            val fast = upgradeMetadataFast(raw)
-            if (fast != raw) metadataChanged++
-            fast
-        }
+        try {
+            var metadataChanged = 0
+            val fastUpgraded = tracks.map { raw ->
+                val fast = upgradeMetadataFast(raw)
+                if (fast != raw) metadataChanged++
+                fast
+            }
 
-        val candidatesForStream = fastUpgraded
-            .filter { FullTrackStreamResolver.needsResolution(it) }
-            .distinctBy { it.id }
-            .take(maxConcurrentBatch)
+            val candidatesForStream = fastUpgraded
+                .filter { FullTrackStreamResolver.needsResolution(it) }
+                .distinctBy { it.id }
+                .take(maxConcurrentBatch)
 
-        val resolvedList = coroutineScope {
-            candidatesForStream.map { track ->
-                async {
-                    streamSemaphore.withPermit {
-                        val upgraded = resolveStudioTrack(track)
+            val resolvedList = coroutineScope {
+                candidatesForStream.map { track ->
+                    async {
+                        val upgraded = streamSemaphore.withPermit {
+                            resolveStudioTrack(track)
+                        }
                         if (upgraded != null && upgraded.mediaUri != track.mediaUri && upgraded.mediaUri.isNotBlank()) {
                             upgradedTrackCache[upgraded.id] = upgraded
                             onTrackUpgraded?.invoke(upgraded)
@@ -134,19 +147,24 @@ object SongUpgradeEngine {
                             null
                         }
                     }
-                }
-            }.awaitAll().filterNotNull()
-        }
+                }.awaitAll().filterNotNull()
+            }
 
-        streamUpgraded = resolvedList.size
-        _upgradeStats.value = SongUpgradeStats(
-            totalScanned = tracks.size,
-            metadataUpgradedCount = metadataChanged + streamUpgraded,
-            streamUpgradedCount = (_upgradeStats.value.streamUpgradedCount + streamUpgraded).coerceAtLeast(streamUpgraded),
-            isUpgrading = false,
-            lastUpgradeTimestampMs = System.currentTimeMillis()
-        )
-        resolvedList
+            val streamUpgraded = resolvedList.size
+            val remaining = activeUpgradeCount.decrementAndGet().coerceAtLeast(0)
+            _upgradeStats.value = SongUpgradeStats(
+                totalScanned = tracks.size,
+                metadataUpgradedCount = metadataChanged + streamUpgraded,
+                streamUpgradedCount = (_upgradeStats.value.streamUpgradedCount + streamUpgraded).coerceAtLeast(streamUpgraded),
+                isUpgrading = remaining > 0,
+                lastUpgradeTimestampMs = System.currentTimeMillis()
+            )
+            resolvedList
+        } catch (t: Throwable) {
+            val remaining = activeUpgradeCount.decrementAndGet().coerceAtLeast(0)
+            _upgradeStats.value = _upgradeStats.value.copy(isUpgrading = remaining > 0)
+            throw t
+        }
     }
 
     fun isTrackStudioUpgraded(track: Track): Boolean =

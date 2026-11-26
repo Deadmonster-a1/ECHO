@@ -2,6 +2,7 @@ package com.spotify.clone.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
@@ -29,16 +30,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import com.spotify.clone.core.designsystem.EchoArtworkImage
 import com.spotify.clone.core.designsystem.EchoMarqueeText
 import com.spotify.clone.core.designsystem.EchoMotion
+import com.spotify.clone.core.designsystem.EchoRadius
 import com.spotify.clone.core.designsystem.LivingEqualizer
-import com.spotify.clone.core.designsystem.LocalAppTheme
+import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.SwipeableTrackRow
 import com.spotify.clone.core.designsystem.echoPressable
 import com.spotify.clone.core.model.Track
@@ -53,37 +54,43 @@ fun TrackRowItem(
     onSwipeFavorite: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    val activeTheme = LocalAppTheme.current
+    val isReducedMotion = LocalReducedMotion.current
+    val primaryColor = MaterialTheme.colorScheme.primary
     val titleColor by animateColorAsState(
-        targetValue = if (isPlaying) activeTheme.primaryColor else MaterialTheme.colorScheme.onSurface,
+        targetValue = if (isPlaying) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
         animationSpec = tween(EchoMotion.DurationMicro, easing = EchoMotion.EaseOutStrong),
         label = "track_row_title_color"
     )
     val rowHighlight by animateColorAsState(
-        targetValue = if (isPlaying) activeTheme.primaryColor.copy(alpha = 0.08f) else Color.Transparent,
+        targetValue = if (isPlaying) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f) else Color.Transparent,
         animationSpec = tween(EchoMotion.DurationStandard),
         label = "track_row_bg"
+    )
+    val rowCorner by animateDpAsState(
+        targetValue = if (isPlaying) EchoRadius.md else 14.dp,
+        animationSpec = if (isReducedMotion) tween(100) else EchoMotion.spatialFast(),
+        label = "track_row_corner"
     )
 
     val rowContent: @Composable () -> Unit = {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 2.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .padding(horizontal = 10.dp, vertical = 2.dp)
+                .clip(RoundedCornerShape(rowCorner))
                 .background(rowHighlight)
-                .echoPressable(scaleOnPress = 1.0f, onClick = onClick)
-                .padding(horizontal = 8.dp, vertical = 7.dp),
+                .echoPressable(scaleOnPress = 0.99f, onClick = onClick)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = track.coverArtUrl,
+            EchoArtworkImage(
+                imageUrl = track.coverArtUrl,
                 contentDescription = track.title,
-                contentScale = ContentScale.Crop,
+                seedKey = "${track.title}_${track.artistName}",
+                iconSize = 20.dp,
                 modifier = Modifier
-                    .size(50.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(14.dp))
             )
 
             Spacer(modifier = Modifier.width(14.dp))
@@ -99,7 +106,7 @@ fun TrackRowItem(
                             LivingEqualizer(
                                 isPlaying = true,
                                 barCount = 3,
-                                barColor = activeTheme.primaryColor,
+                                barColor = primaryColor,
                                 maxHeight = 13.dp,
                                 barWidth = 2.5.dp,
                                 barSpacing = 2.dp
@@ -110,9 +117,8 @@ fun TrackRowItem(
                     EchoMarqueeText(
                         text = track.title,
                         color = titleColor,
-                        style = MaterialTheme.typography.bodyLarge.copy(
-                            fontSize = 15.5.sp,
-                            fontWeight = if (isPlaying) FontWeight.SemiBold else FontWeight.Medium
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.SemiBold
                         ),
                         enabled = isPlaying
                     )
@@ -122,13 +128,13 @@ fun TrackRowItem(
                     if (track.isExplicit) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.22f))
-                                .padding(horizontal = 4.dp, vertical = 0.5.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(MaterialTheme.colorScheme.secondaryContainer)
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
                         ) {
                             Text(
                                 text = "E",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -143,8 +149,8 @@ fun TrackRowItem(
                     }
                     Text(
                         text = subtitle,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
+                        color = if (isPlaying) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -162,7 +168,7 @@ fun TrackRowItem(
                     Icon(
                         imageVector = Icons.Filled.MoreHoriz,
                         contentDescription = "More options",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = if (isPlaying) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

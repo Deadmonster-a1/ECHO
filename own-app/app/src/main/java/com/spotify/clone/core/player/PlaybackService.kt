@@ -14,6 +14,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.session.DefaultMediaNotificationProvider
@@ -143,12 +144,22 @@ class PlaybackService : MediaSessionService() {
 
         val cachedDataSourceFactory = AudioCacheManager.createCacheDataSourceFactory(this, httpDataSourceFactory)
         val mediaSourceFactory = DefaultMediaSourceFactory(cachedDataSourceFactory)
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                15_000, // minBufferMs: 15s audio cushion
+                45_000, // maxBufferMs: 45s max RAM/disk streaming buffer
+                750,    // bufferForPlaybackMs: fast start (<1s)
+                1_500   // bufferForPlaybackAfterRebufferMs
+            )
+            .setBackBuffer(15_000, true)
+            .build()
 
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
-            .setWakeMode(C.WAKE_MODE_LOCAL)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
             .build().apply {
                 addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
@@ -173,6 +184,18 @@ class PlaybackService : MediaSessionService() {
         )
 
         val callback = object : MediaSession.Callback {
+            private fun sanitizeExternalMediaItems(
+                controller: MediaSession.ControllerInfo,
+                items: MutableList<MediaItem>
+            ): MutableList<MediaItem> {
+                if (controller.packageName == packageName) return items
+                return items.filterTo(mutableListOf()) { item ->
+                    val uri = item.localConfiguration?.uri ?: item.requestMetadata.mediaUri
+                    val scheme = uri?.scheme?.lowercase()
+                    scheme == "https" || scheme == "http"
+                }
+            }
+
             override fun onSetMediaItems(
                 mediaSession: MediaSession,
                 controller: MediaSession.ControllerInfo,
@@ -180,8 +203,10 @@ class PlaybackService : MediaSessionService() {
                 startIndex: Int,
                 startPositionMs: Long
             ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+                val safeItems = sanitizeExternalMediaItems(controller, mediaItems)
+                val safeStart = startIndex.coerceIn(0, (safeItems.size - 1).coerceAtLeast(0))
                 return Futures.immediateFuture(
-                    MediaSession.MediaItemsWithStartPosition(mediaItems, startIndex, startPositionMs)
+                    MediaSession.MediaItemsWithStartPosition(safeItems, safeStart, startPositionMs)
                 )
             }
 
@@ -190,7 +215,7 @@ class PlaybackService : MediaSessionService() {
                 controller: MediaSession.ControllerInfo,
                 mediaItems: MutableList<MediaItem>
             ): ListenableFuture<MutableList<MediaItem>> {
-                return Futures.immediateFuture(mediaItems)
+                return Futures.immediateFuture(sanitizeExternalMediaItems(controller, mediaItems))
             }
         }
 

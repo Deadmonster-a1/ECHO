@@ -34,6 +34,7 @@ object UserProfileManager {
     private const val KEY_LANGUAGES = "preferred_languages"
     private const val KEY_GENRES = "preferred_genres"
     private const val KEY_ARTISTS = "favorite_artists"
+    private const val KEY_SONGS = "favorite_songs"
     private const val DEFAULT_FALLBACK = "Listener"
 
     private var prefs: SharedPreferences? = null
@@ -56,6 +57,9 @@ object UserProfileManager {
     private val _favoriteArtists = MutableStateFlow<Set<String>>(emptySet())
     val favoriteArtists: StateFlow<Set<String>> = _favoriteArtists.asStateFlow()
 
+    private val _favoriteSongIds = MutableStateFlow<Set<String>>(emptySet())
+    val favoriteSongIds: StateFlow<Set<String>> = _favoriteSongIds.asStateFlow()
+
     fun init(context: Context) {
         if (prefs == null) {
             val p = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -67,6 +71,7 @@ object UserProfileManager {
             _preferredLanguages.value = p.getStringSet(KEY_LANGUAGES, emptySet())?.toSet() ?: emptySet()
             _preferredGenres.value = p.getStringSet(KEY_GENRES, emptySet())?.toSet() ?: emptySet()
             _favoriteArtists.value = p.getStringSet(KEY_ARTISTS, emptySet())?.toSet() ?: emptySet()
+            _favoriteSongIds.value = p.getStringSet(KEY_SONGS, emptySet())?.toSet() ?: emptySet()
         }
     }
 
@@ -86,18 +91,21 @@ object UserProfileManager {
         avatarId: String,
         languages: Set<String>,
         genreIds: Set<String>,
-        artists: Set<String>
+        artists: Set<String>,
+        songs: Set<String> = emptySet()
     ) {
         val finalName = name.trim().ifBlank { DEFAULT_FALLBACK }
         val cleanLangs = languages.map { it.trim() }.filter { it.isNotBlank() }.toSet()
         val cleanGenres = genreIds.map { it.trim() }.filter { it.isNotBlank() }.toSet()
         val cleanArtists = artists.map { it.trim() }.filter { it.isNotBlank() }.toSet()
+        val cleanSongs = songs.map { it.trim() }.filter { it.isNotBlank() }.toSet()
 
         _userName.value = finalName
         _avatarId.value = avatarId
         _preferredLanguages.value = cleanLangs
         _preferredGenres.value = cleanGenres
         _favoriteArtists.value = cleanArtists
+        _favoriteSongIds.value = cleanSongs
         _hasCompletedOnboarding.value = true
 
         prefs?.edit()
@@ -107,12 +115,30 @@ object UserProfileManager {
             ?.putStringSet(KEY_LANGUAGES, cleanLangs)
             ?.putStringSet(KEY_GENRES, cleanGenres)
             ?.putStringSet(KEY_ARTISTS, cleanArtists)
+            ?.putStringSet(KEY_SONGS, cleanSongs)
             ?.apply()
     }
 
     fun resetOnboarding() {
         _hasCompletedOnboarding.value = false
         prefs?.edit()?.putBoolean(KEY_ONBOARDING_DONE, false)?.apply()
+    }
+
+    fun isFavoriteArtist(artistName: String): Boolean {
+        val clean = artistName.trim()
+        if (clean.isBlank()) return false
+        return _favoriteArtists.value.any { it.equals(clean, ignoreCase = true) }
+    }
+
+    fun toggleFavoriteArtist(artistName: String): Boolean {
+        val clean = artistName.trim()
+        if (clean.isBlank()) return false
+        val current = _favoriteArtists.value
+        val existing = current.firstOrNull { it.equals(clean, ignoreCase = true) }
+        val updated = if (existing != null) current - existing else current + clean
+        _favoriteArtists.value = updated
+        prefs?.edit()?.putStringSet(KEY_ARTISTS, updated)?.apply()
+        return existing == null
     }
 
     fun getDisplayName(): String = _userName.value.ifBlank { DEFAULT_FALLBACK }

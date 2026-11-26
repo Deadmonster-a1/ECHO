@@ -1,6 +1,7 @@
 package com.spotify.clone.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -25,16 +27,16 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -42,11 +44,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spotify.clone.core.designsystem.EchoMotion
-import com.spotify.clone.core.designsystem.LocalAppTheme
+import com.spotify.clone.core.designsystem.EchoRadius
 import com.spotify.clone.core.designsystem.LocalReducedMotion
-import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoPressable
-import com.spotify.clone.core.designsystem.resolvedBorder
 
 enum class NavigationTab(
     val route: String,
@@ -60,7 +60,8 @@ enum class NavigationTab(
 }
 
 /**
- * Clean docked translucent bottom navigation bar anchored cleanly below the floating Mini-Player.
+ * Material 3 Expressive Floating Pill Navigation Bar.
+ * Sits cleanly above navigation bar insets with elevated tonal container and expanding active indicator pill.
  */
 @Composable
 fun EchoBottomNavBar(
@@ -68,98 +69,107 @@ fun EchoBottomNavBar(
     onTabSelected: (NavigationTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val activeTheme = LocalAppTheme.current
-    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val isReducedMotion = LocalReducedMotion.current
+    val dockShape = RoundedCornerShape(EchoRadius.xxl)
 
-    val barBg = if (isDarkMode) Color(0xEB101017) else Color(0xF2FFFFFF)
-    val hairlineColor = activeTheme.resolvedBorder(isDarkMode).copy(alpha = if (isDarkMode) 0.75f else 0.85f)
-    val activeColor = activeTheme.primaryColor
-    val inactiveColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.78f)
-
-    Column(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(barBg)
-            .navigationBarsPadding(),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center
     ) {
-        HorizontalDivider(
-            color = hairlineColor,
-            thickness = 0.6.dp
-        )
-
-        Row(
+        Surface(
             modifier = Modifier
-                .widthIn(max = 520.dp)
+                .widthIn(max = 460.dp)
                 .fillMaxWidth()
-                .height(58.dp)
-                .padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
+                .height(64.dp)
+                .shadow(
+                    elevation = 12.dp,
+                    shape = dockShape,
+                    ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                    spotColor = Color.Black.copy(alpha = 0.22f)
+                ),
+            shape = dockShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 4.dp
         ) {
-            NavigationTab.entries.forEach { tab ->
-                val isSelected = currentRoute == tab.route
-                val tint by animateColorAsState(
-                    targetValue = if (isSelected) activeColor else inactiveColor,
-                    animationSpec = tween(EchoMotion.DurationMicro, easing = EchoMotion.EaseOutStrong),
-                    label = "nav_tab_tint"
-                )
-                val pillBg by animateColorAsState(
-                    targetValue = if (isSelected) {
-                        activeColor.copy(alpha = if (isDarkMode) 0.20f else 0.12f)
-                    } else {
-                        Color.Transparent
-                    },
-                    animationSpec = tween(EchoMotion.DurationMicro, easing = EchoMotion.EaseOutStrong),
-                    label = "nav_tab_pill"
-                )
-                val iconScale by animateFloatAsState(
-                    targetValue = if (isSelected && !isReducedMotion) 1.06f else 1.0f,
-                    animationSpec = EchoMotion.SpringSnappy,
-                    label = "nav_icon_scale"
-                )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NavigationTab.entries.forEach { tab ->
+                    val isSelected = currentRoute == tab.route
+                    val tint by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = tween(EchoMotion.DurationMicro, easing = EchoMotion.EaseOutStrong),
+                        label = "nav_tab_tint"
+                    )
+                    val labelColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = tween(EchoMotion.DurationMicro, easing = EchoMotion.EaseOutStrong),
+                        label = "nav_label_color"
+                    )
+                    val pillBg by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                        animationSpec = tween(EchoMotion.DurationMicro, easing = EchoMotion.EaseOutStrong),
+                        label = "nav_tab_pill"
+                    )
+                    val pillWidth by animateDpAsState(
+                        targetValue = if (isSelected) 64.dp else 44.dp,
+                        animationSpec = if (isReducedMotion) tween(100) else EchoMotion.spatialFast(),
+                        label = "nav_pill_w"
+                    )
+                    val iconScale by animateFloatAsState(
+                        targetValue = if (isSelected && !isReducedMotion) 1.08f else 1.0f,
+                        animationSpec = EchoMotion.SpatialFast,
+                        label = "nav_icon_scale"
+                    )
 
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .echoPressable(
-                            scaleOnPress = 0.96f,
-                            hapticOnClick = true
-                        ) { onTabSelected(tab) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Box(
+                    Column(
                         modifier = Modifier
-                            .width(54.dp)
-                            .height(28.dp)
-                            .clip(CircleShape)
-                            .background(pillBg),
-                        contentAlignment = Alignment.Center
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .echoPressable(
+                                scaleOnPress = 0.94f,
+                                hapticOnClick = true
+                            ) { onTabSelected(tab) },
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        Icon(
-                            imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
-                            contentDescription = tab.title,
-                            tint = tint,
+                        Box(
                             modifier = Modifier
-                                .size(21.dp)
-                                .graphicsLayer {
-                                    scaleX = iconScale
-                                    scaleY = iconScale
-                                }
+                                .width(pillWidth)
+                                .height(30.dp)
+                                .clip(CircleShape)
+                                .background(pillBg),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                                contentDescription = tab.title,
+                                tint = tint,
+                                modifier = Modifier
+                                    .size(21.dp)
+                                    .graphicsLayer {
+                                        scaleX = iconScale
+                                        scaleY = iconScale
+                                    }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = tab.title,
+                            color = labelColor,
+                            fontSize = 11.5.sp,
+                            lineHeight = 14.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1
                         )
                     }
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = tab.title,
-                        color = tint,
-                        fontSize = 11.sp,
-                        lineHeight = 13.sp,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
-                        maxLines = 1
-                    )
                 }
             }
         }

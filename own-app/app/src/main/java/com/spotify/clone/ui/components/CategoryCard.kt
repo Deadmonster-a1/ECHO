@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,33 +37,50 @@ data class CategoryItem(
     val searchQuery: String = title
 )
 
+/**
+ * Material 3 Expressive Genre Category Tile with generous 24.dp shape,
+ * playful tilted artwork framing, subtle circular tonal blob accent, and bold expressive display typography.
+ */
 @Composable
 fun CategoryCard(
     category: CategoryItem,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(EchoRadius.md)
-    val thumbShape = RoundedCornerShape(EchoRadius.xs)
+    val cardShape = remember { RoundedCornerShape(EchoRadius.lg) }
+    val thumbShape = remember { RoundedCornerShape(EchoRadius.sm) }
     val base = category.backgroundColor
-    val gradient = Brush.linearGradient(
-        colors = listOf(
-            base,
-            base.copy(
-                red = (base.red * 0.78f).coerceIn(0f, 1f),
-                green = (base.green * 0.78f).coerceIn(0f, 1f),
-                blue = (base.blue * 0.86f).coerceIn(0f, 1f)
+    val gradient = remember(base) {
+        Brush.linearGradient(
+            colors = listOf(
+                base,
+                base.copy(
+                    red = (base.red * 0.72f).coerceIn(0f, 1f),
+                    green = (base.green * 0.72f).coerceIn(0f, 1f),
+                    blue = (base.blue * 0.85f).coerceIn(0f, 1f)
+                )
             )
         )
-    )
+    }
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(92.dp)
+            .height(102.dp)
+            .shadow(4.dp, cardShape, spotColor = base.copy(alpha = 0.28f))
             .clip(cardShape)
             .background(gradient)
-            .echoPressable(scaleOnPress = 0.97f, hapticOnClick = true, onClick = onClick)
+            .echoPressable(scaleOnPress = 0.96f, hapticOnClick = true, onClick = onClick)
     ) {
+        // Expressive organic background orb accent
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .offset(x = 18.dp, y = 18.dp)
+                .size(92.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.14f))
+        )
+
         if (category.imageUrl.isNotBlank()) {
             AsyncImage(
                 model = category.imageUrl,
@@ -69,35 +88,24 @@ fun CategoryCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = 8.dp, y = 8.dp)
-                    .rotate(12f)
-                    .size(60.dp)
-                    .shadow(4.dp, thumbShape)
+                    .offset(x = 10.dp, y = 10.dp)
+                    .rotate(14f)
+                    .size(64.dp)
+                    .shadow(6.dp, thumbShape)
                     .clip(thumbShape)
                     .background(Color.Black.copy(alpha = 0.18f))
             )
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        0.0f to Color.Black.copy(alpha = 0.14f),
-                        0.65f to Color.Transparent
-                    )
-                )
-        )
-
         Text(
             text = category.title,
             color = Color.White,
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 14.dp, top = 14.dp, end = 58.dp)
+                .padding(start = 16.dp, top = 16.dp, end = 60.dp)
         )
     }
 }
