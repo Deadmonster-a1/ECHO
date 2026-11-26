@@ -54,6 +54,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -76,6 +77,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import com.spotify.clone.core.settings.SettingsManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -85,8 +87,11 @@ import com.spotify.clone.core.designsystem.ArtworkColors
 import com.spotify.clone.core.designsystem.EchoMotion
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
+import com.spotify.clone.core.designsystem.ThemeManager
+import com.spotify.clone.core.designsystem.echoContrastOn
 import com.spotify.clone.core.designsystem.echoPressable
 import com.spotify.clone.core.designsystem.rememberAnimatedArtworkColors
+import com.spotify.clone.core.designsystem.updateSystemBarsAppearance
 import com.spotify.clone.core.lyrics.LyricsRepository
 import com.spotify.clone.core.model.LyricsSyncType
 import com.spotify.clone.core.model.Track
@@ -139,24 +144,26 @@ fun FullscreenLyricsSheet(
     var showShareLyricsDialog by remember { mutableStateOf(false) }
 
     var lyricsResult by remember(track.id) {
-        mutableStateOf(LyricsRepository.getCachedLyrics(track))
+        mutableStateOf(LyricsRepository.getCachedLyrics(track, playbackState.durationMs))
     }
     var isLoadingLyrics by remember(track.id) {
         mutableStateOf(lyricsResult.lines.isEmpty() && lyricsResult.syncType == LyricsSyncType.NONE)
     }
 
-    LaunchedEffect(track.id) {
-        if (lyricsResult.lines.isEmpty() || lyricsResult.syncType == LyricsSyncType.NONE) {
-            isLoadingLyrics = true
-            val resolved = LyricsRepository.getOrFetchLyrics(track)
+    LaunchedEffect(track.id, playbackState.durationMs) {
+        isLoadingLyrics = lyricsResult.lines.isEmpty()
+        val resolved = LyricsRepository.getOrFetchLyrics(track, playbackState.durationMs)
+        if (resolved.lines.isNotEmpty() || lyricsResult.lines.isEmpty()) {
             lyricsResult = resolved
-            isLoadingLyrics = false
         }
+        isLoadingLyrics = false
     }
 
     val lines = lyricsResult.lines
     val hasLyrics = lines.isNotEmpty()
-    val isSynced = lyricsResult.syncType == LyricsSyncType.LINE_SYNCED && hasLyrics && lines.first().timestampMs >= 0L
+    val isSynced = (lyricsResult.syncType == LyricsSyncType.LINE_SYNCED ||
+        lyricsResult.syncType == LyricsSyncType.SYLLABLE_SYNCED) &&
+        hasLyrics && lines.first().timestampMs >= 0L
     val hasRomanized = lyricsResult.hasRomanized
 
     // Modulated effective position incorporating timing calibration offset
@@ -186,21 +193,31 @@ fun FullscreenLyricsSheet(
             isUserScrolling = false
             if (isSynced && activeIndex in lines.indices) {
                 val target = (activeIndex - 1).coerceAtLeast(0)
-                listState.animateScrollToItem(target)
+                if (isReducedMotion) listState.scrollToItem(target) else listState.animateScrollToItem(target)
             }
         }
     }
 
     // Auto-scroll when active line changes during playback
     LaunchedEffect(activeIndex) {
-        if (isSynced && activeIndex in lines.indices && !isUserScrolling && !isReducedMotion) {
+        if (isSynced && activeIndex in lines.indices && !isUserScrolling) {
             val target = (activeIndex - 1).coerceAtLeast(0)
-            listState.animateScrollToItem(target)
+            if (isReducedMotion) listState.scrollToItem(target) else listState.animateScrollToItem(target)
         }
     }
 
     val dominantTopColor = remember(resolvedArtworkColors.backgroundTop) {
         resolvedArtworkColors.backgroundTop
+    }
+    val view = LocalView.current
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+    if (!view.isInEditMode) {
+        DisposableEffect(isDarkMode) {
+            updateSystemBarsAppearance(view = view, lightBars = false)
+            onDispose {
+                updateSystemBarsAppearance(view = view, lightBars = !isDarkMode)
+            }
+        }
     }
 
     Box(
@@ -234,13 +251,13 @@ fun FullscreenLyricsSheet(
             ) {
                 IconButton(
                     onClick = onClose,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(44.dp)
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.08f)),
+                            .background(Color.White.copy(alpha = 0.10f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -304,7 +321,7 @@ fun FullscreenLyricsSheet(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = if (useEnglishScript) "Aa English" else "తెలుగు Native",
+                                    text = if (useEnglishScript) "Aa English" else "Native",
                                     color = if (useEnglishScript) activeTheme.primaryColor else Color.White,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold
@@ -317,22 +334,22 @@ fun FullscreenLyricsSheet(
                     if (isSynced) {
                         IconButton(
                             onClick = { showOffsetDialog = true },
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(44.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(34.dp)
+                                    .size(36.dp)
                                     .clip(CircleShape)
                                     .background(
-                                        if (lyricsOffsetMs != 0L) activeTheme.primaryColor else Color.White.copy(alpha = 0.08f)
+                                        if (lyricsOffsetMs != 0L) activeTheme.primaryColor else Color.White.copy(alpha = 0.10f)
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Timer,
                                     contentDescription = "Sync Offset Calibration",
-                                    tint = if (lyricsOffsetMs != 0L) Color.Black else Color.White,
-                                    modifier = Modifier.size(17.dp)
+                                    tint = if (lyricsOffsetMs != 0L) echoContrastOn(activeTheme.primaryColor) else Color.White,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
@@ -341,20 +358,20 @@ fun FullscreenLyricsSheet(
                     // Typography Sizing Button
                     IconButton(
                         onClick = { showSizeDialog = true },
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(44.dp)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
+                                .size(36.dp)
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.08f)),
+                                .background(Color.White.copy(alpha = 0.10f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.FormatSize,
                                 contentDescription = "Typography Scale",
                                 tint = Color.White,
-                                modifier = Modifier.size(17.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                         }
                     }
@@ -363,20 +380,20 @@ fun FullscreenLyricsSheet(
                     if (hasLyrics) {
                         IconButton(
                             onClick = { showShareLyricsDialog = true },
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(44.dp)
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(34.dp)
+                                    .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(Color.White.copy(alpha = 0.08f)),
+                                    .background(Color.White.copy(alpha = 0.10f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Share,
                                     contentDescription = "Share Quote Card",
                                     tint = Color.White,
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }

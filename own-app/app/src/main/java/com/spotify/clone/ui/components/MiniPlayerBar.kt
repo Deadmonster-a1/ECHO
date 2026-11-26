@@ -1,7 +1,6 @@
 package com.spotify.clone.ui.components
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -33,6 +32,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -44,8 +44,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -57,31 +55,27 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.spotify.clone.core.designsystem.AppThemeOption
+import com.spotify.clone.core.designsystem.EchoAccentCoral
 import com.spotify.clone.core.designsystem.EchoMarqueeText
 import com.spotify.clone.core.designsystem.EchoMotion
-import com.spotify.clone.core.designsystem.EchoPrismGradientColors
-import com.spotify.clone.core.designsystem.LiveAudioSpectrum
+import com.spotify.clone.core.designsystem.EchoRadius
+import com.spotify.clone.core.designsystem.EchoSpacing
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.ThemeManager
+import com.spotify.clone.core.designsystem.echoGlassSurface
 import com.spotify.clone.core.designsystem.echoPressable
-import com.spotify.clone.core.designsystem.echoSpecularBorder
-import com.spotify.clone.core.designsystem.rememberAnimatedArtworkColors
 import com.spotify.clone.core.designsystem.resolvedBorder
-import com.spotify.clone.core.model.MusicGenre
 import com.spotify.clone.core.model.PlaybackState
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
- * Spotify MotionLayout-inspired floating MiniPlayer bar with:
- * - 1:1 finger-tracked horizontal swipe (with velocity handoff & rubber-banding) to skip next/prev
- * - 1:1 vertical drag-up with lift scale to expand Now Playing
- * - Live harmonic audio spectrum & artwork-derived ambient glow
- * - Quick Like heart button & Marquee track title
+ * SwiftPieces NowPlaying-inspired floating Liquid Glass mini-player bar:
+ * - Concentric frosted glass capsule aligned with the navigation dock
+ * - 1:1 finger-tracked horizontal swipe to skip & vertical drag-up to expand
+ * - Single locked accent progress hairline and >= 44dp touch targets
  */
 @Composable
 fun MiniPlayerBar(
@@ -101,19 +95,18 @@ fun MiniPlayerBar(
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
 
-    val artworkColors = rememberAnimatedArtworkColors(track)
-    val surfaceBg = if (isDarkMode) Color(0xFC17171C) else Color(0xFCFFFFFF)
     val borderColor = activeTheme.resolvedBorder(isDarkMode)
     val primaryText = MaterialTheme.colorScheme.onSurface
     val secondaryText = MaterialTheme.colorScheme.onSurfaceVariant
-    val pillShape = RoundedCornerShape(18.dp)
+    val pillShape = RoundedCornerShape(EchoRadius.lg)
+    val artCorner = EchoRadius.nested(EchoRadius.lg, 8.dp)
 
     val offsetX = remember(track.id) { Animatable(0f) }
     val offsetY = remember(track.id) { Animatable(0f) }
 
-    val horizontalThresholdPx = with(density) { 88.dp.toPx() }
-    val verticalThresholdPx = with(density) { 44.dp.toPx() }
-    val maxRubberPx = with(density) { 140.dp.toPx() }
+    val horizontalThresholdPx = with(density) { 84.dp.toPx() }
+    val verticalThresholdPx = with(density) { 40.dp.toPx() }
+    val maxRubberPx = with(density) { 132.dp.toPx() }
 
     val smoothProgress by animateFloatAsState(
         targetValue = playbackState.progress.coerceIn(0f, 1f),
@@ -121,62 +114,42 @@ fun MiniPlayerBar(
         label = "mini_player_progress"
     )
 
-    val ambientTint by animateColorAsState(
-        targetValue = artworkColors.dominant.copy(alpha = if (isDarkMode) 0.22f else 0.10f),
-        animationSpec = tween(420),
-        label = "mini_ambient_tint"
-    )
-
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+            .padding(horizontal = 20.dp, vertical = 2.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
-                .widthIn(max = 560.dp)
+                .widthIn(max = 500.dp)
                 .fillMaxWidth()
                 .graphicsLayer {
                     val tx = offsetX.value
                     val ty = offsetY.value
                     translationX = tx
                     translationY = ty
-                    rotationZ = if (isReducedMotion) 0f else (tx / maxRubberPx) * 1.4f
+                    rotationZ = if (isReducedMotion) 0f else (tx / maxRubberPx) * 1.2f
                     val liftScale = if (ty < 0f && !isReducedMotion) {
-                        1f + (-ty / maxRubberPx).coerceIn(0f, 1f) * 0.03f
+                        1f + (-ty / maxRubberPx).coerceIn(0f, 1f) * 0.035f
                     } else 1f
                     scaleX = liftScale
                     scaleY = liftScale
                 }
-                .shadow(
-                    elevation = if (isDarkMode) 12.dp else 14.dp,
-                    shape = pillShape,
-                    ambientColor = artworkColors.dominant.copy(alpha = 0.18f),
-                    spotColor = artworkColors.dominant.copy(alpha = 0.28f)
-                )
-                .clip(pillShape)
-                .background(surfaceBg)
-                .background(
-                    Brush.horizontalGradient(
-                        listOf(ambientTint, Color.Transparent, Color.Transparent)
-                    )
-                )
-                .echoSpecularBorder(
+                .echoGlassSurface(
                     isDarkMode = isDarkMode,
                     shape = pillShape,
-                    fallbackBorder = borderColor
+                    fallbackBorder = borderColor,
+                    elevation = 10.dp
                 )
                 .pointerInput(track.id) {
                     val velocityTracker = VelocityTracker()
                     detectDragGestures(
-                        onDragStart = {
-                            velocityTracker.resetTracking()
-                        },
+                        onDragStart = { velocityTracker.resetTracking() },
                         onDragCancel = {
                             scope.launch {
-                                launch { offsetX.animateTo(0f, EchoMotion.SpringMomentum) }
-                                launch { offsetY.animateTo(0f, EchoMotion.SpringMomentum) }
+                                launch { offsetX.animateTo(0f, EchoMotion.SpringCriticallyDamped) }
+                                launch { offsetY.animateTo(0f, EchoMotion.SpringCriticallyDamped) }
                             }
                         },
                         onDragEnd = {
@@ -212,18 +185,10 @@ fun MiniPlayerBar(
                                 else -> {
                                     scope.launch {
                                         launch {
-                                            offsetX.animateTo(
-                                                0f,
-                                                EchoMotion.SpringMomentum,
-                                                initialVelocity = vel.x
-                                            )
+                                            offsetX.animateTo(0f, EchoMotion.SpringMomentum, initialVelocity = vel.x)
                                         }
                                         launch {
-                                            offsetY.animateTo(
-                                                0f,
-                                                EchoMotion.SpringMomentum,
-                                                initialVelocity = vel.y
-                                            )
+                                            offsetY.animateTo(0f, EchoMotion.SpringMomentum, initialVelocity = vel.y)
                                         }
                                     }
                                 }
@@ -233,7 +198,6 @@ fun MiniPlayerBar(
                             change.consume()
                             velocityTracker.addPosition(change.uptimeMillis, change.position)
                             scope.launch {
-                                // Commit dominant axis cleanly while allowing subtle secondary feel
                                 val rawX = offsetX.value + dragAmount.x
                                 val rawY = offsetY.value + dragAmount.y
                                 val dampedX = EchoMotion.rubberBand(rawX, maxRubberPx, 0.72f)
@@ -270,40 +234,18 @@ fun MiniPlayerBar(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                        .padding(start = 8.dp, end = 6.dp, top = 7.dp, bottom = 7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.BottomEnd) {
-                        AsyncImage(
-                            model = current.coverArtUrl,
-                            contentDescription = current.title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(44.dp)
-                                .shadow(4.dp, RoundedCornerShape(10.dp), ambientColor = artworkColors.dominant.copy(alpha = 0.25f))
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                        )
-                        if (playbackState.isPlaying) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(2.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color.Black.copy(alpha = 0.72f))
-                                    .padding(horizontal = 3.dp, vertical = 2.dp)
-                            ) {
-                                LiveAudioSpectrum(
-                                    isPlaying = true,
-                                    barCount = 4,
-                                    genre = MusicGenre.inferGenre(current),
-                                    barColor = artworkColors.vibrantAccent,
-                                    barWidth = 1.8.dp,
-                                    barSpacing = 1.4.dp,
-                                    height = 9.dp
-                                )
-                            }
-                        }
-                    }
+                    AsyncImage(
+                        model = current.coverArtUrl,
+                        contentDescription = current.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(EchoSpacing.artworkMini)
+                            .clip(RoundedCornerShape(artCorner))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                    )
 
                     Spacer(modifier = Modifier.width(12.dp))
 
@@ -311,16 +253,13 @@ fun MiniPlayerBar(
                         EchoMarqueeText(
                             text = current.title,
                             color = primaryText,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontSize = 14.5.sp,
-                                fontWeight = FontWeight.SemiBold
-                            ),
+                            style = MaterialTheme.typography.titleMedium,
                             enabled = playbackState.isPlaying
                         )
                         Text(
-                            text = current.artistName,
-                            color = secondaryText,
-                            fontSize = 12.5.sp,
+                            text = playbackState.errorMessage ?: current.artistName,
+                            color = if (playbackState.errorMessage != null) EchoAccentCoral else secondaryText,
+                            style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -329,9 +268,9 @@ fun MiniPlayerBar(
                     if (onToggleFavorite != null) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(EchoSpacing.minTouchTarget)
                                 .clip(CircleShape)
-                                .echoPressable(scaleOnPress = 0.84f, hapticOnClick = true, onClick = onToggleFavorite),
+                                .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true, onClick = onToggleFavorite),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -345,66 +284,66 @@ fun MiniPlayerBar(
 
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(EchoSpacing.minTouchTarget)
                             .clip(CircleShape)
-                            .echoPressable(scaleOnPress = 0.86f, hapticOnClick = true, onClick = onTogglePlayPause),
+                            .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true, onClick = onTogglePlayPause),
                         contentAlignment = Alignment.Center
                     ) {
-                        AnimatedContent(
-                            targetState = playbackState.isPlaying,
-                            transitionSpec = {
-                                (fadeIn(tween(130, easing = EchoMotion.EncoreButtonEase)) +
-                                    scaleIn(initialScale = 0.85f, animationSpec = tween(130, easing = EchoMotion.EncoreButtonEase))) togetherWith
-                                    (fadeOut(tween(100)) + scaleOut(targetScale = 0.85f, animationSpec = tween(100)))
-                            },
-                            label = "mini_play_icon"
-                        ) { playing ->
-                            Icon(
-                                imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = if (playing) "Pause" else "Play",
-                                tint = primaryText,
-                                modifier = Modifier.size(25.dp)
+                        if (playbackState.isLoading && !playbackState.isPlaying) {
+                            CircularProgressIndicator(
+                                color = activeTheme.primaryColor,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(20.dp)
                             )
+                        } else {
+                            AnimatedContent(
+                                targetState = playbackState.isPlaying,
+                                transitionSpec = {
+                                    (fadeIn(tween(130, easing = EchoMotion.EaseOutStrong)) +
+                                        scaleIn(initialScale = 0.85f, animationSpec = tween(130, easing = EchoMotion.EaseOutStrong))) togetherWith
+                                        (fadeOut(tween(100)) + scaleOut(targetScale = 0.85f, animationSpec = tween(100)))
+                                },
+                                label = "mini_play_icon"
+                            ) { playing ->
+                                Icon(
+                                    imageVector = if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                    contentDescription = if (playing) "Pause" else "Play",
+                                    tint = primaryText,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(EchoSpacing.minTouchTarget)
                             .clip(CircleShape)
-                            .echoPressable(scaleOnPress = 0.86f, hapticOnClick = true, onClick = onSkipNext),
+                            .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true, onClick = onSkipNext),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.SkipNext,
                             contentDescription = "Next",
                             tint = primaryText,
-                            modifier = Modifier.size(23.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                     }
                 }
             }
 
-            // Crisp animated progress hairline along bottom edge
+            // Single locked accent progress hairline along bottom edge
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(2.5.dp)
+                    .height(2.dp)
                     .background(primaryText.copy(alpha = 0.08f))
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(smoothProgress)
-                        .height(2.5.dp)
-                        .background(
-                            if (activeTheme == AppThemeOption.PASTEL_PRISM) {
-                                Brush.horizontalGradient(EchoPrismGradientColors)
-                            } else {
-                                Brush.horizontalGradient(
-                                    listOf(activeTheme.primaryColor, artworkColors.vibrantAccent)
-                                )
-                            }
-                        )
+                        .height(2.dp)
+                        .background(activeTheme.primaryColor)
                 )
             }
         }

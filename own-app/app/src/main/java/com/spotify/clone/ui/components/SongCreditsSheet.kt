@@ -27,6 +27,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +39,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.spotify.clone.core.designsystem.EchoRadius
 import com.spotify.clone.core.designsystem.LocalAppTheme
+import com.spotify.clone.core.designsystem.ThemeManager
+import com.spotify.clone.core.designsystem.resolvedBorder
+import com.spotify.clone.core.designsystem.resolvedCard
 import com.spotify.clone.core.model.Track
 
 /**
@@ -51,18 +57,19 @@ fun SongCreditsSheet(
     onDismiss: () -> Unit
 ) {
     val activeTheme = LocalAppTheme.current
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    val isDark = MaterialTheme.colorScheme.background.red < 0.5f
-    val sheetBg = if (isDark) Color(0xFF14131D) else Color(0xFFF9F7F4)
-    val cardBg = if (isDark) Color(0xFF1F1D2B) else Color(0xFFFFFFFF)
-    val cardBorder = if (isDark) Color(0xFF2E2C3D) else Color(0xFFE6E2DC)
-    val textPrimary = if (isDark) Color(0xFFF6F3FA) else Color(0xFF17171C)
-    val textSecondary = if (isDark) Color(0xFFA6A2B3) else Color(0xFF777680)
+    val sheetBg = MaterialTheme.colorScheme.surface
+    val cardBg = activeTheme.resolvedCard(isDarkMode)
+    val cardBorder = activeTheme.resolvedBorder(isDarkMode)
+    val textPrimary = MaterialTheme.colorScheme.onSurface
+    val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = EchoRadius.xl, topEnd = EchoRadius.xl),
         containerColor = sheetBg
     ) {
         Column(

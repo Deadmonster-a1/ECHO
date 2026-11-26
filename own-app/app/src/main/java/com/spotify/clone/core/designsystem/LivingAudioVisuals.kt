@@ -19,7 +19,6 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -259,12 +259,14 @@ fun EchoMarqueeText(
 ) {
     val isReducedMotion = LocalReducedMotion.current
     val marqueeModifier = if (enabled && !isReducedMotion) {
-        modifier.basicMarquee(
-            iterations = Int.MAX_VALUE,
-            repeatDelayMillis = 1800,
-            initialDelayMillis = 1200,
-            velocity = 34.dp
-        )
+        modifier
+            .clipToBounds()
+            .basicMarquee(
+                iterations = Int.MAX_VALUE,
+                repeatDelayMillis = 1800,
+                initialDelayMillis = 1200,
+                velocity = 34.dp
+            )
     } else {
         modifier
     }
@@ -339,7 +341,7 @@ fun WavyAudioScrubber(
 
     val clamped = progress.coerceIn(0f, 1f)
 
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxWidth()
             .height(34.dp)

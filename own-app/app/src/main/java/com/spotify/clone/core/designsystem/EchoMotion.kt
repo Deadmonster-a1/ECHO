@@ -143,7 +143,7 @@ val LocalReducedMotion = compositionLocalOf { false }
  * Automatically respects LocalReducedMotion.
  */
 fun Modifier.echoPressable(
-    scaleOnPress: Float = 0.96f,
+    scaleOnPress: Float = 0.97f,
     enabled: Boolean = true,
     hapticOnClick: Boolean = false,
     onClick: () -> Unit

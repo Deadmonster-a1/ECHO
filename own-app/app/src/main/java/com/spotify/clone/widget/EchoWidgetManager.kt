@@ -27,6 +27,7 @@ import com.spotify.clone.core.model.Track
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -44,7 +45,7 @@ object EchoWidgetManager {
     const val ACTION_PREV = "com.spotify.clone.widget.ACTION_PREV"
     const val ACTION_OPEN_LIBRARY = "com.spotify.clone.widget.ACTION_OPEN_LIBRARY"
 
-    private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var updateJob: Job? = null
 
     fun updateAll(context: Context, state: PlaybackState) {

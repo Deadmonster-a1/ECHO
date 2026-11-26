@@ -19,6 +19,7 @@ import com.spotify.clone.core.recommendation.EchoTasteMlModel
 import com.spotify.clone.core.recommendation.MlTrackPrediction
 import com.spotify.clone.core.recommendation.SongUpgradeEngine
 import com.spotify.clone.core.recommendation.SongUpgradeStats
+import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -48,6 +49,10 @@ data class HomeState(
     val likedAnchorSubtitle: String = "",
     val likedInspiredTracks: List<Track> = emptyList(),
     val genreHubs: List<Playlist> = emptyList(),
+    val moodMixes: List<Playlist> = emptyList(),
+    val exploreGems: List<MlTrackPrediction> = emptyList(),
+    val timeFlowTitle: String = EchoRecommendationEngine.getTimeOfDayBucket().label,
+    val timeFlowTracks: List<Track> = emptyList(),
     val quickPicks: List<Playlist> = emptyList(),
     val featuredPlaylists: List<Playlist> = emptyList(),
     val newAlbums: List<Playlist> = emptyList(),
@@ -118,35 +123,54 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 EchoTasteMlModel.syncLikedCoOccurrence(upgradedFavs)
 
                 _uiState.update { current ->
+                    val favIds = upgradedFavs.mapTo(HashSet()) { it.id }
+                    val syncFav: (Track) -> Track = { t ->
+                        val isFav = t.id in favIds
+                        if (t.isFavorite == isFav) t else t.copy(isFavorite = isFav)
+                    }
                     val pool = (lastCatalogPool + current.newSongsToday + current.trendingTracks +
-                        current.featuredPlaylists.flatMap { it.tracks }).distinctBy { it.id }
-                    val recsWithReasons = EchoRecommendationEngine.generateHomeRecommendationsWithReasons(
+                        current.featuredPlaylists.flatMap { it.tracks }).distinctBy { it.id }.map(syncFav)
+                    val recsRaw = EchoRecommendationEngine.generateHomeRecommendationsWithReasons(
                         recentlyPlayed = upgradedRecent,
                         favorites = upgradedFavs,
                         catalogPool = pool,
-                        limit = 10
+                        limit = 36
                     )
-                    val (likedLabel, likedMix) = EchoRecommendationEngine.generateLikedInspiredMix(
+                    val (likedLabel, likedRaw) = EchoRecommendationEngine.generateLikedInspiredMix(
                         favorites = upgradedFavs,
                         catalogPool = pool,
-                        limit = 10
+                        limit = 30
                     )
                     val genreHubs = EchoRecommendationEngine.generateGenreMixes(
                         favorites = upgradedFavs,
                         recentlyPlayed = upgradedRecent,
                         catalogPool = pool,
-                        limit = 6
+                        limit = 10
                     )
                     val dailyMixes = EchoRecommendationEngine.generateDailyMixes(
                         recentlyPlayed = upgradedRecent,
                         favorites = upgradedFavs,
                         catalogPool = pool
                     )
+                    val moodMixes = buildMoodClusters(pool, upgradedFavs, upgradedRecent)
+                    val exploreRaw = buildExploreGems(pool, upgradedFavs, upgradedRecent, recsRaw.map { it.track })
+                    val timeBucket = EchoRecommendationEngine.getTimeOfDayBucket()
+                    val timeFlowRaw = buildTimeFlowTracks(pool, upgradedFavs, upgradedRecent, timeBucket)
                     val mergedPlaylists = (dailyMixes + lastRawPlaylists).distinctBy { it.id }
-                    AudioRepository.registerGeneratedPlaylists(dailyMixes + genreHubs)
+                    AudioRepository.registerGeneratedPlaylists(dailyMixes + genreHubs + moodMixes)
+
+                    val deduped = deduplicateHomeShelves(
+                        recent = upgradedRecent,
+                        recs = recsRaw,
+                        newSongs = current.newSongsToday.map(syncFav),
+                        timeFlow = timeFlowRaw,
+                        liked = likedRaw,
+                        explore = exploreRaw,
+                        trending = current.trendingTracks.map(syncFav)
+                    )
 
                     val preferredGenre = EchoRecommendationEngine.getTopPreferredGenre(upgradedRecent, upgradedFavs)
-                    val timeLabel = EchoRecommendationEngine.getTimeOfDayBucket().label
+                    val timeLabel = timeBucket.label
                     val seededArtists = EchoRecommendationEngine.getOnboardedArtists()
                     val subtitle = if (seededArtists.isNotEmpty() && upgradedRecent.isEmpty() && upgradedFavs.isEmpty()) {
                         "${preferredGenre.displayName} • Tuned for you"
@@ -156,19 +180,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     val quickPicks = buildQuickPicks(upgradedFavs, dailyMixes, lastRawPlaylists)
                     val banners = EchoRecommendationEngine.generateDailySpotlightBanners(
                         favorites = upgradedFavs,
-                        newSongs = current.newSongsToday,
+                        newSongs = deduped.newSongs,
                         dailyMixes = dailyMixes
                     )
 
                     current.copy(
-                        recentlyPlayed = upgradedRecent,
+                        recentlyPlayed = deduped.recent,
                         favoriteTracks = upgradedFavs,
-                        recommendedItems = recsWithReasons,
-                        recommendedTracks = recsWithReasons.map { it.track },
+                        newSongsToday = deduped.newSongs,
+                        trendingTracks = deduped.trending,
+                        upgradedTracks = current.upgradedTracks.map(syncFav),
+                        recommendedItems = deduped.recs,
+                        recommendedTracks = deduped.recs.map { it.track },
                         recommendedSubtitle = subtitle,
                         likedAnchorSubtitle = likedLabel,
-                        likedInspiredTracks = likedMix,
+                        likedInspiredTracks = deduped.liked,
                         genreHubs = genreHubs,
+                        moodMixes = moodMixes,
+                        exploreGems = deduped.explore,
+                        timeFlowTitle = timeLabel,
+                        timeFlowTracks = deduped.timeFlow,
                         quickPicks = quickPicks,
                         featuredPlaylists = mergedPlaylists,
                         editorialBanners = banners.ifEmpty { current.editorialBanners }
@@ -197,6 +228,149 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+    private fun buildMoodClusters(
+        pool: List<Track>,
+        favorites: List<Track>,
+        recent: List<Track>
+    ): List<Playlist> {
+        val fullPool = SongUpgradeEngine.upgradeCatalogFast(pool + SampleCatalog.sampleTracks)
+        return EchoTasteMlModel.clusterTracksForDailyMixes(
+            pool = fullPool,
+            favorites = favorites,
+            recentlyPlayed = recent,
+            k = 4
+        ).mapIndexed { idx, cluster ->
+            Playlist(
+                id = "mood_cluster_${idx + 1}_${cluster.dominantGenre.id}",
+                name = "${cluster.dominantGenre.shortLabel} Flow",
+                description = "${cluster.dominantGenre.displayName} • ${cluster.tracks.size} tracks",
+                coverArtUrl = cluster.tracks.first().coverArtUrl,
+                ownerName = "Mood Mix",
+                tracks = cluster.tracks
+            )
+        }
+    }
+
+    private fun buildExploreGems(
+        pool: List<Track>,
+        favorites: List<Track>,
+        recent: List<Track>,
+        alreadyRecommended: List<Track>,
+        dailySeed: Long = DailyFeedCoordinator.dailySeed()
+    ): List<MlTrackPrediction> {
+        val excludeKeys = (alreadyRecommended + recent).mapTo(HashSet()) { homeSongKey(it) }
+        val candidates = SongUpgradeEngine.upgradeCatalogFast(pool + SampleCatalog.sampleTracks)
+            .filter { homeSongKey(it) !in excludeKeys && !EchoRecommendationEngine.isJunkTitle(it.title) }
+            .ifEmpty { SampleCatalog.sampleTracks }
+        return EchoTasteMlModel.rankCandidatesWithMl(
+            candidates = candidates,
+            favorites = favorites,
+            recentlyPlayed = recent,
+            limit = 32,
+            explorationAlpha = 0.85f,
+            lambdaMmr = 0.62f,
+            dailySeed = dailySeed + 7919L
+        )
+    }
+
+    private fun buildTimeFlowTracks(
+        pool: List<Track>,
+        favorites: List<Track>,
+        recent: List<Track>,
+        timeBucket: com.spotify.clone.core.recommendation.TimeOfDayBucket
+    ): List<Track> {
+        val favIds = favorites.mapTo(HashSet()) { it.id }
+        val recentIds = recent.mapTo(HashSet()) { it.id }
+        val fullPool = SongUpgradeEngine.upgradeCatalogFast(pool + SampleCatalog.sampleTracks)
+            .distinctBy { homeSongKey(it) }
+        val scored = fullPool.map { track ->
+            val score = EchoRecommendationEngine.scoreLocalTasteSignal(
+                track = track,
+                playCount = if (track.id in recentIds) 2 else 1,
+                skipCount = 0,
+                isLiked = track.id in favIds,
+                isRecent = track.id in recentIds,
+                timeBucket = timeBucket
+            )
+            track to score
+        }.sortedByDescending { it.second }.map { it.first }
+        return EchoRecommendationEngine.spotifyArtistInterleave(scored.take(40))
+    }
+
+    private data class DedupedHomeShelves(
+        val recent: List<Track>,
+        val recs: List<MlTrackPrediction>,
+        val newSongs: List<Track>,
+        val timeFlow: List<Track>,
+        val liked: List<Track>,
+        val explore: List<MlTrackPrediction>,
+        val trending: List<Track>
+    )
+
+    private fun deduplicateHomeShelves(
+        recent: List<Track>,
+        recs: List<MlTrackPrediction>,
+        newSongs: List<Track>,
+        timeFlow: List<Track>,
+        liked: List<Track>,
+        explore: List<MlTrackPrediction>,
+        trending: List<Track>
+    ): DedupedHomeShelves {
+        val totalDistinct = (recent + recs.map { it.track } + newSongs + timeFlow + liked +
+            explore.map { it.track } + trending)
+            .distinctBy { homeSongKey(it) }
+            .size
+        val perShelfCap = when {
+            totalDistinct >= 70 -> 12
+            totalDistinct >= 45 -> 8
+            else -> 6
+        }
+
+        val seenKeys = HashSet<String>()
+        val seenIds = HashSet<String>()
+
+        fun accept(track: Track): Boolean {
+            val key = homeSongKey(track)
+            if (track.id in seenIds || key in seenKeys) return false
+            seenIds.add(track.id)
+            seenKeys.add(key)
+            return true
+        }
+
+        val uniqueRecent = recent.filter { accept(it) }.take(perShelfCap)
+        val uniqueRecs = recs.filter { accept(it.track) }.take(perShelfCap)
+        val uniqueNew = newSongs.filter { accept(it) }.take(perShelfCap)
+        val uniqueTimeFlow = timeFlow.filter { accept(it) }.take(perShelfCap)
+        val uniqueLiked = liked.filter { accept(it) }.take(perShelfCap)
+        val uniqueExplore = explore.filter { accept(it.track) }.take(perShelfCap)
+        val uniqueTrending = trending.filter { accept(it) }.take(perShelfCap)
+
+        return DedupedHomeShelves(
+            recent = uniqueRecent,
+            recs = uniqueRecs,
+            newSongs = uniqueNew,
+            timeFlow = uniqueTimeFlow,
+            liked = uniqueLiked,
+            explore = uniqueExplore,
+            trending = uniqueTrending
+        )
+    }
+
+    private fun homeSongKey(track: Track): String {
+        val cleanTitle = track.title.trim().lowercase(Locale.ROOT)
+            .replace(Regex("(?i)\\(.*?\\)|\\[.*?\\]"), "")
+            .replace(Regex("(?i)\\s*-\\s*(?:from|remastered|single|live|acoustic).*$"), "")
+            .replace(Regex("[^a-z0-9\\s]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        val cleanArtist = EchoRecommendationEngine.primaryArtistOf(track.artistName)
+            .lowercase(Locale.ROOT)
+            .replace(Regex("[^a-z0-9\\s]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return "$cleanTitle|$cleanArtist"
     }
 
     private fun buildQuickPicks(
@@ -272,31 +446,31 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
                 lastRawPlaylists = playlists
                 val combinedPool = SongUpgradeEngine.upgradeCatalogFast(
-                    rawNewSongs + topTracks + playlists.flatMap { it.tracks } + SampleCatalog.sampleTracks
-                )
+                    rawNewSongs + topTracks + playlists.flatMap { it.tracks } + newAlbums.flatMap { it.tracks } + SampleCatalog.sampleTracks
+                ).distinctBy { homeSongKey(it) }
                 lastCatalogPool = combinedPool
 
                 // Rank daily new songs through the AI/ML taste model with daily seed rotation
                 val dailySeed = DailyFeedCoordinator.dailySeed(todayKey)
-                val mlNewSongs = EchoTasteMlModel.rankCandidatesWithMl(
+                val mlNewSongsRaw = EchoTasteMlModel.rankCandidatesWithMl(
                     candidates = (rawNewSongs.ifEmpty { topTracks }),
                     favorites = favorites,
                     recentlyPlayed = recent,
-                    limit = 14,
+                    limit = 34,
                     dailySeed = dailySeed
                 ).map { it.track }
 
-                val recsWithReasons = EchoRecommendationEngine.generateHomeRecommendationsWithReasons(
+                val recsRaw = EchoRecommendationEngine.generateHomeRecommendationsWithReasons(
                     recentlyPlayed = recent,
                     favorites = favorites,
                     catalogPool = combinedPool,
-                    limit = 10,
+                    limit = 36,
                     dailySeed = dailySeed
                 )
-                val (likedLabel, likedMix) = EchoRecommendationEngine.generateLikedInspiredMix(
+                val (likedLabel, likedRaw) = EchoRecommendationEngine.generateLikedInspiredMix(
                     favorites = favorites,
                     catalogPool = combinedPool,
-                    limit = 10
+                    limit = 30
                 )
                 val dailyMixes = EchoRecommendationEngine.generateDailyMixes(
                     recentlyPlayed = recent,
@@ -308,13 +482,28 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     favorites = favorites,
                     recentlyPlayed = recent,
                     catalogPool = combinedPool,
-                    limit = 6
+                    limit = 10
                 )
-                AudioRepository.registerGeneratedPlaylists(dailyMixes + genreHubs)
+                val moodMixes = buildMoodClusters(combinedPool, favorites, recent)
+                val exploreRaw = buildExploreGems(combinedPool, favorites, recent, recsRaw.map { it.track }, dailySeed)
+                val timeBucket = EchoRecommendationEngine.getTimeOfDayBucket()
+                val timeFlowRaw = buildTimeFlowTracks(combinedPool, favorites, recent, timeBucket)
+                val trendingRaw = SongUpgradeEngine.upgradeCatalogFast(topTracks)
+                AudioRepository.registerGeneratedPlaylists(dailyMixes + genreHubs + moodMixes)
+
+                val deduped = deduplicateHomeShelves(
+                    recent = recent,
+                    recs = recsRaw,
+                    newSongs = mlNewSongsRaw,
+                    timeFlow = timeFlowRaw,
+                    liked = likedRaw,
+                    explore = exploreRaw,
+                    trending = trendingRaw
+                )
 
                 val banners = (EchoRecommendationEngine.generateDailySpotlightBanners(
                     favorites = favorites,
-                    newSongs = mlNewSongs,
+                    newSongs = deduped.newSongs,
                     dailyMixes = dailyMixes
                 ) + repository.getEditorialBanners()).distinctBy { it.title.lowercase() }
 
@@ -332,16 +521,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         dailyDateLabel = DailyFeedCoordinator.friendlyDateLabel(),
                         lastUpdatedDateKey = todayKey,
                         editorialBanners = banners,
-                        recommendedItems = recsWithReasons,
-                        recommendedTracks = recsWithReasons.map { it.track },
-                        recommendedSubtitle = "${preferredGenre.displayName} • ${EchoRecommendationEngine.getTimeOfDayBucket().label}",
-                        newSongsToday = mlNewSongs,
+                        recommendedItems = deduped.recs,
+                        recommendedTracks = deduped.recs.map { it.track },
+                        recommendedSubtitle = "${preferredGenre.displayName} • ${timeBucket.label}",
+                        newSongsToday = deduped.newSongs,
                         likedAnchorSubtitle = likedLabel,
-                        likedInspiredTracks = likedMix,
+                        likedInspiredTracks = deduped.liked,
                         genreHubs = genreHubs,
+                        moodMixes = moodMixes,
+                        exploreGems = deduped.explore,
+                        timeFlowTitle = timeBucket.label,
+                        timeFlowTracks = deduped.timeFlow,
                         quickPicks = quickPicks,
                         featuredPlaylists = mergedPlaylists,
-                        trendingTracks = SongUpgradeEngine.upgradeCatalogFast(topTracks).take(12),
+                        trendingTracks = deduped.trending,
                         newAlbums = newAlbums.ifEmpty { playlists.drop(2) },
                         artists = artists
                     )
@@ -351,7 +544,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
                 // Stage 2: Automatic Background Song Upgrade Pass (320kbps Studio + HD metadata + Room DB)
                 triggerBackgroundSongUpgrade(
-                    candidates = mlNewSongs + favorites + recent + recsWithReasons.map { it.track }
+                    candidates = deduped.newSongs + favorites + deduped.recent + deduped.recs.map { it.track }
                 )
             } catch (e: Exception) {
                 _uiState.update {
@@ -388,6 +581,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         },
                         recommendedTracks = current.recommendedTracks.map(replaceIfUpgraded),
                         likedInspiredTracks = current.likedInspiredTracks.map(replaceIfUpgraded),
+                        timeFlowTracks = current.timeFlowTracks.map(replaceIfUpgraded),
+                        exploreGems = current.exploreGems.map { pred ->
+                            pred.copy(track = replaceIfUpgraded(pred.track))
+                        },
                         trendingTracks = current.trendingTracks.map(replaceIfUpgraded),
                         upgradedTracks = (newlyUpgraded + current.upgradedTracks).distinctBy { it.id }.take(12)
                     )

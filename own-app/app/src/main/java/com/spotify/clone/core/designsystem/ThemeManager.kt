@@ -27,16 +27,16 @@ enum class AppThemeOption(
         id = "pastel_prism",
         displayName = "Pastel Prism",
         subtitle = "Signature echo rose, lavender, sky & aqua palette",
-        primaryColor = Color(0xFF7B6EF6),
-        primaryPressed = Color(0xFF6254E8),
-        darkBackgroundColor = Color(0xFF09090E),
-        darkSurfaceColor = Color(0xFF12121A),
-        darkCardColor = Color(0xFF1A1A25),
-        lightBackgroundColor = Color(0xFFFBFBFD),
-        lightSurfaceColor = Color(0xFFFFFFFF),
-        lightCardColor = Color(0xFFFFFFFF),
-        gradientStart = Color(0xFFFF8FA3),
-        gradientEnd = Color(0xFF6FE3E8)
+        primaryColor = EchoPrismPrimary,
+        primaryPressed = EchoPrismPrimaryPressed,
+        darkBackgroundColor = EchoDarkBackground,
+        darkSurfaceColor = EchoDarkSurface,
+        darkCardColor = EchoDarkElevated,
+        lightBackgroundColor = EchoLightBackground,
+        lightSurfaceColor = EchoLightSurface,
+        lightCardColor = EchoLightCard,
+        gradientStart = EchoPrismRose,
+        gradientEnd = EchoPrismAqua
     )
 }
 

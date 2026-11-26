@@ -5,28 +5,30 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
@@ -64,7 +66,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.spotify.clone.core.data.AudioRepository
-import com.spotify.clone.core.data.GlobalCatalogService
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoContrastOn
@@ -75,6 +76,7 @@ import com.spotify.clone.core.model.Track
 import com.spotify.clone.core.player.MusicController
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,8 +87,10 @@ fun TrackOptionsBottomSheet(
     onSleepTimerClick: (() -> Unit)? = null,
     onEqualizerClick: (() -> Unit)? = null,
     onSpeedClick: (() -> Unit)? = null,
+    onGenreRadioClick: (() -> Unit)? = null,
     onSongCreditsClick: (() -> Unit)? = null,
-    onViewArtist: ((String) -> Unit)? = null
+    onViewArtist: ((String) -> Unit)? = null,
+    onRemoveFromPlaylist: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -94,6 +98,8 @@ fun TrackOptionsBottomSheet(
     val repository = remember { AudioRepository(context.applicationContext) }
     val activeTheme = LocalAppTheme.current
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+    val playbackSpeed by musicController.playbackSpeed.collectAsState()
+    val sleepTimerRemaining by musicController.sleepTimerRemainingSeconds.collectAsState()
 
     val sheetBg = MaterialTheme.colorScheme.surface
     val textPrimary = MaterialTheme.colorScheme.onSurface
@@ -109,12 +115,13 @@ fun TrackOptionsBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        shape = RoundedCornerShape(topStart = com.spotify.clone.core.designsystem.EchoRadius.xl, topEnd = com.spotify.clone.core.designsystem.EchoRadius.xl),
         containerColor = sheetBg
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(bottom = 28.dp)
         ) {
             Row(
@@ -158,6 +165,9 @@ fun TrackOptionsBottomSheet(
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
             )
 
+            // Section 1: Library & Queue
+            OptionSectionLabel("QUEUE & LIBRARY", textSecondary)
+
             TrackOptionRow(
                 icon = if (track.isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
                 iconTint = if (track.isFavorite) activeTheme.primaryColor else textPrimary,
@@ -174,28 +184,7 @@ fun TrackOptionsBottomSheet(
             )
 
             TrackOptionRow(
-                icon = Icons.Filled.QueueMusic,
-                label = "Play Next",
-                iconTint = activeTheme.primaryColor,
-                onClick = {
-                    musicController.playNext(track)
-                    Toast.makeText(context, "Playing next: \"${track.title}\"", Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                }
-            )
-
-            TrackOptionRow(
-                icon = Icons.Filled.QueueMusic,
-                label = "Add to Queue",
-                onClick = {
-                    musicController.addToQueue(track)
-                    Toast.makeText(context, "Added to Queue", Toast.LENGTH_SHORT).show()
-                    onDismiss()
-                }
-            )
-
-            TrackOptionRow(
-                icon = Icons.Filled.PlaylistAdd,
+                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
                 label = "Add to Playlist",
                 onClick = {
                     scope.launch {
@@ -206,12 +195,23 @@ fun TrackOptionsBottomSheet(
             )
 
             TrackOptionRow(
-                icon = Icons.Filled.Radio,
-                label = "Start Same-Genre Radio",
+                icon = Icons.AutoMirrored.Filled.QueueMusic,
+                label = "Play Next",
+                iconTint = activeTheme.primaryColor,
                 onClick = {
+                    musicController.playNext(track)
+                    Toast.makeText(context, "Playing next: \"${track.title}\"", Toast.LENGTH_SHORT).show()
                     onDismiss()
-                    musicController.playSameGenreRadio(track)
-                    Toast.makeText(context, "Starting Same-Genre Radio", Toast.LENGTH_SHORT).show()
+                }
+            )
+
+            TrackOptionRow(
+                icon = Icons.AutoMirrored.Filled.QueueMusic,
+                label = "Add to Queue",
+                onClick = {
+                    musicController.addToQueue(track)
+                    Toast.makeText(context, "Added to Queue", Toast.LENGTH_SHORT).show()
+                    onDismiss()
                 }
             )
 
@@ -226,10 +226,11 @@ fun TrackOptionsBottomSheet(
                         downloadManager.removeTrackDownload(track.id)
                         Toast.makeText(context, "Removed download", Toast.LENGTH_SHORT).show()
                     } else {
+                        val appCtx = context.applicationContext
                         Toast.makeText(context, "Downloading \"${track.title}\"...", Toast.LENGTH_SHORT).show()
                         downloadManager.downloadTrack(track) { ok ->
                             Toast.makeText(
-                                context,
+                                appCtx,
                                 if (ok) "Downloaded \"${track.title}\"" else "Download failed",
                                 Toast.LENGTH_SHORT
                             ).show()
@@ -238,6 +239,88 @@ fun TrackOptionsBottomSheet(
                     onDismiss()
                 }
             )
+
+            if (onRemoveFromPlaylist != null) {
+                TrackOptionRow(
+                    icon = Icons.Filled.DeleteOutline,
+                    iconTint = Color(0xFFE53935),
+                    label = "Remove from this Playlist",
+                    onClick = {
+                        onDismiss()
+                        onRemoveFromPlaylist()
+                    }
+                )
+            }
+
+            // Section 2: Audio & Playback
+            HorizontalDivider(
+                color = dividerColor,
+                thickness = 0.75.dp,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
+            )
+            OptionSectionLabel("AUDIO & PLAYBACK", textSecondary)
+
+            TrackOptionRow(
+                icon = Icons.Filled.Radio,
+                label = if (onGenreRadioClick != null) "Radio & Genre Station" else "Start Same-Genre Radio",
+                onClick = {
+                    onDismiss()
+                    if (onGenreRadioClick != null) {
+                        onGenreRadioClick()
+                    } else {
+                        musicController.playSameGenreRadio(track)
+                        Toast.makeText(context, "Starting Same-Genre Radio", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
+
+            if (onEqualizerClick != null) {
+                TrackOptionRow(
+                    icon = Icons.Filled.GraphicEq,
+                    label = "Equalizer",
+                    onClick = {
+                        onDismiss()
+                        onEqualizerClick()
+                    }
+                )
+            }
+
+            if (onSpeedClick != null) {
+                TrackOptionRow(
+                    icon = Icons.Filled.Speed,
+                    label = "Playback Speed",
+                    trailingText = if (playbackSpeed != 1.0f) "${playbackSpeed}x" else null,
+                    trailingTint = activeTheme.primaryColor,
+                    onClick = {
+                        onDismiss()
+                        onSpeedClick()
+                    }
+                )
+            }
+
+            if (onSleepTimerClick != null) {
+                val timerBadge = sleepTimerRemaining?.let { secs ->
+                    String.format(Locale.US, "%d:%02d", secs / 60L, secs % 60L)
+                }
+                TrackOptionRow(
+                    icon = Icons.Outlined.Bedtime,
+                    label = "Sleep Timer",
+                    trailingText = timerBadge,
+                    trailingTint = activeTheme.primaryColor,
+                    onClick = {
+                        onDismiss()
+                        onSleepTimerClick()
+                    }
+                )
+            }
+
+            // Section 3: Info & Share
+            HorizontalDivider(
+                color = dividerColor,
+                thickness = 0.75.dp,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 6.dp)
+            )
+            OptionSectionLabel("TRACK INFO", textSecondary)
 
             if (onViewArtist != null) {
                 TrackOptionRow(
@@ -262,39 +345,6 @@ fun TrackOptionsBottomSheet(
                     }
                 }
             )
-
-            if (onEqualizerClick != null) {
-                TrackOptionRow(
-                    icon = Icons.Filled.GraphicEq,
-                    label = "Equalizer",
-                    onClick = {
-                        onDismiss()
-                        onEqualizerClick()
-                    }
-                )
-            }
-
-            if (onSpeedClick != null) {
-                TrackOptionRow(
-                    icon = Icons.Filled.Speed,
-                    label = "Playback Speed",
-                    onClick = {
-                        onDismiss()
-                        onSpeedClick()
-                    }
-                )
-            }
-
-            if (onSleepTimerClick != null) {
-                TrackOptionRow(
-                    icon = Icons.Outlined.Bedtime,
-                    label = "Sleep Timer",
-                    onClick = {
-                        onDismiss()
-                        onSleepTimerClick()
-                    }
-                )
-            }
 
             TrackOptionRow(
                 icon = Icons.Filled.Share,
@@ -338,7 +388,11 @@ fun TrackOptionsBottomSheet(
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     } else {
-                        LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 260.dp)
+                        ) {
                             items(userPlaylists) { pl ->
                                 Row(
                                     modifier = Modifier
@@ -422,10 +476,24 @@ fun TrackOptionsBottomSheet(
 }
 
 @Composable
+private fun OptionSectionLabel(title: String, color: Color) {
+    Text(
+        text = title,
+        color = color,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.8.sp,
+        modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
+    )
+}
+
+@Composable
 private fun TrackOptionRow(
     icon: ImageVector,
     label: String,
     iconTint: Color? = null,
+    trailingText: String? = null,
+    trailingTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     onClick: () -> Unit
 ) {
     val textPrimary = MaterialTheme.colorScheme.onSurface
@@ -433,7 +501,7 @@ private fun TrackOptionRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 24.dp, vertical = 13.dp),
+            .padding(horizontal = 24.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -447,8 +515,17 @@ private fun TrackOptionRow(
             text = label,
             color = textPrimary,
             fontSize = 15.sp,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
         )
+        if (trailingText != null) {
+            Text(
+                text = trailingText,
+                color = trailingTint,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 

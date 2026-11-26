@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -87,6 +89,8 @@ fun AppNavHost(
 
     var isPlayerExpanded by remember { mutableStateOf(false) }
     var homeScrollTrigger by remember { mutableLongStateOf(0L) }
+    var searchScrollTrigger by remember { mutableLongStateOf(0L) }
+    var libraryScrollTrigger by remember { mutableLongStateOf(0L) }
     var availableLiveUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
     var hasCheckedUpdateInSession by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
@@ -117,6 +121,13 @@ fun AppNavHost(
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route ?: Screen.Home.route
+    val tabRoutes = remember { setOf(Screen.Home.route, Screen.Search.route, Screen.Library.route) }
+    var activeTabRoute by remember { mutableStateOf(NavigationTab.HOME.route) }
+    LaunchedEffect(currentRoute) {
+        if (currentRoute in tabRoutes) {
+            activeTabRoute = currentRoute
+        }
+    }
 
     val homeViewModel: HomeViewModel = viewModel()
     val searchViewModel: SearchViewModel = viewModel()
@@ -124,22 +135,26 @@ fun AppNavHost(
 
     fun navigateToTab(tab: NavigationTab) {
         isPlayerExpanded = false
+        activeTabRoute = tab.route
         val activeRoute = navController.currentDestination?.route
+        if (activeRoute == tab.route) {
+            when (tab) {
+                NavigationTab.HOME -> homeScrollTrigger = System.currentTimeMillis()
+                NavigationTab.SEARCH -> searchScrollTrigger = System.currentTimeMillis()
+                NavigationTab.LIBRARY -> libraryScrollTrigger = System.currentTimeMillis()
+            }
+            return
+        }
         if (tab == NavigationTab.HOME) {
-            if (activeRoute == Screen.Home.route) {
-                homeScrollTrigger = System.currentTimeMillis()
-            } else {
-                val popped = navController.popBackStack(Screen.Home.route, inclusive = false)
-                if (!popped) {
-                    navController.navigate(Screen.Home.route) {
-                        popUpTo(navController.graph.startDestinationId) { inclusive = false }
-                        launchSingleTop = true
-                    }
+            val popped = navController.popBackStack(Screen.Home.route, inclusive = false)
+            if (!popped) {
+                navController.navigate(Screen.Home.route) {
+                    popUpTo(navController.graph.startDestinationId) { inclusive = false }
+                    launchSingleTop = true
                 }
             }
             return
         }
-        if (activeRoute == tab.route) return
         navController.navigate(tab.route) {
             popUpTo(Screen.Home.route) { saveState = true }
             launchSingleTop = true
@@ -198,7 +213,6 @@ fun AppNavHost(
     }
 
     val screenBg = MaterialTheme.colorScheme.background
-    val tabRoutes = remember { setOf(Screen.Home.route, Screen.Search.route, Screen.Library.route) }
 
     val startRoute = remember {
         if (UserProfileManager.hasCompletedOnboarding.value) Screen.Home.route else Screen.Onboarding.route
@@ -273,7 +287,8 @@ fun AppNavHost(
                     },
                     onPlaylistClick = { id ->
                         navController.navigate(Screen.PlaylistDetail.createRoute(id))
-                    }
+                    },
+                    scrollToTopTrigger = searchScrollTrigger
                 )
             }
 
@@ -285,7 +300,11 @@ fun AppNavHost(
                     },
                     onSettingsClick = {
                         navController.navigate(Screen.Settings.route) { launchSingleTop = true }
-                    }
+                    },
+                    onArtistClick = { name ->
+                        navController.navigate(Screen.ArtistDetail.createRoute(name))
+                    },
+                    scrollToTopTrigger = libraryScrollTrigger
                 )
             }
 
@@ -343,70 +362,87 @@ fun AppNavHost(
             }
         }
 
-        // Scroll edge fade under floating functional layer (prevents muddy text overlap behind capsule)
+        // Scroll edge fade under unified floating glass dock
         val hasMiniPlayer = musicController.playbackState.collectAsState().value.currentTrack != null &&
             currentRoute != Screen.Onboarding.route
-        if (currentRoute != Screen.Onboarding.route) {
+        val bottomScrimHeight = when {
+            currentRoute == Screen.Onboarding.route -> 0.dp
+            currentRoute == Screen.Settings.route -> if (hasMiniPlayer) 88.dp else 0.dp
+            hasMiniPlayer -> 142.dp
+            else -> 78.dp
+        }
+        if (bottomScrimHeight > 0.dp) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(if (hasMiniPlayer) 186.dp else 118.dp)
+                    .height(bottomScrimHeight)
                     .background(
                         Brush.verticalGradient(
                             0.0f to Color.Transparent,
-                            0.38f to screenBg.copy(alpha = 0.80f),
-                            0.72f to screenBg.copy(alpha = 0.97f),
+                            0.30f to screenBg.copy(alpha = 0.85f),
+                            0.58f to screenBg,
                             1.0f to screenBg
                         )
                     )
             )
         }
 
-        // Floating Functional Layer: MiniPlayer + Bottom Navigation Capsule
+        // Floating MiniPlayer sitting cleanly above the docked Translucent Bottom Bar
         if (currentRoute != Screen.Onboarding.route) {
-            Column(
-                modifier = Modifier
+            val dockBottomInset = if (currentRoute == Screen.Settings.route) {
+                Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-            ) {
-                MiniPlayerBarHost(
-                    musicController = musicController,
-                    onExpand = { isPlayerExpanded = true }
-                )
+                    .navigationBarsPadding()
+                    .padding(bottom = 8.dp)
+            } else {
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+            }
+            Column(modifier = dockBottomInset) {
+                Box(modifier = Modifier.padding(bottom = if (currentRoute == Screen.Settings.route) 0.dp else 6.dp)) {
+                    MiniPlayerBarHost(
+                        musicController = musicController,
+                        onExpand = { isPlayerExpanded = true }
+                    )
+                }
 
                 AnimatedVisibility(
                     visible = currentRoute != Screen.Settings.route,
                     enter = if (isReducedMotion) fadeIn(tween(150)) else {
-                        slideInVertically(tween(220, easing = EchoMotion.EncoreButtonEase)) { it } + fadeIn(tween(180))
+                        slideInVertically(tween(220, easing = EchoMotion.EaseOutStrong)) { it } + fadeIn(tween(180))
                     },
                     exit = if (isReducedMotion) fadeOut(tween(120)) else {
                         slideOutVertically(tween(180)) { it } + fadeOut(tween(140))
                     }
                 ) {
                     EchoBottomNavBar(
-                        currentRoute = currentRoute,
+                        currentRoute = activeTabRoute,
                         onTabSelected = { tab -> navigateToTab(tab) }
                     )
                 }
             }
         }
 
-        // Fullscreen Now Playing Sheet with Spotify-inspired snappy lift & scale
+        // Continuous Glass Expand: Fullscreen Now Playing Sheet
         AnimatedVisibility(
             visible = isPlayerExpanded,
             enter = if (isReducedMotion) {
                 fadeIn(tween(180))
             } else {
-                slideInVertically(tween(300, easing = EchoMotion.EncoreBoxEase)) { it } +
-                    scaleIn(initialScale = 0.94f, animationSpec = tween(300, easing = EchoMotion.EncoreBoxEase)) +
-                    fadeIn(tween(200, easing = EchoMotion.EaseOutStrong))
+                slideInVertically(
+                    animationSpec = EchoMotion.springCriticallyDamped()
+                ) { it / 2 } +
+                    scaleIn(initialScale = 0.95f, animationSpec = EchoMotion.springCriticallyDamped()) +
+                    fadeIn(tween(220, easing = EchoMotion.EaseOutStrong))
             },
             exit = if (isReducedMotion) {
                 fadeOut(tween(150))
             } else {
-                slideOutVertically(tween(240, easing = EchoMotion.EaseOutStrong)) { it } +
-                    scaleOut(targetScale = 0.96f, animationSpec = tween(220)) +
+                slideOutVertically(tween(220, easing = EchoMotion.EaseOutStrong)) { it / 2 } +
+                    scaleOut(targetScale = 0.95f, animationSpec = tween(200)) +
                     fadeOut(tween(180))
             }
         ) {

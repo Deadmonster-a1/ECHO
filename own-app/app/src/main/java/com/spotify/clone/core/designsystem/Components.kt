@@ -140,7 +140,7 @@ fun LivingEqualizer(
 }
 
 /**
- * Specular edge highlight simulating light catching the top bevel of Apple floating surfaces.
+ * Specular edge highlight simulating light catching the top bevel of floating glass surfaces.
  */
 fun Modifier.echoSpecularBorder(
     isDarkMode: Boolean,
@@ -150,20 +150,105 @@ fun Modifier.echoSpecularBorder(
     val borderBrush = if (isDarkMode) {
         Brush.verticalGradient(
             listOf(
-                Color.White.copy(alpha = 0.16f),
-                Color.White.copy(alpha = 0.05f),
-                fallbackBorder.copy(alpha = 0.6f)
+                Color.White.copy(alpha = 0.18f),
+                Color.White.copy(alpha = 0.06f),
+                fallbackBorder.copy(alpha = 0.65f)
             )
         )
     } else {
         Brush.verticalGradient(
             listOf(
-                Color.White.copy(alpha = 0.90f),
-                fallbackBorder
+                Color.White.copy(alpha = 0.95f),
+                fallbackBorder.copy(alpha = 0.85f)
             )
         )
     }
     return this.border(0.75.dp, borderBrush, shape)
+}
+
+/**
+ * SwiftPieces Liquid Glass surface reserved strictly for the floating chrome layer
+ * (floating dock, mini-player, floating pill controls, and floating action circles).
+ * Never applied to content cards or list rows.
+ */
+fun Modifier.echoGlassSurface(
+    isDarkMode: Boolean,
+    shape: Shape,
+    fallbackBorder: Color,
+    tintColor: Color? = null,
+    elevation: Dp = 12.dp
+): Modifier {
+    val baseGlass = if (isDarkMode) Color(0xF7151520) else Color(0xFAFFFFFF)
+    return this
+        .shadow(
+            elevation = elevation,
+            shape = shape,
+            ambientColor = Color.Black.copy(alpha = if (isDarkMode) 0.28f else 0.10f),
+            spotColor = Color.Black.copy(alpha = if (isDarkMode) 0.36f else 0.14f)
+        )
+        .clip(shape)
+        .background(baseGlass)
+        .then(
+            if (tintColor != null) {
+                Modifier.background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            tintColor.copy(alpha = if (isDarkMode) 0.16f else 0.08f),
+                            Color.Transparent
+                        )
+                    )
+                )
+            } else {
+                Modifier
+            }
+        )
+        .echoSpecularBorder(
+            isDarkMode = isDarkMode,
+            shape = shape,
+            fallbackBorder = fallbackBorder
+        )
+}
+
+/**
+ * Standard >= 44dp circular toolbar / floating action button with consistent tactile press physics.
+ */
+@Composable
+fun EchoIconCircleButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    floatingGlass: Boolean = false,
+    size: Dp = 44.dp,
+    containerColor: Color? = null,
+    content: @Composable () -> Unit
+) {
+    val activeTheme = LocalAppTheme.current
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+    val borderColor = activeTheme.resolvedBorder(isDarkMode)
+    val fill = containerColor ?: activeTheme.resolvedCard(isDarkMode)
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .then(
+                if (floatingGlass) {
+                    Modifier.echoGlassSurface(
+                        isDarkMode = isDarkMode,
+                        shape = CircleShape,
+                        fallbackBorder = borderColor,
+                        elevation = 8.dp
+                    )
+                } else {
+                    Modifier
+                        .clip(CircleShape)
+                        .background(fill)
+                        .border(0.6.dp, borderColor.copy(alpha = 0.8f), CircleShape)
+                }
+            )
+            .echoPressable(scaleOnPress = 0.90f, hapticOnClick = true, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        content()
+    }
 }
 
 @Composable
@@ -293,9 +378,9 @@ fun EchoHeartButton(
 
     Box(
         modifier = modifier
-            .size(40.dp)
+            .size(44.dp)
             .clip(CircleShape)
-            .echoPressable(scaleOnPress = 0.85f) {
+            .echoPressable(scaleOnPress = 0.88f) {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onToggle()
             },
@@ -336,57 +421,40 @@ fun EchoFilterChip(
 ) {
     val activeTheme = LocalAppTheme.current
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
-    val isPrism = activeTheme == AppThemeOption.PASTEL_PRISM
+    val unselectedBg = MaterialTheme.colorScheme.surface
+    val borderBase = activeTheme.resolvedBorder(isDarkMode)
 
     val bg by animateColorAsState(
-        targetValue = when {
-            isSelected && isPrism -> activeTheme.primaryColor.copy(alpha = if (isDarkMode) 0.28f else 0.16f)
-            isSelected -> activeTheme.primaryColor
-            isDarkMode -> Color(0xFF1B1B26)
-            else -> Color(0xFFFFFFFF)
-        },
+        targetValue = if (isSelected) activeTheme.primaryColor else unselectedBg,
         animationSpec = tween(180, easing = EchoMotion.EaseOutStrong),
         label = "chip_bg"
     )
     val fg by animateColorAsState(
-        targetValue = when {
-            isSelected && isPrism -> if (isDarkMode) Color.White else Color(0xFF3E33A8)
-            isSelected -> echoContrastOn(activeTheme.primaryColor)
-            else -> MaterialTheme.colorScheme.onSurface
-        },
+        targetValue = if (isSelected) echoContrastOn(activeTheme.primaryColor) else MaterialTheme.colorScheme.onSurface,
         animationSpec = tween(180, easing = EchoMotion.EaseOutStrong),
         label = "chip_fg"
     )
     val borderTint by animateColorAsState(
-        targetValue = if (isSelected) {
-            activeTheme.primaryColor.copy(alpha = 0.72f)
-        } else {
-            activeTheme.resolvedBorder(isDarkMode)
-        },
+        targetValue = if (isSelected) activeTheme.primaryColor else borderBase,
         animationSpec = tween(180),
         label = "chip_border"
     )
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(50))
+            .clip(RoundedCornerShape(EchoRadius.pill))
             .background(bg)
-            .then(
-                if (isSelected && isPrism) {
-                    Modifier.border(1.1.dp, echoPrismBrush(), RoundedCornerShape(50))
-                } else {
-                    Modifier.border(0.75.dp, borderTint, RoundedCornerShape(50))
-                }
-            )
-            .echoPressable(scaleOnPress = 0.94f, hapticOnClick = true, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .border(0.6.dp, borderTint, RoundedCornerShape(EchoRadius.pill))
+            .echoPressable(scaleOnPress = 0.96f, hapticOnClick = true, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 9.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
             color = fg,
-            fontSize = 13.5.sp,
-            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium
+            )
         )
     }
 }
@@ -406,16 +474,14 @@ fun EchoSectionHeader(
                     Modifier.echoPressable(scaleOnPress = 0.985f, onClick = onActionClick)
                 } else Modifier
             )
-            .padding(horizontal = 20.dp, vertical = 6.dp),
+            .padding(horizontal = EchoSpacing.screenHorizontalMargin, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
             text = title,
             color = MaterialTheme.colorScheme.onBackground,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.4).sp
+            style = MaterialTheme.typography.headlineMedium
         )
         if (onActionClick != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -423,8 +489,7 @@ fun EchoSectionHeader(
                     Text(
                         text = actionLabel,
                         color = LocalAppTheme.current.primaryColor,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold)
                     )
                 }
                 Icon(
@@ -447,14 +512,46 @@ fun EchoInsetCard(
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
     val cardBg = activeTheme.resolvedCard(isDarkMode)
     val borderColor = activeTheme.resolvedBorder(isDarkMode)
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(EchoRadius.md)
 
     Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(shape)
             .background(cardBg)
-            .echoSpecularBorder(isDarkMode = isDarkMode, shape = shape, fallbackBorder = borderColor),
+            .border(0.6.dp, borderColor.copy(alpha = 0.85f), shape),
         content = content
     )
+}
+
+/**
+ * Consistent 44dp circular profile avatar button used across top-level tabs
+ * to open Profile & Settings.
+ */
+@Composable
+fun EchoProfileButton(
+    initial: String,
+    gradientColors: List<Color>,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val activeTheme = LocalAppTheme.current
+    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
+    val borderColor = activeTheme.resolvedBorder(isDarkMode)
+
+    Box(
+        modifier = modifier
+            .size(EchoSpacing.minTouchTarget)
+            .clip(CircleShape)
+            .background(Brush.linearGradient(gradientColors))
+            .border(0.8.dp, borderColor.copy(alpha = 0.9f), CircleShape)
+            .echoPressable(scaleOnPress = 0.92f, hapticOnClick = true, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = initial.ifBlank { "E" },
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+        )
+    }
 }

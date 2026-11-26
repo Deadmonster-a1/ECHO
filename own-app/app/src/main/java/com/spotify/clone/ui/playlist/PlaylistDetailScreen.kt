@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,14 +72,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.spotify.clone.core.data.AudioRepository
+import com.spotify.clone.core.designsystem.EchoIconCircleButton
 import com.spotify.clone.core.designsystem.EchoInsetCard
 import com.spotify.clone.core.designsystem.EchoMotion
+import com.spotify.clone.core.designsystem.EchoRadius
+import com.spotify.clone.core.designsystem.EchoSpacing
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoContrastOn
 import com.spotify.clone.core.designsystem.echoPressable
-import com.spotify.clone.core.designsystem.echoSpecularBorder
 import com.spotify.clone.core.designsystem.rememberAnimatedArtworkColors
 import com.spotify.clone.core.designsystem.resolvedBackground
 import com.spotify.clone.core.designsystem.resolvedBorder
@@ -89,6 +93,7 @@ import com.spotify.clone.core.model.Track
 import com.spotify.clone.core.player.MusicController
 import com.spotify.clone.ui.components.TrackOptionsBottomSheet
 import com.spotify.clone.ui.components.TrackRowItem
+import kotlinx.coroutines.launch
 
 /**
  * Apple Music-inspired Playlist / Album Detail Screen with parallax hero artwork,
@@ -120,6 +125,10 @@ fun PlaylistDetailScreen(
     var isDownloading by remember { mutableStateOf(false) }
     var selectedTrackForOptions by remember { mutableStateOf<Track?>(null) }
     var filterQuery by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    val favoriteTracks by repository.getFavoriteTracks().collectAsState(initial = emptyList())
+    val favIds = remember(favoriteTracks) { favoriteTracks.mapTo(HashSet()) { it.id } }
 
     val downloadManager = remember { TrackDownloadManager.getInstance(context) }
     val downloadedPlaylistIds by downloadManager.downloadedPlaylistIds.collectAsState()
@@ -129,6 +138,12 @@ fun PlaylistDetailScreen(
         isLoading = true
         playlist = repository.getPlaylistById(playlistId)
         isLoading = false
+    }
+
+    LaunchedEffect(playlistId, favIds) {
+        if (playlistId == "pl_liked_songs" && !isLoading) {
+            playlist = repository.getPlaylistById(playlistId)
+        }
     }
 
     if (isLoading) {
@@ -141,8 +156,8 @@ fun PlaylistDetailScreen(
         return
     }
 
-    val currentPlaylist = playlist
-    if (currentPlaylist == null) {
+    val rawPlaylist = playlist
+    if (rawPlaylist == null) {
         Box(
             modifier = modifier.fillMaxSize().background(screenBg),
             contentAlignment = Alignment.Center
@@ -162,6 +177,14 @@ fun PlaylistDetailScreen(
             }
         }
         return
+    }
+    val currentPlaylist = remember(rawPlaylist, favIds) {
+        rawPlaylist.copy(
+            tracks = rawPlaylist.tracks.map { t ->
+                val fav = t.id in favIds
+                if (t.isFavorite == fav) t else t.copy(isFavorite = fav)
+            }
+        )
     }
 
     val isDownloaded = downloadedPlaylistIds.contains(currentPlaylist.id) ||
@@ -221,17 +244,17 @@ fun PlaylistDetailScreen(
 
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(bottom = 176.dp),
+            contentPadding = PaddingValues(bottom = 168.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            // 1. Centered Hero Artwork + Metadata + Apple-style Play / Shuffle Pill Buttons
+            // 1. Centered Hero Artwork + Metadata + Play / Shuffle Pill Buttons
             item {
-                val artShape = RoundedCornerShape(18.dp)
+                val artShape = RoundedCornerShape(EchoRadius.lg)
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .statusBarsPadding()
-                        .padding(top = 52.dp, start = 20.dp, end = 20.dp, bottom = 16.dp),
+                        .padding(top = 56.dp, start = 20.dp, end = 20.dp, bottom = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -246,23 +269,22 @@ fun PlaylistDetailScreen(
                                     translationY = heroScrollProgress * 32f
                                 }
                             }
-                            .shadow(18.dp, artShape, ambientColor = Color.Black.copy(alpha = 0.22f))
                             .clip(artShape)
                             .background(cardBg)
-                            .echoSpecularBorder(isDarkMode, artShape, borderColor),
+                            .border(0.6.dp, borderColor, artShape),
                         contentAlignment = Alignment.Center
                     ) {
                         if (currentPlaylist.id == "pl_liked_songs") {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .background(Brush.linearGradient(listOf(activeTheme.primaryColor, activeTheme.gradientEnd))),
+                                    .background(activeTheme.primaryColor),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Favorite,
                                     contentDescription = "Liked Songs",
-                                    tint = Color.White,
+                                    tint = echoContrastOn(activeTheme.primaryColor),
                                     modifier = Modifier.size(72.dp)
                                 )
                             }
@@ -290,7 +312,7 @@ fun PlaylistDetailScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "${currentPlaylist.ownerName} • ${currentPlaylist.tracks.size} songs" +
+                        text = "${currentPlaylist.ownerName} • ${currentPlaylist.tracks.size} ${if (currentPlaylist.tracks.size == 1) "song" else "songs"}" +
                             if (totalMinutes > 0L) " • $totalMinutes min" else "",
                         color = activeTheme.primaryColor,
                         style = MaterialTheme.typography.bodyMedium.tabularFigures().copy(
@@ -319,7 +341,7 @@ fun PlaylistDetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val hasTracks = currentPlaylist.tracks.isNotEmpty()
-                        val actionShape = RoundedCornerShape(14.dp)
+                        val actionShape = RoundedCornerShape(EchoRadius.md)
 
                         Row(
                             modifier = Modifier
@@ -331,7 +353,7 @@ fun PlaylistDetailScreen(
                                     else activeTheme.primaryColor.copy(alpha = 0.4f)
                                 )
                                 .echoPressable(
-                                    scaleOnPress = 0.96f,
+                                    scaleOnPress = 0.97f,
                                     enabled = hasTracks,
                                     hapticOnClick = true
                                 ) {
@@ -350,8 +372,7 @@ fun PlaylistDetailScreen(
                             Text(
                                 "Play",
                                 color = echoContrastOn(activeTheme.primaryColor),
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp
+                                style = MaterialTheme.typography.titleMedium
                             )
                         }
 
@@ -361,9 +382,9 @@ fun PlaylistDetailScreen(
                                 .height(48.dp)
                                 .clip(actionShape)
                                 .background(cardBg)
-                                .echoSpecularBorder(isDarkMode, actionShape, borderColor)
+                                .border(0.6.dp, borderColor, actionShape)
                                 .echoPressable(
-                                    scaleOnPress = 0.96f,
+                                    scaleOnPress = 0.97f,
                                     enabled = hasTracks,
                                     hapticOnClick = true
                                 ) {
@@ -383,8 +404,7 @@ fun PlaylistDetailScreen(
                             Text(
                                 "Shuffle",
                                 color = activeTheme.primaryColor,
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 15.sp
+                                style = MaterialTheme.typography.titleMedium
                             )
                         }
 
@@ -393,9 +413,9 @@ fun PlaylistDetailScreen(
                                 .size(48.dp)
                                 .clip(actionShape)
                                 .background(cardBg)
-                                .echoSpecularBorder(isDarkMode, actionShape, borderColor)
+                                .border(0.6.dp, borderColor, actionShape)
                                 .echoPressable(
-                                    scaleOnPress = 0.92f,
+                                    scaleOnPress = 0.94f,
                                     enabled = !isDownloading && hasTracks,
                                     hapticOnClick = true
                                 ) {
@@ -465,16 +485,16 @@ fun PlaylistDetailScreen(
                 // Find-in-Playlist filter bar (Spotify FindInContextView pattern)
                 if (currentPlaylist.tracks.size > 4) {
                     item(key = "playlist_find_bar") {
-                        val barShape = RoundedCornerShape(14.dp)
+                        val barShape = RoundedCornerShape(EchoRadius.sm)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 6.dp)
-                                .height(42.dp)
+                                .height(44.dp)
                                 .clip(barShape)
                                 .background(cardBg)
-                                .echoSpecularBorder(isDarkMode, barShape, borderColor)
-                                .padding(horizontal = 12.dp),
+                                .border(0.6.dp, borderColor, barShape)
+                                .padding(start = 12.dp, end = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -488,7 +508,7 @@ fun PlaylistDetailScreen(
                                 value = filterQuery,
                                 onValueChange = { filterQuery = it },
                                 singleLine = true,
-                                textStyle = TextStyle(color = textPrimary, fontSize = 14.sp),
+                                textStyle = MaterialTheme.typography.bodyMedium.copy(color = textPrimary),
                                 cursorBrush = SolidColor(activeTheme.primaryColor),
                                 modifier = Modifier.weight(1f),
                                 decorationBox = { inner ->
@@ -496,7 +516,7 @@ fun PlaylistDetailScreen(
                                         Text(
                                             text = "Find in ${currentPlaylist.name}",
                                             color = textSecondary,
-                                            fontSize = 13.5.sp,
+                                            style = MaterialTheme.typography.bodyMedium,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -507,16 +527,16 @@ fun PlaylistDetailScreen(
                             if (filterQuery.isNotEmpty()) {
                                 Box(
                                     modifier = Modifier
-                                        .size(26.dp)
+                                        .size(40.dp)
                                         .clip(CircleShape)
-                                        .echoPressable(scaleOnPress = 0.85f) { filterQuery = "" },
+                                        .echoPressable(scaleOnPress = 0.88f) { filterQuery = "" },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.Close,
                                         contentDescription = "Clear filter",
                                         tint = textSecondary,
-                                        modifier = Modifier.size(15.dp)
+                                        modifier = Modifier.size(16.dp)
                                     )
                                 }
                             }
@@ -576,23 +596,18 @@ fun PlaylistDetailScreen(
             }
         }
 
-        // Translucent Sticky Top Bar
+        // Frosted Sticky Top Bar with floating Liquid Glass back button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(topBarBg)
                 .statusBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(cardBg.copy(alpha = 0.88f))
-                    .echoSpecularBorder(isDarkMode, CircleShape, borderColor)
-                    .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true, onClick = onBack),
-                contentAlignment = Alignment.Center
+            EchoIconCircleButton(
+                onClick = onBack,
+                floatingGlass = true
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -612,8 +627,7 @@ fun PlaylistDetailScreen(
                     Text(
                         text = currentPlaylist.name,
                         color = textPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -623,11 +637,21 @@ fun PlaylistDetailScreen(
     }
 
     selectedTrackForOptions?.let { track ->
+        val isCustomPlaylist = currentPlaylist.id.startsWith("pl_custom_")
         TrackOptionsBottomSheet(
             track = track,
             musicController = musicController,
             onDismiss = { selectedTrackForOptions = null },
-            onViewArtist = { artist -> onArtistClick?.invoke(artist) }
+            onViewArtist = { artist -> onArtistClick?.invoke(artist) },
+            onRemoveFromPlaylist = if (isCustomPlaylist) {
+                {
+                    scope.launch {
+                        repository.removeTrackFromPlaylist(currentPlaylist.id, track.id)
+                        playlist = repository.getPlaylistById(currentPlaylist.id)
+                        Toast.makeText(context, "Removed from ${currentPlaylist.name}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else null
         )
     }
 }

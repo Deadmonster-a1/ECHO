@@ -1,15 +1,15 @@
 package com.spotify.clone.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,8 +23,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.spotify.clone.core.designsystem.EchoRadius
 import com.spotify.clone.core.designsystem.echoPressable
 
 data class CategoryItem(
@@ -41,45 +41,27 @@ fun CategoryCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(18.dp)
+    val cardShape = RoundedCornerShape(EchoRadius.md)
+    val thumbShape = RoundedCornerShape(EchoRadius.xs)
+    val base = category.backgroundColor
+    val gradient = Brush.linearGradient(
+        colors = listOf(
+            base,
+            base.copy(
+                red = (base.red * 0.78f).coerceIn(0f, 1f),
+                green = (base.green * 0.78f).coerceIn(0f, 1f),
+                blue = (base.blue * 0.86f).coerceIn(0f, 1f)
+            )
+        )
+    )
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(102.dp)
-            .shadow(
-                elevation = 10.dp,
-                shape = cardShape,
-                ambientColor = category.backgroundColor.copy(alpha = 0.28f),
-                spotColor = category.backgroundColor.copy(alpha = 0.38f)
-            )
+            .height(92.dp)
             .clip(cardShape)
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        category.backgroundColor,
-                        category.backgroundColor.copy(alpha = 0.72f)
-                    )
-                )
-            )
-            .border(
-                width = 0.75.dp,
-                brush = Brush.verticalGradient(
-                    listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.06f))
-                ),
-                shape = cardShape
-            )
-            .echoPressable(scaleOnPress = 0.96f, hapticOnClick = true, onClick = onClick)
+            .background(gradient)
+            .echoPressable(scaleOnPress = 0.97f, hapticOnClick = true, onClick = onClick)
     ) {
-        // Subtle ambient highlight orb for depth
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 24.dp, y = (-24).dp)
-                .size(84.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.12f))
-        )
-
         if (category.imageUrl.isNotBlank()) {
             AsyncImage(
                 model = category.imageUrl,
@@ -87,27 +69,35 @@ fun CategoryCard(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = 10.dp, y = 10.dp)
-                    .rotate(16f)
-                    .size(66.dp)
-                    .shadow(10.dp, RoundedCornerShape(12.dp))
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(0.75.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.2f))
+                    .offset(x = 8.dp, y = 8.dp)
+                    .rotate(12f)
+                    .size(60.dp)
+                    .shadow(4.dp, thumbShape)
+                    .clip(thumbShape)
+                    .background(Color.Black.copy(alpha = 0.18f))
             )
         }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.horizontalGradient(
+                        0.0f to Color.Black.copy(alpha = 0.14f),
+                        0.65f to Color.Transparent
+                    )
+                )
+        )
 
         Text(
             text = category.title,
             color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 15.5.sp,
-            letterSpacing = (-0.2).sp,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(start = 15.dp, top = 14.dp, end = 54.dp)
+                .padding(start = 14.dp, top = 14.dp, end = 58.dp)
         )
     }
 }

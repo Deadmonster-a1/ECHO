@@ -78,10 +78,10 @@ fun EqualizerBottomSheet(
     val currentTheme by ThemeManager.currentTheme.collectAsState()
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
 
-    val screenBg = if (isDarkMode) currentTheme.darkCardColor else currentTheme.lightCardColor
-    val textPrimary = if (isDarkMode) Color(0xFFFAF8F5) else Color(0xFF171717)
-    val textSecondary = if (isDarkMode) Color(0xFFA6A2B3) else Color(0xFF777777)
-    val chipInactiveBg = if (isDarkMode) Color(0xFF2C2A28) else Color(0xFFF3EFEA)
+    val screenBg = androidx.compose.material3.MaterialTheme.colorScheme.surface
+    val textPrimary = androidx.compose.material3.MaterialTheme.colorScheme.onSurface
+    val textSecondary = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+    val chipInactiveBg = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant
     val onAccent = com.spotify.clone.core.designsystem.echoContrastOn(currentTheme.primaryColor)
 
     val prefs: SharedPreferences = remember {
@@ -132,6 +132,7 @@ fun EqualizerBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = com.spotify.clone.core.designsystem.EchoRadius.xl, topEnd = com.spotify.clone.core.designsystem.EchoRadius.xl),
         containerColor = screenBg
     ) {
         Column(

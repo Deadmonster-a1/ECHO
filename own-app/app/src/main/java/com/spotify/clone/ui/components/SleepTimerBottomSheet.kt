@@ -6,15 +6,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Bedtime
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -27,9 +28,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.spotify.clone.core.designsystem.EchoAccentCoral
+import com.spotify.clone.core.designsystem.EchoRadius
 import com.spotify.clone.core.designsystem.ThemeManager
+import com.spotify.clone.core.designsystem.resolvedBorder
+import com.spotify.clone.core.designsystem.tabularFigures
 import com.spotify.clone.core.player.MusicController
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,10 +46,9 @@ fun SleepTimerBottomSheet(
     val currentTheme by ThemeManager.currentTheme.collectAsState()
     val isDarkMode by ThemeManager.isDarkMode.collectAsState()
 
-    val screenBg = if (isDarkMode) Color(0xFF1E1D1B) else Color(0xFFFFFFFF)
-    val textPrimary = if (isDarkMode) Color(0xFFFAF8F5) else Color(0xFF171717)
-    val textSecondary = if (isDarkMode) Color(0xFFA6A2B3) else Color(0xFF777777)
-    val dividerColor = if (isDarkMode) Color(0xFF2E2B28) else Color(0xFFEBE9E5)
+    val screenBg = MaterialTheme.colorScheme.surface
+    val textPrimary = MaterialTheme.colorScheme.onSurface
+    val dividerColor = currentTheme.resolvedBorder(isDarkMode)
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val remainingSeconds by musicController.sleepTimerRemainingSeconds.collectAsState()
@@ -52,6 +56,7 @@ fun SleepTimerBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = EchoRadius.xl, topEnd = EchoRadius.xl),
         containerColor = screenBg
     ) {
         Column(
@@ -69,14 +74,13 @@ fun SleepTimerBottomSheet(
                     imageVector = Icons.Outlined.Bedtime,
                     contentDescription = null,
                     tint = currentTheme.primaryColor,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = "Stop audio in",
                     color = textPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
+                    style = MaterialTheme.typography.headlineMedium
                 )
             }
 
@@ -84,21 +88,19 @@ fun SleepTimerBottomSheet(
                 val mins = remainingSeconds!! / 60
                 val secs = remainingSeconds!! % 60
                 Text(
-                    text = "Timer active: ${String.format(java.util.Locale.US, "%02d:%02d", mins, secs)} remaining",
+                    text = "Timer active: ${String.format(Locale.US, "%02d:%02d", mins, secs)} remaining",
                     color = currentTheme.primaryColor,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.labelLarge.tabularFigures(),
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp)
                 )
             }
 
             HorizontalDivider(
                 color = dividerColor,
-                thickness = 0.8.dp,
+                thickness = 0.6.dp,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
             )
 
-            // Signature Option: End of track
             TimerOptionRow(
                 label = "End of track",
                 textColor = textPrimary,
@@ -125,12 +127,12 @@ fun SleepTimerBottomSheet(
             if (remainingSeconds != null) {
                 HorizontalDivider(
                     color = dividerColor,
-                    thickness = 0.8.dp,
+                    thickness = 0.6.dp,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
                 )
                 TimerOptionRow(
                     label = "Turn off timer",
-                    textColor = Color(0xFFFF5252),
+                    textColor = EchoAccentCoral,
                     onClick = {
                         musicController.cancelSleepTimer()
                         Toast.makeText(context, "Sleep timer turned off", Toast.LENGTH_SHORT).show()
@@ -158,8 +160,7 @@ private fun TimerOptionRow(
         Text(
             text = label,
             color = textColor,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Medium)
         )
     }
 }

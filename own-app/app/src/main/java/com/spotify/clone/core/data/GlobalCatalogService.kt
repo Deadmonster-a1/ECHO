@@ -62,23 +62,23 @@ class GlobalCatalogService {
 
                 for (i in 0 until results.length()) {
                     val item = results.optJSONObject(i) ?: continue
-                    val id = item.optString("id", "")
-                    val rawTitle = item.optString("title", "")
-                    if (rawTitle.isBlank()) continue
+                    val id = item.safeOptString("id")
+                    val rawTitle = item.safeOptString("title")
+                    if (id.isBlank() || rawTitle.isBlank()) continue
 
                     val title = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString().trim()
                     val moreInfo = item.optJSONObject("more_info")
-                    val fallbackArtist = moreInfo?.optString("music", "Unknown Artist") ?: "Unknown Artist"
-                    val rawArtist = item.optString("subtitle", fallbackArtist)
+                    val fallbackArtist = moreInfo?.safeOptString("music", "Unknown Artist") ?: "Unknown Artist"
+                    val rawArtist = item.safeOptString("subtitle", fallbackArtist)
                     val artist = Html.fromHtml(rawArtist, Html.FROM_HTML_MODE_LEGACY).toString().trim()
-                    val rawAlbum = moreInfo?.optString("album", "Single") ?: "Single"
-                    val rawCover = item.optString("image", "")
+                    val rawAlbum = moreInfo?.safeOptString("album", "Single") ?: "Single"
+                    val rawCover = item.safeOptString("image")
                     val (album, highResCover) = normalizeMovieMetadata(title, rawAlbum, rawCover)
 
                     val durationSec = moreInfo?.optLong("duration", 210L) ?: 210L
                     val durationMs = durationSec * 1000L
 
-                    val encUrl = moreInfo?.optString("encrypted_media_url", "") ?: ""
+                    val encUrl = moreInfo?.safeOptString("encrypted_media_url") ?: ""
                     val mediaUri = if (encUrl.isNotBlank()) "saavn_enc:$encUrl" else ""
 
                     tracks.add(
@@ -90,7 +90,7 @@ class GlobalCatalogService {
                             coverArtUrl = highResCover,
                             durationMs = durationMs,
                             mediaUri = mediaUri,
-                            isExplicit = item.optString("explicit_content", "0") == "1"
+                            isExplicit = item.safeOptString("explicit_content", "0") == "1"
                         )
                     )
                 }
@@ -155,16 +155,16 @@ class GlobalCatalogService {
                 for (i in 0 until results.length()) {
                     val item = results.optJSONObject(i) ?: continue
                     val trackId = item.optLong("trackId", 0L)
-                    val title = item.optString("trackName", "")
+                    val title = item.safeOptString("trackName")
                     if (title.isBlank()) continue
 
-                    val artist = item.optString("artistName", "Unknown Artist")
-                    val album = item.optString("collectionName", "Single")
-                    val rawCover = item.optString("artworkUrl100", "")
+                    val artist = item.safeOptString("artistName", "Unknown Artist")
+                    val album = item.safeOptString("collectionName", "Single")
+                    val rawCover = item.safeOptString("artworkUrl100")
                     val highResCover = rawCover.replace("100x100bb", "600x600bb")
                     val duration = item.optLong("trackTimeMillis", 210000L)
-                    val previewUrl = item.optString("previewUrl", "")
-                    val isExplicit = item.optString("trackExplicitness", "") == "explicit"
+                    val previewUrl = item.safeOptString("previewUrl")
+                    val isExplicit = item.safeOptString("trackExplicitness") == "explicit"
 
                     tracks.add(
                         Track(
@@ -317,15 +317,18 @@ class GlobalCatalogService {
                 val results = json.optJSONArray("results") ?: return@withContext emptyList()
                 for (i in 0 until results.length()) {
                     val item = results.optJSONObject(i) ?: continue
-                    val id = item.optString("id", "")
-                    val rawTitle = item.optString("title", "")
+                    val id = item.safeOptString("id")
+                    val rawTitle = item.safeOptString("title")
                     if (id.isBlank() || rawTitle.isBlank()) continue
                     val title = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString().trim()
-                    val year = item.optString("year", "")
-                    val rawImage = item.optString("image", "")
+                    val year = item.safeOptString("year")
+                    val rawImage = item.safeOptString("image")
                     val cover = rawImage.replace("150x150", "500x500")
                     val moreInfo = item.optJSONObject("more_info")
-                    val artist = moreInfo?.optString("music", "Original Soundtrack") ?: "Original Soundtrack"
+                    val rawArtist = moreInfo?.safeOptString("music")
+                        ?.ifBlank { item.safeOptString("subtitle") }
+                        ?: item.safeOptString("subtitle")
+                    val artist = rawArtist.ifBlank { if (year.isNotBlank()) "Album • $year" else "Original Soundtrack" }
 
                     albums.add(
                         Playlist(
@@ -357,25 +360,26 @@ class GlobalCatalogService {
             conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
                 val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                val rawTitle = json.optString("title", "")
+                val rawTitle = json.safeOptString("title")
                 if (rawTitle.isBlank()) return@withContext null
                 val title = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString().trim()
-                val year = json.optString("year", "")
-                val rawImage = json.optString("image", "")
+                val year = json.safeOptString("year")
+                val rawImage = json.safeOptString("image")
                 val cover = rawImage.replace("150x150", "500x500")
-                val artist = Html.fromHtml(json.optString("primary_artists", "Original Soundtrack"), Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                val artist = Html.fromHtml(json.safeOptString("primary_artists", "Original Soundtrack"), Html.FROM_HTML_MODE_LEGACY).toString().trim()
                 val list = json.optJSONArray("list") ?: return@withContext null
 
                 val tracks = mutableListOf<Track>()
                 for (i in 0 until list.length()) {
                     val item = list.optJSONObject(i) ?: continue
-                    val id = item.optString("id", "")
-                    val songTitle = Html.fromHtml(item.optString("title", ""), Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                    val id = item.safeOptString("id")
+                    val songTitle = Html.fromHtml(item.safeOptString("title"), Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                    if (id.isBlank() || songTitle.isBlank()) continue
                     val moreInfo = item.optJSONObject("more_info")
-                    val songArtist = Html.fromHtml(item.optString("subtitle", artist), Html.FROM_HTML_MODE_LEGACY).toString().trim()
-                    val encUrl = moreInfo?.optString("encrypted_media_url", "") ?: ""
+                    val songArtist = Html.fromHtml(item.safeOptString("subtitle", artist), Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                    val encUrl = moreInfo?.safeOptString("encrypted_media_url") ?: ""
                     val duration = (moreInfo?.optLong("duration", 210L) ?: 210L) * 1000L
-                    val songCover = item.optString("image", cover).replace("150x150", "500x500")
+                    val songCover = item.safeOptString("image", cover).replace("150x150", "500x500")
 
                     tracks.add(
                         Track(
@@ -386,7 +390,7 @@ class GlobalCatalogService {
                             coverArtUrl = songCover,
                             durationMs = duration,
                             mediaUri = if (encUrl.isNotBlank()) "saavn_enc:$encUrl" else "",
-                            isExplicit = item.optString("explicit_content", "0") == "1"
+                            isExplicit = item.safeOptString("explicit_content", "0") == "1"
                         )
                     )
                 }
@@ -678,24 +682,25 @@ class GlobalCatalogService {
             conn = openConnection(url, referer = "https://www.jiosaavn.com/")
             if (conn.responseCode == 200) {
                 val json = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                val rawTitle = json.optString("title", "")
+                val rawTitle = json.safeOptString("title")
                 if (rawTitle.isBlank()) return@withContext null
                 val title = Html.fromHtml(rawTitle, Html.FROM_HTML_MODE_LEGACY).toString().trim()
-                val image = json.optString("image", "").replace("150x150", "500x500")
-                val subtitle = json.optString("subtitle", "Official Chart")
+                val image = json.safeOptString("image").replace("150x150", "500x500")
+                val subtitle = json.safeOptString("subtitle", "Official Chart")
                 val list = json.optJSONArray("list") ?: return@withContext null
 
                 val tracks = mutableListOf<Track>()
                 for (i in 0 until list.length()) {
                     val item = list.optJSONObject(i) ?: continue
-                    val id = item.optString("id", "")
-                    val songTitle = Html.fromHtml(item.optString("title", ""), Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                    val id = item.safeOptString("id")
+                    val songTitle = Html.fromHtml(item.safeOptString("title"), Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                    if (id.isBlank() || songTitle.isBlank()) continue
                     val moreInfo = item.optJSONObject("more_info")
-                    val songArtist = Html.fromHtml(item.optString("subtitle", ""), Html.FROM_HTML_MODE_LEGACY).toString().trim()
-                    val albumName = Html.fromHtml(moreInfo?.optString("album", title) ?: title, Html.FROM_HTML_MODE_LEGACY).toString().trim()
-                    val encUrl = moreInfo?.optString("encrypted_media_url", "") ?: ""
+                    val songArtist = Html.fromHtml(item.safeOptString("subtitle", "Unknown Artist"), Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                    val albumName = Html.fromHtml(moreInfo?.safeOptString("album", title) ?: title, Html.FROM_HTML_MODE_LEGACY).toString().trim()
+                    val encUrl = moreInfo?.safeOptString("encrypted_media_url") ?: ""
                     val duration = (moreInfo?.optLong("duration", 210L) ?: 210L) * 1000L
-                    val songCover = item.optString("image", image).replace("150x150", "500x500")
+                    val songCover = item.safeOptString("image", image).replace("150x150", "500x500")
 
                     tracks.add(
                         Track(
@@ -706,7 +711,7 @@ class GlobalCatalogService {
                             coverArtUrl = songCover,
                             durationMs = duration,
                             mediaUri = if (encUrl.isNotBlank()) "saavn_enc:$encUrl" else "",
-                            isExplicit = item.optString("explicit_content", "0") == "1"
+                            isExplicit = item.safeOptString("explicit_content", "0") == "1"
                         )
                     )
                 }
@@ -740,5 +745,14 @@ class GlobalCatalogService {
             "english" -> searchTracks("top hits 2026", limit = 20)
             else -> fetchSaavnTracks("top hits", limit = 20)
         }
+    }
+
+    /**
+     * Reads a JSON string while guarding against JSONObject.optString returning literal "null".
+     */
+    private fun JSONObject.safeOptString(key: String, fallback: String = ""): String {
+        if (isNull(key)) return fallback
+        val value = optString(key, fallback).trim()
+        return if (value.isEmpty() || value.equals("null", ignoreCase = true)) fallback else value
     }
 }

@@ -4,16 +4,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -22,11 +22,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.spotify.clone.core.designsystem.EchoRadius
 import com.spotify.clone.core.designsystem.ThemeManager
+import com.spotify.clone.core.designsystem.tabularFigures
 import com.spotify.clone.core.player.MusicController
 
 private val SPEEDS = listOf(0.5f, 0.8f, 1.0f, 1.2f, 1.5f, 1.8f, 2.0f)
@@ -38,11 +38,8 @@ fun PlaybackSpeedBottomSheet(
     onDismiss: () -> Unit
 ) {
     val currentTheme by ThemeManager.currentTheme.collectAsState()
-    val isDarkMode by ThemeManager.isDarkMode.collectAsState()
-
-    val screenBg = if (isDarkMode) Color(0xFF1E1D1B) else Color(0xFFFFFFFF)
-    val textPrimary = if (isDarkMode) Color(0xFFFAF8F5) else Color(0xFF171717)
-    val textSecondary = if (isDarkMode) Color(0xFFA6A2B3) else Color(0xFF777777)
+    val screenBg = MaterialTheme.colorScheme.surface
+    val textPrimary = MaterialTheme.colorScheme.onSurface
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val currentSpeed by musicController.playbackSpeed.collectAsState()
@@ -50,6 +47,7 @@ fun PlaybackSpeedBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = EchoRadius.xl, topEnd = EchoRadius.xl),
         containerColor = screenBg
     ) {
         Column(
@@ -66,20 +64,19 @@ fun PlaybackSpeedBottomSheet(
                     imageVector = Icons.Filled.Speed,
                     contentDescription = "Playback Speed",
                     tint = currentTheme.primaryColor,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(22.dp)
                 )
                 Text(
                     text = "Playback Speed",
                     color = textPrimary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineMedium,
                     modifier = Modifier.padding(start = 12.dp)
                 )
             }
 
             SPEEDS.forEach { speed ->
                 val isSelected = kotlin.math.abs(currentSpeed - speed) < 0.05f
-                val label = if (speed == 1.0f) "1x (Normal)" else "${speed}x"
+                val label = if (speed == 1.0f) "1.0x (Normal)" else "${speed}x"
 
                 Row(
                     modifier = Modifier
@@ -95,8 +92,9 @@ fun PlaybackSpeedBottomSheet(
                     Text(
                         text = label,
                         color = if (isSelected) currentTheme.primaryColor else textPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        style = MaterialTheme.typography.titleLarge.tabularFigures().copy(
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
                     )
 
                     if (isSelected) {

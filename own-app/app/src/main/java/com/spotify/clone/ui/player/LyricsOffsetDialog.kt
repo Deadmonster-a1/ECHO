@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spotify.clone.core.designsystem.LocalAppTheme
+import com.spotify.clone.core.designsystem.tabularFigures
 import kotlin.math.roundToLong
 
 /**
@@ -83,8 +84,7 @@ fun LyricsOffsetDialog(
                 Text(
                     text = if (draftOffsetMs == 0L) "0 ms (Original Sync)" else "${if (draftOffsetMs > 0) "+" else ""}$draftOffsetMs ms",
                     color = activeTheme.primaryColor,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Black
+                    style = MaterialTheme.typography.headlineMedium.tabularFigures().copy(fontWeight = FontWeight.Bold)
                 )
 
                 Slider(

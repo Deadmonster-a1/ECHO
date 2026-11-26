@@ -95,6 +95,7 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
     private var suggestionsJob: Job? = null
     private var searchJob: Job? = null
+    @Volatile private var favoriteTrackIds: Set<String> = emptySet()
 
     private val searchCacheLock = Any()
     private val searchCache = object : LinkedHashMap<String, SearchResultsBundle>(40, 0.75f, true) {
@@ -105,6 +106,23 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             historyRepository.history.collect { history ->
                 _uiState.update { it.copy(recentSearches = history) }
+            }
+        }
+        viewModelScope.launch {
+            repository.getFavoriteTracks().collect { favorites ->
+                val favIds = favorites.mapTo(HashSet()) { it.id }
+                favoriteTrackIds = favIds
+                val syncFav: (Track) -> Track = { t ->
+                    val fav = t.id in favIds
+                    if (t.isFavorite == fav) t else t.copy(isFavorite = fav)
+                }
+                _uiState.update { current ->
+                    current.copy(
+                        searchResults = current.searchResults.map(syncFav),
+                        songRecommendations = current.songRecommendations.map(syncFav),
+                        localAudioTracks = current.localAudioTracks.map(syncFav)
+                    )
+                }
             }
         }
     }
@@ -201,13 +219,18 @@ class SearchViewModel(application: Application) : AndroidViewModel(application) 
 
         val cacheKey = trimmed.lowercase()
         synchronized(searchCacheLock) { searchCache[cacheKey] }?.let { cached ->
+            val favIds = favoriteTrackIds
+            val syncFav: (Track) -> Track = { t ->
+                val fav = t.id in favIds
+                if (t.isFavorite == fav) t else t.copy(isFavorite = fav)
+            }
             _uiState.update {
                 it.copy(
                     isSearching = false,
-                    searchResults = cached.tracks,
+                    searchResults = cached.tracks.map(syncFav),
                     searchAlbums = cached.albums,
                     searchArtists = cached.artists,
-                    localAudioTracks = cached.localTracks
+                    localAudioTracks = cached.localTracks.map(syncFav)
                 )
             }
             return

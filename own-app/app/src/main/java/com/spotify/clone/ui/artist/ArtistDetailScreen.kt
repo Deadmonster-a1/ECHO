@@ -13,6 +13,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -67,9 +68,12 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.spotify.clone.core.data.AudioRepository
 import com.spotify.clone.core.data.SampleCatalog
+import com.spotify.clone.core.designsystem.EchoIconCircleButton
 import com.spotify.clone.core.designsystem.EchoInsetCard
 import com.spotify.clone.core.designsystem.EchoMotion
+import com.spotify.clone.core.designsystem.EchoRadius
 import com.spotify.clone.core.designsystem.EchoSectionHeader
+import com.spotify.clone.core.designsystem.EchoSpacing
 import com.spotify.clone.core.designsystem.LivingEqualizer
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
@@ -77,7 +81,6 @@ import com.spotify.clone.core.designsystem.SwipeableTrackRow
 import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoContrastOn
 import com.spotify.clone.core.designsystem.echoPressable
-import com.spotify.clone.core.designsystem.echoSpecularBorder
 import com.spotify.clone.core.designsystem.rememberAnimatedArtworkColors
 import com.spotify.clone.core.designsystem.resolvedBackground
 import com.spotify.clone.core.designsystem.resolvedBorder
@@ -115,26 +118,43 @@ fun ArtistDetailScreen(
     var activeArtistName by remember(artistName) { mutableStateOf(artistName) }
     var isLoading by remember { mutableStateOf(true) }
     var artist by remember { mutableStateOf<Artist?>(null) }
-    var topTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
+    var rawTopTracks by remember { mutableStateOf<List<Track>>(emptyList()) }
     var selectedTrackForOptions by remember { mutableStateOf<Track?>(null) }
+
+    val favoriteTracks by repository.getFavoriteTracks().collectAsState(initial = emptyList())
+    val favIds = remember(favoriteTracks) { favoriteTracks.mapTo(HashSet()) { it.id } }
+    val topTracks = remember(rawTopTracks, favIds) {
+        rawTopTracks.map { t ->
+            val fav = t.id in favIds
+            if (t.isFavorite == fav) t else t.copy(isFavorite = fav)
+        }
+    }
 
     LaunchedEffect(activeArtistName) {
         isLoading = true
+        val primaryName = activeArtistName.split(",", "&", "•", "/").firstOrNull()?.trim()
+            .orEmpty().ifBlank { activeArtistName }
         val homeArtists = runCatching { repository.getHomeArtists() }.getOrDefault(emptyList())
-        val tracks = runCatching { repository.search(activeArtistName).take(15) }.getOrDefault(emptyList())
+        val initialTracks = runCatching { repository.search(activeArtistName).take(15) }.getOrDefault(emptyList())
+        val tracks = if (initialTracks.isNotEmpty() || primaryName.equals(activeArtistName, ignoreCase = true)) {
+            initialTracks
+        } else {
+            runCatching { repository.search(primaryName).take(15) }.getOrDefault(emptyList())
+        }
         val matched = homeArtists.find {
             it.name.equals(activeArtistName, ignoreCase = true) ||
-                it.name.contains(activeArtistName, ignoreCase = true)
+                it.name.equals(primaryName, ignoreCase = true) ||
+                it.name.contains(primaryName, ignoreCase = true)
         } ?: SampleCatalog.sampleArtists.find {
-            it.name.contains(activeArtistName, ignoreCase = true)
+            it.name.contains(primaryName, ignoreCase = true)
         } ?: Artist(
-            id = "art_${activeArtistName.lowercase().replace(" ", "_")}",
+            id = "art_${primaryName.lowercase().replace(" ", "_")}",
             name = activeArtistName,
             avatarUrl = tracks.firstOrNull()?.coverArtUrl.orEmpty(),
             monthlyListeners = 12_000_000L
         )
         artist = matched
-        topTracks = tracks
+        rawTopTracks = tracks
         isLoading = false
     }
 
@@ -200,7 +220,7 @@ fun ArtistDetailScreen(
 
         LazyColumn(
             state = listState,
-            contentPadding = PaddingValues(bottom = 176.dp),
+            contentPadding = PaddingValues(bottom = 168.dp),
             modifier = Modifier.fillMaxSize()
         ) {
             // 1. Parallax Artist Hero Header
@@ -263,7 +283,7 @@ fun ArtistDetailScreen(
             // 2. Tactile Play & Shuffle Buttons
             item {
                 val hasTracks = topTracks.isNotEmpty()
-                val actionShape = RoundedCornerShape(14.dp)
+                val actionShape = RoundedCornerShape(EchoRadius.md)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -280,7 +300,7 @@ fun ArtistDetailScreen(
                                 else activeTheme.primaryColor.copy(alpha = 0.4f)
                             )
                             .echoPressable(
-                                scaleOnPress = 0.96f,
+                                scaleOnPress = 0.97f,
                                 enabled = hasTracks,
                                 hapticOnClick = true
                             ) {
@@ -303,8 +323,7 @@ fun ArtistDetailScreen(
                         Text(
                             "Play",
                             color = echoContrastOn(activeTheme.primaryColor),
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp
+                            style = MaterialTheme.typography.titleMedium
                         )
                     }
 
@@ -314,9 +333,9 @@ fun ArtistDetailScreen(
                             .height(48.dp)
                             .clip(actionShape)
                             .background(cardBg)
-                            .echoSpecularBorder(isDarkMode, actionShape, borderColor)
+                            .border(0.6.dp, borderColor, actionShape)
                             .echoPressable(
-                                scaleOnPress = 0.96f,
+                                scaleOnPress = 0.97f,
                                 enabled = hasTracks,
                                 hapticOnClick = true
                             ) {
@@ -336,8 +355,7 @@ fun ArtistDetailScreen(
                         Text(
                             "Shuffle",
                             color = activeTheme.primaryColor,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp
+                            style = MaterialTheme.typography.titleMedium
                         )
                     }
                 }
@@ -370,10 +388,10 @@ fun ArtistDetailScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .background(if (isPlaying) activeTheme.primaryColor.copy(alpha = 0.08f) else Color.Transparent)
-                                    .echoPressable(scaleOnPress = 0.985f) {
+                                    .echoPressable(scaleOnPress = 1.0f) {
                                         musicController.playTrack(track, topTracks)
                                     }
-                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                    .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
@@ -437,9 +455,9 @@ fun ArtistDetailScreen(
                                 }
                                 Box(
                                     modifier = Modifier
-                                        .size(38.dp)
+                                        .size(EchoSpacing.minTouchTarget)
                                         .clip(CircleShape)
-                                        .echoPressable(scaleOnPress = 0.86f) { selectedTrackForOptions = track },
+                                        .echoPressable(scaleOnPress = 0.88f) { selectedTrackForOptions = track },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -497,7 +515,7 @@ fun ArtistDetailScreen(
                                     .size(84.dp)
                                     .clip(CircleShape)
                                     .background(cardBg)
-                                    .echoSpecularBorder(isDarkMode, CircleShape, borderColor)
+                                    .border(0.6.dp, borderColor, CircleShape)
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
@@ -515,23 +533,18 @@ fun ArtistDetailScreen(
             }
         }
 
-        // Translucent Sticky Top Bar
+        // Frosted Sticky Top Bar with floating Liquid Glass back button
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(topBarBg)
                 .statusBarsPadding()
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(cardBg.copy(alpha = 0.88f))
-                    .echoSpecularBorder(isDarkMode, CircleShape, borderColor)
-                    .echoPressable(scaleOnPress = 0.88f, hapticOnClick = true, onClick = onBack),
-                contentAlignment = Alignment.Center
+            EchoIconCircleButton(
+                onClick = onBack,
+                floatingGlass = true
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -551,8 +564,7 @@ fun ArtistDetailScreen(
                     Text(
                         text = currentArtist.name,
                         color = textPrimary,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleLarge,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

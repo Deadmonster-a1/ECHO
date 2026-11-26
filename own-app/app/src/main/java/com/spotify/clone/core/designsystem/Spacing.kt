@@ -36,43 +36,46 @@ object EchoSpacing {
     val itemSpacing: Dp = 10.dp
 
     // Navigation & Persistent Bar Dimensions
-    val bottomNavHeight: Dp = 64.dp
-    val miniPlayerHeight: Dp = 64.dp
+    val bottomNavHeight: Dp = 58.dp
+    val miniPlayerHeight: Dp = 60.dp
     val topAppBarHeight: Dp = 56.dp
-    val searchBarHeight: Dp = 52.dp
+    val searchBarHeight: Dp = 48.dp
+    val minTouchTarget: Dp = 44.dp
 
     // Artwork Standard Sizes
-    val artworkMini: Dp = 42.dp
-    val artworkRow: Dp = 52.dp
+    val artworkMini: Dp = 44.dp
+    val artworkRow: Dp = 50.dp
     val artworkMedium: Dp = 72.dp
-    val artworkCard: Dp = 140.dp
-    val artworkCardLarge: Dp = 160.dp
+    val artworkCard: Dp = 148.dp
+    val artworkCardLarge: Dp = 164.dp
     val artworkHero: Dp = 300.dp
-    val artistAvatarSmall: Dp = 40.dp
+    val artistAvatarSmall: Dp = 44.dp
     val artistAvatarMedium: Dp = 72.dp
     val artistAvatarLarge: Dp = 96.dp
 
     // Button Sizes
-    val buttonSmall: Dp = 34.dp
+    val buttonSmall: Dp = 36.dp
     val buttonMedium: Dp = 44.dp
     val buttonLarge: Dp = 52.dp
-    val playFabSmall: Dp = 38.dp
+    val playFabSmall: Dp = 44.dp
     val playFabStandard: Dp = 56.dp
     val playFabHero: Dp = 68.dp
 }
 
 /**
  * ECHO Corner Radii Scale
- * Organic, continuous Apple-style corner rounding.
+ * Locked continuous corner scale with concentric nesting helper.
  */
 object EchoRadius {
     val none: Dp = 0.dp
-    val xs: Dp = 6.dp
-    val sm: Dp = 10.dp
-    val md: Dp = 14.dp
-    val lg: Dp = 18.dp
-    val xl: Dp = 20.dp
-    val xxl: Dp = 24.dp
+    val xs: Dp = 8.dp
+    val sm: Dp = 12.dp
+    val md: Dp = 16.dp
+    val lg: Dp = 20.dp
+    val xl: Dp = 26.dp
+    val xxl: Dp = 28.dp
     val pill: Dp = 999.dp
     val circular: Dp = 999.dp
+
+    fun nested(outer: Dp, padding: Dp): Dp = (outer - padding).coerceAtLeast(xs)
 }

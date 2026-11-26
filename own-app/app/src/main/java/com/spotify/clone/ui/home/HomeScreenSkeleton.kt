@@ -33,6 +33,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.spotify.clone.core.designsystem.EchoRadius
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.resolvedBackground
@@ -82,55 +83,45 @@ fun HomeScreenSkeleton(
         contentPadding = PaddingValues(bottom = 176.dp),
         userScrollEnabled = false
     ) {
-        // Header skeleton
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 10.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(
                         modifier = Modifier
-                            .size(width = 118.dp, height = 12.dp)
+                            .size(width = 68.dp, height = 18.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .background(brush)
                     )
                     Box(
                         modifier = Modifier
-                            .size(width = 176.dp, height = 34.dp)
+                            .size(width = 210.dp, height = 30.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(brush)
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(brush)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(brush)
-                    )
-                }
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(brush)
+                )
             }
         }
 
-        // Filter chips skeleton
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf(52.dp, 76.dp, 94.dp, 96.dp, 72.dp).forEach { w ->
+                listOf(52.dp, 76.dp, 62.dp, 72.dp).forEach { w ->
                     Box(
                         modifier = Modifier
                             .size(width = w, height = 34.dp)
@@ -139,10 +130,9 @@ fun HomeScreenSkeleton(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // Jump Back In 2-col bento skeleton
         item {
             Column(
                 modifier = Modifier.padding(horizontal = 20.dp),
@@ -157,23 +147,22 @@ fun HomeScreenSkeleton(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(58.dp)
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .height(56.dp)
+                                    .clip(RoundedCornerShape(EchoRadius.sm))
                                     .background(brush)
                             )
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(26.dp))
         }
 
-        // Editorial AI Showcase skeleton
         item {
             Box(
                 modifier = Modifier
                     .padding(horizontal = 20.dp, vertical = 6.dp)
-                    .size(width = 168.dp, height = 22.dp)
+                    .size(width = 140.dp, height = 22.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(brush)
             )
@@ -185,22 +174,21 @@ fun HomeScreenSkeleton(
                 items(3) {
                     Box(
                         modifier = Modifier
-                            .width(304.dp)
-                            .height(234.dp)
-                            .clip(RoundedCornerShape(22.dp))
+                            .width(296.dp)
+                            .height(210.dp)
+                            .clip(RoundedCornerShape(EchoRadius.lg))
                             .background(brush)
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
         }
 
-        // New Songs Today shelf skeleton
         item {
             Box(
                 modifier = Modifier
                     .padding(horizontal = 20.dp, vertical = 6.dp)
-                    .size(width = 152.dp, height = 22.dp)
+                    .size(width = 132.dp, height = 22.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(brush)
             )
@@ -210,13 +198,26 @@ fun HomeScreenSkeleton(
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 items(4) {
-                    Box(
-                        modifier = Modifier
-                            .width(152.dp)
-                            .height(198.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(brush)
-                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(148.dp)
+                                .clip(RoundedCornerShape(EchoRadius.md))
+                                .background(brush)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(width = 112.dp, height = 14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(brush)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(width = 80.dp, height = 12.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(brush)
+                        )
+                    }
                 }
             }
         }

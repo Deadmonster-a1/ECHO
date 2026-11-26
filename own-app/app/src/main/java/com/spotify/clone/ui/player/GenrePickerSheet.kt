@@ -41,11 +41,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spotify.clone.core.designsystem.EchoInsetCard
+import com.spotify.clone.core.designsystem.EchoRadius
 import com.spotify.clone.core.designsystem.LocalAppTheme
 import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoContrastOn
 import com.spotify.clone.core.designsystem.echoPressable
-import com.spotify.clone.core.designsystem.echoSpecularBorder
 import com.spotify.clone.core.designsystem.resolvedBorder
 import com.spotify.clone.core.designsystem.resolvedCard
 import com.spotify.clone.core.model.MusicGenre
@@ -78,7 +78,7 @@ fun GenrePickerBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        shape = RoundedCornerShape(topStart = EchoRadius.xl, topEnd = EchoRadius.xl),
         containerColor = MaterialTheme.colorScheme.surface
     ) {
         Column(
@@ -156,13 +156,14 @@ fun GenrePickerBottomSheet(
                     )
                 }
 
-                if (inferredGenre != null && currentTrack != null) {
+                if (inferredGenre != null) {
+                    val activeTrack = currentTrack!!
                     HorizontalDivider(color = borderColor, thickness = 0.6.dp)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .echoPressable(scaleOnPress = 0.985f, hapticOnClick = true) {
-                                musicController.playSameGenreRadio(currentTrack, inferredGenre)
+                            .echoPressable(scaleOnPress = 1.0f, hapticOnClick = true) {
+                                musicController.playSameGenreRadio(activeTrack, inferredGenre)
                                 onDismiss()
                             }
                             .padding(horizontal = 16.dp, vertical = 13.dp),
@@ -170,7 +171,7 @@ fun GenrePickerBottomSheet(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Start ${inferredGenre.shortLabel} Radio from \"${currentTrack.title}\"",
+                            text = "Start ${inferredGenre.shortLabel} Radio from \"${activeTrack.title}\"",
                             color = activeTheme.primaryColor,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -197,16 +198,17 @@ fun GenrePickerBottomSheet(
             ) {
                 MusicGenre.entries.forEach { genre ->
                     val isSelected = activeLock == genre
-                    val chipShape = RoundedCornerShape(50)
+                    val chipShape = RoundedCornerShape(EchoRadius.pill)
                     Row(
                         modifier = Modifier
                             .clip(chipShape)
                             .background(if (isSelected) activeTheme.primaryColor else cardBg)
-                            .then(
-                                if (isSelected) Modifier.border(1.dp, activeTheme.primaryColor, chipShape)
-                                else Modifier.echoSpecularBorder(isDarkMode, chipShape, borderColor)
+                            .border(
+                                width = if (isSelected) 1.dp else 0.6.dp,
+                                color = if (isSelected) activeTheme.primaryColor else borderColor,
+                                shape = chipShape
                             )
-                            .echoPressable(scaleOnPress = 0.95f, hapticOnClick = true) {
+                            .echoPressable(scaleOnPress = 0.97f, hapticOnClick = true) {
                                 if (genre == MusicGenre.ALL) {
                                     musicController.setAutoMatchGenre(true)
                                 } else {

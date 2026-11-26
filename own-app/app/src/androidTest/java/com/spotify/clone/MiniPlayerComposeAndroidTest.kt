@@ -46,6 +46,7 @@ class MiniPlayerComposeAndroidTest {
                 MiniPlayerBar(
                     playbackState = state,
                     onTogglePlayPause = { playPauseClicked = true },
+                    onSkipNext = {},
                     onToggleFavorite = {},
                     onClick = {}
                 )
@@ -88,6 +89,7 @@ class MiniPlayerComposeAndroidTest {
                 MiniPlayerBar(
                     playbackState = state,
                     onTogglePlayPause = {},
+                    onSkipNext = {},
                     onToggleFavorite = {},
                     onClick = {}
                 )

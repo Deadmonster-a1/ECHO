@@ -3,6 +3,10 @@ package com.spotify.clone.core.designsystem
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.view.View
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
@@ -11,6 +15,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
@@ -29,6 +34,9 @@ fun AppThemeOption.resolvedSurface(isDark: Boolean): Color =
 
 fun AppThemeOption.resolvedCard(isDark: Boolean): Color =
     if (isDark) darkCardColor else lightCardColor
+
+fun AppThemeOption.resolvedElevated(isDark: Boolean): Color =
+    if (isDark) EchoDarkElevated else EchoLightElevated
 
 fun AppThemeOption.resolvedBorder(isDark: Boolean): Color =
     if (isDark) EchoDarkBorder else EchoLightBorder
@@ -56,10 +64,10 @@ fun EchoTheme(content: @Composable () -> Unit) {
     val view = LocalView.current
     if (!view.isInEditMode) {
         LaunchedEffect(isDarkMode) {
-            val window = view.context.findActivity()?.window ?: return@LaunchedEffect
-            val insetsController = WindowCompat.getInsetsController(window, view)
-            insetsController.isAppearanceLightStatusBars = !isDarkMode
-            insetsController.isAppearanceLightNavigationBars = !isDarkMode
+            updateSystemBarsAppearance(view = view, lightBars = !isDarkMode, updateEdgeToEdge = true)
+        }
+        SideEffect {
+            updateSystemBarsAppearance(view = view, lightBars = !isDarkMode, updateEdgeToEdge = false)
         }
     }
 
@@ -73,7 +81,7 @@ fun EchoTheme(content: @Composable () -> Unit) {
             onBackground = onBackground,
             surface = surfaceColor,
             onSurface = onSurface,
-            surfaceVariant = Color(0xFF2C2C2E),
+            surfaceVariant = EchoDarkElevated,
             onSurfaceVariant = onSurfaceVariant,
             outline = outlineColor
         )
@@ -87,7 +95,7 @@ fun EchoTheme(content: @Composable () -> Unit) {
             onBackground = onBackground,
             surface = surfaceColor,
             onSurface = onSurface,
-            surfaceVariant = Color(0xFFF2F2F7),
+            surfaceVariant = Color(0xFFECEDF3),
             onSurfaceVariant = onSurfaceVariant,
             outline = outlineColor
         )
@@ -108,6 +116,39 @@ fun EchoTheme(content: @Composable () -> Unit) {
 @Composable
 fun SpotifyTheme(content: @Composable () -> Unit) {
     EchoTheme(content = content)
+}
+
+/**
+ * Applies light or dark system bar icon appearance consistently across API levels.
+ */
+internal fun updateSystemBarsAppearance(
+    view: View,
+    lightBars: Boolean,
+    updateEdgeToEdge: Boolean = false
+) {
+    val activity = view.context.findActivity() ?: return
+    if (updateEdgeToEdge && activity is ComponentActivity) {
+        if (lightBars) {
+            activity.enableEdgeToEdge(
+                statusBarStyle = SystemBarStyle.light(
+                    android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT
+                ),
+                navigationBarStyle = SystemBarStyle.light(
+                    android.graphics.Color.TRANSPARENT,
+                    android.graphics.Color.TRANSPARENT
+                )
+            )
+        } else {
+            activity.enableEdgeToEdge(
+                statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+                navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            )
+        }
+    }
+    val insetsController = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+    insetsController.isAppearanceLightStatusBars = lightBars
+    insetsController.isAppearanceLightNavigationBars = lightBars
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {

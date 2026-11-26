@@ -1,10 +1,10 @@
 {
-  "versionCode": 5,
-  "versionName": "2.0.1",
-  "releaseTitle": "echo v2.0.1 - Brand Refresh & Daily AI Home",
-  "releaseNotes": "Updated app display branding from ECHO to echo across launcher, splash, widgets, settings, and share sheets, alongside daily auto-updating AI Home and background Studio HD song upgrades.",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.0.1/echo.apk",
-  "apkSize": 4512615,
+  "versionCode": 6,
+  "versionName": "2.1.0",
+  "releaseTitle": "echo v2.1.0 - Redesigned UI & Synced English Lyrics",
+  "releaseNotes": "• Simplified Home, Search, Library, Profile & Settings\n• Animated echo header with personalized greeting & zero duplicate songs\n• Docked translucent bottom navigation bar\n• Scroll down on Now Playing for live synced English lyrics on every song\n• Redesigned Liquid Glass update popup",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.1.0/echo.apk",
+  "apkSize": 5867095,
   "mandatory": false,
-  "publishedAt": "2026-11-25T15:40:00Z"
+  "publishedAt": "2026-11-26T07:45:00Z"
 }

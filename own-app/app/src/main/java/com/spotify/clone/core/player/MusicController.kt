@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Collections
 import kotlin.math.abs
 
 /**
@@ -55,6 +56,7 @@ class MusicController private constructor(private val context: Context) {
     private var progressJob: Job? = null
     private var playJob: Job? = null
     private var continuationJob: Job? = null
+    private val resolvingTrackIds: MutableSet<String> = Collections.synchronizedSet(HashSet())
     @Volatile private var queueGenerationId: Long = 0L
     @Volatile private var lastCompletedTrackId: String? = null
     private var pendingAction: (() -> Unit)? = null
@@ -270,26 +272,45 @@ class MusicController private constructor(private val context: Context) {
     private fun resolveTrackInBackgroundIfNeeded(track: Track, genAtStart: Long) {
         val downloadMgr = TrackDownloadManager.getInstance(context)
         if (downloadMgr.isTrackDownloaded(track.id) || !FullTrackStreamResolver.needsResolution(track)) return
+        if (!resolvingTrackIds.add(track.id)) return
 
         scope.launch(Dispatchers.IO) {
-            val resolved = resolvePlayableTrack(track, downloadMgr)
-            if (resolved.mediaUri.isNotBlank() && resolved.mediaUri != track.mediaUri) {
+            try {
+                val resolved = resolvePlayableTrack(track, downloadMgr)
                 withContext(Dispatchers.Main) {
                     if (genAtStart != queueGenerationId) return@withContext
                     val idx = currentQueue.indexOfFirst { it.id == track.id }
-                    if (idx != -1) {
-                        val updated = currentQueue.toMutableList()
-                        updated[idx] = resolved
-                        currentQueue = updated
-                        originalQueueOrder = originalQueueOrder.map { if (it.id == resolved.id) resolved else it }
-                        val currentPos = controller?.currentPosition ?: 0L
-                        controller?.replaceMediaItem(idx, resolved.toMediaItem())
-                        if (controller?.currentMediaItemIndex == idx) {
-                            controller?.seekTo(idx, currentPos)
+                    if (resolved.mediaUri.isNotBlank() && !resolved.mediaUri.startsWith("saavn_enc:") && resolved.mediaUri != track.mediaUri) {
+                        if (idx != -1) {
+                            val updated = currentQueue.toMutableList()
+                            updated[idx] = resolved
+                            currentQueue = updated
+                            originalQueueOrder = originalQueueOrder.map { if (it.id == resolved.id) resolved else it }
+                            val player = controller
+                            val currentPos = player?.currentPosition?.coerceAtLeast(0L) ?: 0L
+                            val wasIdleOrErrored = player?.playbackState == Player.STATE_IDLE
+                            player?.replaceMediaItem(idx, resolved.toMediaItem())
+                            if (player?.currentMediaItemIndex == idx) {
+                                player.seekTo(idx, currentPos)
+                                if (wasIdleOrErrored) {
+                                    player.prepare()
+                                    player.play()
+                                }
+                            }
+                            _playbackState.update { it.copy(currentTrack = resolved, errorMessage = null) }
                         }
-                        _playbackState.update { it.copy(currentTrack = resolved) }
+                    } else if (controller?.currentMediaItemIndex == idx && controller?.playbackState == Player.STATE_IDLE) {
+                        _playbackState.update {
+                            it.copy(
+                                isPlaying = false,
+                                isLoading = false,
+                                errorMessage = "Unable to stream this track. Check your connection."
+                            )
+                        }
                     }
                 }
+            } finally {
+                resolvingTrackIds.remove(track.id)
             }
         }
     }
@@ -483,6 +504,8 @@ class MusicController private constructor(private val context: Context) {
             if (resolved.mediaUri.isBlank() || resolved.mediaUri.startsWith("saavn_enc:")) {
                 withContext(Dispatchers.Main) {
                     if (generation != queueGenerationId) return@withContext
+                    controller?.stop()
+                    controller?.clearMediaItems()
                     currentQueue = updatedQueue
                     _playbackState.update {
                         it.copy(
@@ -494,6 +517,7 @@ class MusicController private constructor(private val context: Context) {
                             errorMessage = "Unable to stream this track. Check your connection."
                         )
                     }
+                    EchoWidgetManager.updateAll(context, _playbackState.value)
                 }
                 return@launch
             }
@@ -656,7 +680,20 @@ class MusicController private constructor(private val context: Context) {
     }
 
     fun togglePlayPause() {
-        controller?.let { if (it.isPlaying) it.pause() else it.play() }
+        val state = _playbackState.value
+        val player = controller
+        if (player == null) {
+            state.currentTrack?.let { playTrack(it, currentQueue.ifEmpty { listOf(it) }) }
+            return
+        }
+        if (state.errorMessage != null || player.mediaItemCount == 0 || player.playbackState == Player.STATE_IDLE) {
+            val current = state.currentTrack
+            if (current != null) {
+                playTrack(current, currentQueue.ifEmpty { listOf(current) })
+                return
+            }
+        }
+        if (player.isPlaying) player.pause() else player.play()
     }
 
     fun skipNext() {
@@ -666,12 +703,22 @@ class MusicController private constructor(private val context: Context) {
         if (currentTrack != null && pos in 1L..24_999L) {
             EchoRecommendationEngine.recordEarlySkip(currentTrack)
         }
-        player.seekToNextMediaItem()
+        if (player.hasNextMediaItem()) {
+            player.seekToNextMediaItem()
+        } else {
+            val nextIdx = (_playbackState.value.queueIndex + 1)
+            if (nextIdx in currentQueue.indices) {
+                playTrack(currentQueue[nextIdx], currentQueue)
+            }
+        }
     }
 
     fun skipPrevious() {
-        controller?.let {
-            if (it.currentPosition > 3000L) it.seekTo(0L) else it.seekToPreviousMediaItem()
+        val player = controller ?: return
+        if (player.currentPosition > 3000L || !player.hasPreviousMediaItem()) {
+            player.seekTo(0L)
+        } else {
+            player.seekToPreviousMediaItem()
         }
     }
 

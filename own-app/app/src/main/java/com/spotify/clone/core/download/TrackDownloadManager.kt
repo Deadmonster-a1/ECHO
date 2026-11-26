@@ -339,11 +339,6 @@ class TrackDownloadManager private constructor(context: Context) {
         onComplete: ((successCount: Int) -> Unit)? = null
     ) {
         scope.launch {
-            savePlaylistMetadata(playlist)
-            val updatedPlaylists = _downloadedPlaylistIds.value + playlist.id
-            _downloadedPlaylistIds.value = updatedPlaylists
-            prefs.edit().putStringSet(KEY_DOWNLOADED_PLAYLIST_IDS, updatedPlaylists).apply()
-
             var successCount = 0
             val total = playlist.tracks.size
 
@@ -352,6 +347,15 @@ class TrackDownloadManager private constructor(context: Context) {
                 if (ok) successCount++
                 withContext(Dispatchers.Main) {
                     onProgress?.invoke(index + 1, total)
+                }
+            }
+
+            if (successCount > 0) {
+                savePlaylistMetadata(playlist)
+                synchronized(stateLock) {
+                    val updatedPlaylists = _downloadedPlaylistIds.value + playlist.id
+                    _downloadedPlaylistIds.value = updatedPlaylists
+                    prefs.edit().putStringSet(KEY_DOWNLOADED_PLAYLIST_IDS, updatedPlaylists).apply()
                 }
             }
 

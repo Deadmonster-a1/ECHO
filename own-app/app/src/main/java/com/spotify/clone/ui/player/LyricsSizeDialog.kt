@@ -31,6 +31,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spotify.clone.core.designsystem.LocalAppTheme
+import com.spotify.clone.core.designsystem.tabularFigures
 
 enum class LyricsSizeTier(val label: String, val fontSizeSp: Float, val subtitle: String) {
     COMPACT("Compact", 17f, "Fits more lines on screen at once"),
@@ -101,7 +102,7 @@ fun LyricsSizeDialog(
                             Text(
                                 text = "${tier.fontSizeSp.toInt()} sp • ${tier.subtitle}",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 12.sp
+                                style = MaterialTheme.typography.bodySmall.tabularFigures()
                             )
                         }
                     }
@@ -109,12 +110,12 @@ fun LyricsSizeDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Live Preview Box
+                // Live Preview Box (renders on dark lyrics backdrop so preview matches player)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(Color(0xFF161420))
                         .padding(14.dp)
                 ) {
                     Text(

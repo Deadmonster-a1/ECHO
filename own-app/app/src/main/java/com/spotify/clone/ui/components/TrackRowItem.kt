@@ -70,9 +70,9 @@ fun TrackRowItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 2.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(rowHighlight)
-                .echoPressable(scaleOnPress = 0.985f, onClick = onClick)
+                .echoPressable(scaleOnPress = 1.0f, onClick = onClick)
                 .padding(horizontal = 8.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -154,9 +154,9 @@ fun TrackRowItem(
             if (onMoreClick != null) {
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
-                        .echoPressable(scaleOnPress = 0.86f, onClick = onMoreClick),
+                        .echoPressable(scaleOnPress = 0.88f, onClick = onMoreClick),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

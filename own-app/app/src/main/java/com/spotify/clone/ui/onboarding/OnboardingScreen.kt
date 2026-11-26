@@ -1,5 +1,6 @@
 package com.spotify.clone.ui.onboarding
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -179,12 +180,17 @@ fun OnboardingScreen(
     var selectedArtists by remember { mutableStateOf(existingArtists) }
     var artistQuery by remember { mutableStateOf("") }
 
+    BackHandler(enabled = currentStep > 0) {
+        focusManager.clearFocus()
+        currentStep--
+    }
+
     val screenBg = activeTheme.resolvedBackground(isDarkMode)
     val cardBg = activeTheme.resolvedCard(isDarkMode)
     val borderColor = activeTheme.resolvedBorder(isDarkMode)
     val textPrimary = MaterialTheme.colorScheme.onBackground
     val textSecondary = MaterialTheme.colorScheme.onSurfaceVariant
-    val accent = EchoPrismPrimary
+    val accent = activeTheme.primaryColor
 
     val progressFraction by animateFloatAsState(
         targetValue = (currentStep + 1) / 3f,
@@ -229,7 +235,7 @@ fun OnboardingScreen(
                 Box(
                     modifier = Modifier
                         .align(Alignment.CenterStart)
-                        .size(36.dp)
+                        .size(44.dp)
                         .clip(CircleShape)
                         .echoPressable(scaleOnPress = 0.90f, hapticOnClick = true) {
                             focusManager.clearFocus()

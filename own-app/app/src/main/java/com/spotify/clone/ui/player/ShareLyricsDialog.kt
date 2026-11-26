@@ -52,6 +52,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.spotify.clone.core.designsystem.ArtworkColors
+import com.spotify.clone.core.designsystem.EchoRadius
+import com.spotify.clone.core.designsystem.EchoSpacing
 import com.spotify.clone.core.model.LyricLine
 import com.spotify.clone.core.model.Track
 
@@ -107,7 +109,7 @@ fun ShareLyricsDialog(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(EchoSpacing.minTouchTarget)) {
                         Icon(Icons.Filled.Close, contentDescription = "Close")
                     }
                 }
