@@ -31,16 +31,21 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.ColorLens
+import androidx.compose.material.icons.outlined.Copyright
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Equalizer
 import androidx.compose.material.icons.outlined.FormatSize
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material.icons.outlined.Radio
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Subtitles
 import androidx.compose.material.icons.outlined.SystemUpdate
@@ -88,6 +93,8 @@ import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoPressable
 import com.spotify.clone.core.designsystem.tabularFigures
 import com.spotify.clone.core.download.TrackDownloadManager
+import com.spotify.clone.core.legal.GravitLegalCatalog
+import com.spotify.clone.core.legal.LegalDocumentTab
 import com.spotify.clone.core.player.MusicController
 import com.spotify.clone.core.profile.PrismAvatarOption
 import com.spotify.clone.core.profile.UserProfileManager
@@ -97,7 +104,9 @@ import com.spotify.clone.core.update.AppUpdateManager
 import com.spotify.clone.core.update.UpdateInfo
 import com.spotify.clone.ui.components.AppUpdateDialog
 import com.spotify.clone.ui.components.EqualizerBottomSheet
+import com.spotify.clone.ui.components.LegalDocumentSheet
 import com.spotify.clone.ui.components.PlaybackSpeedBottomSheet
+import com.spotify.clone.ui.splash.EchoAcousticLogoMark
 import kotlinx.coroutines.launch
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -163,6 +172,7 @@ fun SettingsScreen(
     var availableUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
     val coroutineScope = rememberCoroutineScope()
     var showClearCacheConfirm by remember { mutableStateOf(false) }
+    var activeLegalTab by remember { mutableStateOf<LegalDocumentTab?>(null) }
 
     val screenBg = MaterialTheme.colorScheme.background
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -600,6 +610,80 @@ fun SettingsScreen(
                 )
             }
         }
+
+        // 6. Legal & About
+        item {
+            SettingsGroupTitle("LEGAL & ABOUT", textSecondary)
+            EchoInsetCard(
+                modifier = Modifier.padding(horizontal = 20.dp),
+                shape = RoundedCornerShape(EchoRadius.xl)
+            ) {
+                SettingsRow(
+                    icon = Icons.Outlined.PrivacyTip,
+                    title = "Privacy Policy",
+                    subtitle = "Local-first data, network requests & erasure rights",
+                    onClick = { activeLegalTab = LegalDocumentTab.PRIVACY }
+                )
+                SettingsDivider(dividerColor)
+                SettingsRow(
+                    icon = Icons.Outlined.Description,
+                    title = "Terms & Conditions",
+                    subtitle = "License grant, acceptable use & liability terms",
+                    onClick = { activeLegalTab = LegalDocumentTab.TERMS }
+                )
+                SettingsDivider(dividerColor)
+                SettingsRow(
+                    icon = Icons.Outlined.Copyright,
+                    title = "Copyright & DMCA Notice",
+                    subtitle = "${GravitLegalCatalog.COPYRIGHT_NOTICE} • Content rights",
+                    onClick = { activeLegalTab = LegalDocumentTab.COPYRIGHT }
+                )
+                SettingsDivider(dividerColor)
+                SettingsRow(
+                    icon = Icons.Outlined.Security,
+                    title = "Data, Permissions & Security",
+                    subtitle = "App permissions, HTTPS transport & offline storage",
+                    onClick = { activeLegalTab = LegalDocumentTab.PERMISSIONS }
+                )
+                SettingsDivider(dividerColor)
+                SettingsRow(
+                    icon = Icons.Outlined.Code,
+                    title = "Open-Source Licenses",
+                    subtitle = "Third-party libraries & software attributions",
+                    onClick = { activeLegalTab = LegalDocumentTab.LICENSES }
+                )
+            }
+        }
+
+        // Branded GRAVIT Copyright Footer
+        item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 26.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                EchoAcousticLogoMark(modifier = Modifier.size(28.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "${GravitLegalCatalog.APP_BRAND} • by ${GravitLegalCatalog.OWNER_NAME}",
+                    color = textPrimary,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Version ${BuildConfig.VERSION_NAME} (Build ${BuildConfig.VERSION_CODE})",
+                    color = textSecondary,
+                    style = MaterialTheme.typography.bodySmall.tabularFigures()
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = GravitLegalCatalog.COPYRIGHT_NOTICE,
+                    color = textSecondary,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                )
+            }
+        }
     }
 
     if (showEditProfileDialog) {
@@ -718,6 +802,13 @@ fun SettingsScreen(
         AppUpdateDialog(
             update = update,
             onDismiss = { availableUpdate = null }
+        )
+    }
+
+    activeLegalTab?.let { tab ->
+        LegalDocumentSheet(
+            initialTab = tab,
+            onDismiss = { activeLegalTab = null }
         )
     }
 }

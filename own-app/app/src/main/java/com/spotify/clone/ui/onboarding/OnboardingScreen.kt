@@ -95,10 +95,13 @@ import com.spotify.clone.core.designsystem.LocalReducedMotion
 import com.spotify.clone.core.designsystem.ThemeManager
 import com.spotify.clone.core.designsystem.echoPressable
 import com.spotify.clone.core.designsystem.tabularFigures
+import com.spotify.clone.core.legal.GravitLegalCatalog
+import com.spotify.clone.core.legal.LegalDocumentTab
 import com.spotify.clone.core.model.MusicGenre
 import com.spotify.clone.core.profile.PrismAvatarOption
 import com.spotify.clone.core.profile.UserProfileManager
 import com.spotify.clone.core.recommendation.EchoRecommendationEngine
+import com.spotify.clone.ui.components.LegalDocumentSheet
 import com.spotify.clone.ui.splash.EchoAcousticLogoMark
 import kotlinx.coroutines.delay
 
@@ -156,6 +159,7 @@ fun OnboardingScreen(
     var artistQuery by remember { mutableStateOf("") }
     var artistRegionFilter by remember { mutableStateOf(WorldRegion.ALL) }
     var liveArtistResults by remember { mutableStateOf<List<OnboardingArtist>>(emptyList()) }
+    var activeLegalTab by remember { mutableStateOf<LegalDocumentTab?>(null) }
 
     // Debounced live catalog search for Artists step (surfaces any artist worldwide)
     LaunchedEffect(artistQuery, currentStep) {
@@ -317,6 +321,7 @@ fun OnboardingScreen(
                         focusManager.clearFocus()
                         currentStep = 1
                     },
+                    onOpenLegal = { tab -> activeLegalTab = tab },
                     isDarkMode = isDarkMode,
                     textPrimary = textPrimary,
                     textSecondary = textSecondary,
@@ -430,8 +435,16 @@ fun OnboardingScreen(
             }
         }
     }
+
+    activeLegalTab?.let { tab ->
+        LegalDocumentSheet(
+            initialTab = tab,
+            onDismiss = { activeLegalTab = null }
+        )
+    }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProfileStep(
     nameInput: String,
@@ -439,6 +452,7 @@ private fun ProfileStep(
     selectedAvatarId: String,
     onAvatarSelect: (String) -> Unit,
     onSubmit: () -> Unit,
+    onOpenLegal: (LegalDocumentTab) -> Unit,
     isDarkMode: Boolean,
     textPrimary: Color,
     textSecondary: Color,
@@ -609,6 +623,50 @@ private fun ProfileStep(
                     }
                 }
             }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Clean Apple HIG legal & GRAVIT copyright acceptance footer
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "By continuing, you agree to ${GravitLegalCatalog.OWNER_NAME}'s Terms & Conditions and Privacy Policy.",
+                color = textSecondary,
+                style = MaterialTheme.typography.bodySmall.copy(lineHeight = 18.sp)
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    LegalDocumentTab.PRIVACY,
+                    LegalDocumentTab.TERMS,
+                    LegalDocumentTab.COPYRIGHT
+                ).forEach { tab ->
+                    Text(
+                        text = tab.fullTitle,
+                        color = accent,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .echoPressable(scaleOnPress = 0.96f, hapticOnClick = true) {
+                                onOpenLegal(tab)
+                            }
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
+                }
+            }
+            Text(
+                text = GravitLegalCatalog.COPYRIGHT_NOTICE,
+                color = textSecondary.copy(alpha = 0.8f),
+                style = MaterialTheme.typography.labelSmall
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))

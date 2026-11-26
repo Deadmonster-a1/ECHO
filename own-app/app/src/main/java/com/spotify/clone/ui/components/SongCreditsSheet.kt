@@ -196,6 +196,14 @@ fun SongCreditsSheet(
                 "Genre" to inferredGenre,
                 "Lyrics Sync" to syncLabel
             ), textPrimary, textSecondary)
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "${com.spotify.clone.core.legal.GravitLegalCatalog.COPYRIGHT_NOTICE} Player UI & metadata layout belong to GRAVIT; recordings, lyrics, and artwork remain copyright of their respective rights holders.",
+                color = textSecondary,
+                fontSize = 11.5.sp,
+                lineHeight = 16.sp
+            )
         }
     }
 }

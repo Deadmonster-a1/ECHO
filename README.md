@@ -4,7 +4,7 @@
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF?style=flat&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-4285F4?style=flat&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![Media3](https://img.shields.io/badge/AndroidX_Media3-1.4.1-FF6F00?style=flat)](https://developer.android.com/media/media3)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/Copyright-%C2%A9_2026_GRAVIT-blue.svg)](#legal--copyright)
 [![CI/CD](https://github.com/Deadmonster-a1/ECHO/actions/workflows/android-release.yml/badge.svg)](https://github.com/Deadmonster-a1/ECHO/actions)
 
 **ECHO v2.0** is a high-performance Android music player crafted with Jetpack Compose, AndroidX Media3, and reverse-engineered architectural blueprints from **LastWave-Native**. Designed with Liquid Glass frosted refraction surfaces, Material 3 Expressive spring physics, audiophile DSP controls (AutoEQ presets, independent tempo & pitch stretch, smart Automix crossfade, audio normalization), millisecond-synchronized lyrics, and dynamic Spotify Canvas visualizers.
@@ -164,5 +164,12 @@ Whenever you want to release a new version of ECHO to your users, simply run the
 
 ---
 
-## 📄 License
-This project is licensed under the Apache 2.0 License.
+## Legal & Copyright
+
+**© 2026 GRAVIT. All rights reserved.**
+
+All application source code, `echo` branding, UI/UX design, Material 3 Expressive components, recommendation logic, and visual assets are the exclusive copyright and intellectual property of **GRAVIT**. Unauthorized redistribution, commercial exploitation, or removal of copyright notices is prohibited.
+
+Third-party open-source dependencies (AndroidX, Jetpack Compose, Media3 ExoPlayer, Room, Coil, Kotlin/Coroutines) remain subject to their respective open-source licenses (Apache License 2.0), as listed inside the app under **Settings -> Legal & About -> Open-Source Licenses**.
+
+Music metadata, artwork, lyrics, and third-party audio streams remain the copyrighted property of their respective artists, labels, and rights holders. For Privacy Policy, Terms & Conditions, or DMCA inquiries, see the in-app Legal Center or contact `legal@gravit.app`.

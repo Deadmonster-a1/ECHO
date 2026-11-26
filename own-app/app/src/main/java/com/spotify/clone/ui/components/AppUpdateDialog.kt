@@ -482,6 +482,13 @@ fun AppUpdateDialog(
                                 )
                             }
                         }
+
+                        Text(
+                            text = "Published by ${com.spotify.clone.core.legal.GravitLegalCatalog.OWNER_NAME} • ${com.spotify.clone.core.legal.GravitLegalCatalog.COPYRIGHT_NOTICE}",
+                            color = textSecondary.copy(alpha = 0.78f),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        )
                     }
                 }
             }

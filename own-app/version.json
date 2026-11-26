@@ -1,10 +1,10 @@
 {
-  "versionCode": 7,
-  "versionName": "2.2.0",
-  "releaseTitle": "echo v2.2.0 - Material 3 Expressive Redesign",
-  "releaseNotes": "• Full Material 3 Expressive redesign across Home, Search, Library, Player, and Settings\n• Apple-style 3-step onboarding with portrait images for every artist\n• Cleaner borderless animated logo in Home and organized Settings sections\n• Redesigned Now Playing with rounded icons and dedicated smooth-scrolling Lyrics page\n• Fixed unliked heart button background and lyrics sync scrolling",
-  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.2.0/echo.apk",
-  "apkSize": 5982656,
+  "versionCode": 8,
+  "versionName": "2.3.0",
+  "releaseTitle": "echo v2.3.0 - GRAVIT Copyright & Legal Center",
+  "releaseNotes": "• Reserved all copyrights & brand attribution to GRAVIT (© 2026 GRAVIT. All rights reserved.)\n• Added complete in-app Legal Center in Settings & Onboarding: Privacy Policy, Terms & Conditions, Copyright/DMCA Notice, Data & Permissions, and Open-Source Licenses\n• Added GRAVIT rights disclosures across Song Credits, Share Lyrics, and Update prompts",
+  "downloadUrl": "https://github.com/Deadmonster-a1/ECHO/releases/download/v2.3.0/echo.apk",
+  "apkSize": 5999730,
   "mandatory": false,
-  "publishedAt": "2026-11-26T18:01:00Z"
+  "publishedAt": "2026-11-26T18:56:33Z"
 }
